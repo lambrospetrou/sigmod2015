@@ -125,11 +125,13 @@ struct Forget {
 //---------------------------------------------------------------------------
 // Begin reference implementation
 //---------------------------------------------------------------------------
+
 static vector<uint32_t> schema;
 static vector<map<uint32_t,vector<uint64_t>>> relations;
 //---------------------------------------------------------------------------
 static map<uint64_t,vector<pair<uint32_t,vector<uint64_t>>>> transactionHistory;
 static map<uint64_t,bool> queryResults;
+
 //---------------------------------------------------------------------------
 static void processDefineSchema(const DefineSchema& d)
 {
