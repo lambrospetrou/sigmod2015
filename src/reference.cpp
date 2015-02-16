@@ -133,21 +133,35 @@ struct CTransStruct{
     uint64_t trans_id;
     uint64_t value;
     CTransStruct(uint64_t tid, uint64_t v): trans_id(tid), value(v) {}
+    /*
+    inline bool operator< (const CTransStruct& rhs) const {
+        if (this->trans_id < rhs.trans_id) return true;
+        else if (this->trans_id > rhs.trans_id) return false;
+        else return this->value < rhs.value;
+    }
+    inline bool operator> (const CTransStruct& rhs) const {return rhs < *this;}
+    inline bool operator<=(const CTransStruct& rhs) const {return !(*this > rhs);}
+    inline bool operator>=(const CTransStruct& rhs) const {return !(*this < rhs);}
+    */
 };
-bool combCTRS(uint64_t trans_id, const CTransStruct& a) {
-    return a.trans_id <= trans_id;
+bool combCTRS_upper(uint64_t trans_id, const CTransStruct& a) {
+    return trans_id < a.trans_id;
+}
+bool combCTRS_lower(const CTransStruct& a, uint64_t trans_id) {
+    return a.trans_id < trans_id;
 }
 struct CTRSLessThan_t {
     bool operator() (const CTransStruct& left, const CTransStruct& right) {
-        if (left.trans_id < right.trans_id) return true;
-        else if (left.trans_id > right.trans_id) return false;
-        else return left.value <= right.value;
+        return left.trans_id < right.trans_id;
+        //if (left.trans_id < right.trans_id) return true;
+        //else if (left.trans_id > right.trans_id) return false;
+        //else return left.value < right.value;
     }
-    bool operator() (const CTransStruct& left, uint64_t right) {
-        return left.trans_id < right;
+    bool operator() (const CTransStruct& o, uint64_t target) {
+        return o.trans_id < target;
     }
-    bool operator() (uint64_t left, const CTransStruct& right) {
-        return left < right.trans_id;
+    bool operator() (uint64_t target, const CTransStruct& o) {
+        return target < o.trans_id;
     }
 } CTRSLessThan;
 
@@ -256,21 +270,25 @@ static void processTransaction(const Transaction& t) {
 static void processValidationQueries(const ValidationQueries& v) {
     //cerr << "Validate: " << v.from << ":" << v.to << endl;
     
+    CTransStruct fromCTRS(v.from, 0);
+    CTransStruct toCTRS(v.to, -1);
+    vector<uint64_t> values;
+
     // TODO - VERY NAIVE HERE - validate each query separately
     bool conflict=false;
     const char* reader=v.queries;
-    vector<uint64_t> values;
     for (unsigned int index=0;index<v.queryCount;++index) {
         auto& q=*reinterpret_cast<const Query*>(reader);
 
         bool match=true;
         for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
-            cerr << "query[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
+            cerr << "\nquery[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
             
             // TODO - fetch the values for this relation 
             auto& cVals = gRelations[q.relationId].columns[c->column].transactions;
-            auto valFrom = std::lower_bound(cVals.begin(), cVals.end(), v.from, CTRSLessThan);
-            auto valTo = std::upper_bound(cVals.begin(), cVals.end(), v.to, CTRSLessThan);
+            auto valFrom = std::lower_bound(cVals.begin(), cVals.end(), fromCTRS, CTRSLessThan);
+            auto valTo = std::upper_bound(cVals.begin(), cVals.end(), toCTRS, CTRSLessThan);
+            cerr << " --- trans:" << valFrom->trans_id << "-" << valFrom->value << " .. trans:" << valTo->trans_id << "-" << valTo->value << " end:" << (valTo == cVals.end()) << endl;
             values.clear();
             for (;valFrom!=valTo;++valFrom) {
                 //cerr << "pred_col: " << c->column << " value: " << valFrom->value << " : " << valFrom->trans_id << endl;
@@ -279,7 +297,9 @@ static void processValidationQueries(const ValidationQueries& v) {
             std::stable_sort(values.begin(), values.end());
             values.resize(std::distance(values.begin(), std::unique(values.begin(), values.end())));
             
-            cerr << "sorting & unique values - check! - size: " << values.size() << endl;
+            cerr << "  :: sorting & unique values - size: " << values.size() << endl;
+            if (!values.empty())
+                cerr << "    :: min:" << values[0] << " max: " << values[values.size()-1] << endl;
 
             // make the actual check
             uint64_t queryValue=c->value;
@@ -308,6 +328,7 @@ static void processValidationQueries(const ValidationQueries& v) {
             } else {
                 result = false;
             }
+            // there is one predicate not true so this whole query on this relation is false
             if (!result) { match=false; break; }
         }
         if (match) {
@@ -317,7 +338,7 @@ static void processValidationQueries(const ValidationQueries& v) {
         reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
     }
     gQueryResults[v.validationId]=conflict;
-    cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << endl;
+    cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
     if (v.validationId == 21) exit(1);
 
 /*
@@ -379,6 +400,8 @@ static void processForget(const Forget& f)
     //cerr << "Forget: " << f.transactionId << endl;
     auto iend = gTransactionHistory.upper_bound(f.transactionId);
 
+    CTransStruct fstruct(f.transactionId, -1);
+
     // Delete the transactions from inside the columns in the relations
     vector<bool> relationsCleaned(gRelations.size(), false);
     for(auto ctr=gTransactionHistory.begin(); ctr!=iend; ++ctr) {
@@ -391,7 +414,7 @@ static void processForget(const Forget& f)
                 auto& relCols = gRelations[cop->rel_id].columns;
                 for_each(relCols.begin(), relCols.end(), [&] (ColumnStruct& col) {
                         col.transactions.erase(col.transactions.begin(), 
-                            upper_bound(col.transactions.begin(), col.transactions.end(), f.transactionId, combCTRS));
+                             upper_bound(col.transactions.begin(), col.transactions.end(), fstruct, CTRSLessThan));
                 });
             }
         }
