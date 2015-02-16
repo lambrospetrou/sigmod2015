@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <utility>
+#include <chrono>
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
@@ -335,8 +336,29 @@ static void processFlush(const Flush& f) {
     cout.flush();
 }
 //---------------------------------------------------------------------------
+
 static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
+    auto start = std::chrono::system_clock::now();
+    TransStruct fstruct(f.transactionId);
+    // Delete the transactions from inside the columns in the relations
+    for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
+        // delete this transaction from the lastRel columns
+        auto& transactions = crel->transactions;
+        transactions.erase(transactions.begin(), 
+            upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
+    }
+    // then delete the transactions from the transaction history
+    gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
+    auto end = std::chrono::system_clock::now();
+    cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
+}
+
+//---------------------------------------------------------------------------
+/*
+static void processForget(const Forget& f) {
+    //cerr << "Forget: " << f.transactionId << endl;
+    auto start = std::chrono::system_clock::now();
     auto iend = gTransactionHistory.upper_bound(f.transactionId);
     TransStruct fstruct(f.transactionId);
 
@@ -359,7 +381,10 @@ static void processForget(const Forget& f) {
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), iend);
     //cerr << ":: Success Forget: " << f.transactionId << endl;
+    auto end = std::chrono::system_clock::now();
+    cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
 }
+*/
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
 template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
