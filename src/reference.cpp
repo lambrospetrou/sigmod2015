@@ -134,6 +134,23 @@ struct CTransStruct{
     uint64_t value;
     CTransStruct(uint64_t tid, uint64_t v): trans_id(tid), value(v) {}
 };
+bool combCTRS(uint64_t trans_id, const CTransStruct& a) {
+    return a.trans_id <= trans_id;
+}
+struct CTRSLessThan_t {
+    bool operator() (const CTransStruct& left, const CTransStruct& right) {
+        if (left.trans_id < right.trans_id) return true;
+        else if (left.trans_id > right.trans_id) return false;
+        else return left.value <= right.value;
+    }
+    bool operator() (const CTransStruct& left, uint64_t right) {
+        return left.trans_id < right;
+    }
+    bool operator() (uint64_t left, const CTransStruct& right) {
+        return left < right.trans_id;
+    }
+} CTRSLessThan;
+
 struct ColumnStruct {
     vector<CTransStruct> transactions;
 };
@@ -144,11 +161,11 @@ struct RelationStruct {
 static vector<RelationStruct> gRelations;
 
 struct TransOperation {
-    uint64_t row_id;
     uint32_t rel_id;
+    uint64_t row_id;
     vector<uint64_t> tuple;
-    TransOperation(uint64_t rid, uint32_t relid, vector<uint64_t> t):
-        row_id(rid), rel_id(relid), tuple(t) {}
+    TransOperation(uint64_t relid, uint32_t rowid, vector<uint64_t> t):
+        rel_id(relid), row_id(rowid), tuple(t) {}
 };
 struct TransactionStruct {
     //    uint64_t trans_id; // we will use direct indexing
@@ -181,6 +198,8 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
+    //cerr << "Transaction: " << t.transactionId << endl;
+
     //vector<pair<uint32_t,vector<uint64_t>>> operations;
     vector<TransOperation> operations;
     const char* reader=t.operations;
@@ -193,7 +212,7 @@ static void processTransaction(const Transaction& t) {
             auto& rows = relation.insertedRows;
             auto lb = relation.insertedRows.find(*key);
             if (lb != rows.end()) {
-                operations.push_back(TransOperation(o.relationId,lb->second[0], move(lb->second)));
+                //cerr << "  deleting: " << *key << endl;
                 // TODO - add the transaction id to each column with the value removed
                 uint32_t ci=0;
                 for_each(lb->second.begin(), lb->second.end(), 
@@ -201,7 +220,10 @@ static void processTransaction(const Transaction& t) {
                         gRelations[o.relationId].columns[ci++].transactions.push_back(CTransStruct(t.transactionId, cval)); 
                         });
                 // remove the row from the relations table
+                uint64_t rowid = lb->second[0];
+                operations.push_back(TransOperation(o.relationId, rowid, move(lb->second)));
                 rows.erase(lb);
+                //cerr << "  success deleting: " << *key << endl;
             }
         }
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
@@ -221,57 +243,123 @@ static void processTransaction(const Transaction& t) {
                     });
 
             // add the tuple to this transaction operations and to the relations table
-            operations.push_back(TransOperation(o.relationId,tuple[0], tuple));
+            operations.push_back(TransOperation(o.relationId, tuple[0], tuple));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
         }
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*gSchema[o.relationId]);
     }
 
-    gTransactionHistory.insert(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))));
+    gTransactionHistory.insert(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations)))); 
+    //cerr << "Success Transaction: " << t.transactionId << endl;
 }
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
-    cout << v.validationId;
-    /*
-       auto from=gTransactionHistory.lower_bound(v.from);
-       auto to=gTransactionHistory.upper_bound(v.to);
-       bool conflict=false;
-       const char* reader=v.queries;
-       for (unsigned index=0;index!=v.queryCount;++index) {
-       auto& q=*reinterpret_cast<const Query*>(reader);
-       for (auto iter=from;iter!=to;++iter) {
-       for (auto& op:(*iter).second) {
-    // Check if the relation is the same
-    if (op.first!=q.relationId)
-    continue;
+    //cerr << "Validate: " << v.from << ":" << v.to << endl;
+    
+    // TODO - VERY NAIVE HERE - validate each query separately
+    bool conflict=false;
+    const char* reader=v.queries;
+    vector<uint64_t> values;
+    for (unsigned int index=0;index<v.queryCount;++index) {
+        auto& q=*reinterpret_cast<const Query*>(reader);
 
-    // Check if all predicates are satisfied
-    auto& tuple=op.second;
-    bool match=true;
-    for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
-    uint64_t tupleValue=tuple[c->column],queryValue=c->value;
-    bool result=false;
-    switch (c->op) {
-    case Query::Column::Equal: result=(tupleValue==queryValue); break;
-    case Query::Column::NotEqual: result=(tupleValue!=queryValue); break;
-    case Query::Column::Less: result=(tupleValue<queryValue); break;
-    case Query::Column::LessOrEqual: result=(tupleValue<=queryValue); break;
-    case Query::Column::Greater: result=(tupleValue>queryValue); break;
-    case Query::Column::GreaterOrEqual: result=(tupleValue>=queryValue); break;
-    }
-    if (!result) { match=false; break; }
-    }
-    if (match) {
-    conflict=true;
-    break;
-    }
-    }
-    }
-    reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
-    }
+        bool match=true;
+        for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
+            cerr << "query[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
+            
+            // TODO - fetch the values for this relation 
+            auto& cVals = gRelations[q.relationId].columns[c->column].transactions;
+            auto valFrom = std::lower_bound(cVals.begin(), cVals.end(), v.from, CTRSLessThan);
+            auto valTo = std::upper_bound(cVals.begin(), cVals.end(), v.to, CTRSLessThan);
+            values.clear();
+            for (;valFrom!=valTo;++valFrom) {
+                //cerr << "pred_col: " << c->column << " value: " << valFrom->value << " : " << valFrom->trans_id << endl;
+                values.push_back(valFrom->value);
+            }
+            std::stable_sort(values.begin(), values.end());
+            values.resize(std::distance(values.begin(), std::unique(values.begin(), values.end())));
+            
+            cerr << "sorting & unique values - check! - size: " << values.size() << endl;
 
+            // make the actual check
+            uint64_t queryValue=c->value;
+            bool result=false;
+            if (!values.empty()) {
+                switch (c->op) {
+                    case Query::Column::Equal: 
+                        result=(std::binary_search(values.begin(), values.end(), queryValue)); 
+                        break;
+                    case Query::Column::NotEqual: 
+                        result=(values[0]!=queryValue || values[values.size()-1]!=queryValue); 
+                        break;
+                    case Query::Column::Less: 
+                        result=(values[0]<queryValue); 
+                        break;
+                    case Query::Column::LessOrEqual: 
+                        result=(values[0]<=queryValue); 
+                        break;
+                    case Query::Column::Greater: 
+                        result=(values[values.size()-1]>queryValue); 
+                        break;
+                    case Query::Column::GreaterOrEqual: 
+                        result=(values[values.size()-1]>=queryValue); 
+                        break;
+                } 
+            } else {
+                result = false;
+            }
+            if (!result) { match=false; break; }
+        }
+        if (match) {
+            conflict=true;
+            break;
+        }    
+        reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
+    }
+    gQueryResults[v.validationId]=conflict;
+    cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << endl;
+    if (v.validationId == 21) exit(1);
+
+/*
+    auto from=gTransactionHistory.lower_bound(v.from);
+    auto to=gTransactionHistory.upper_bound(v.to);
+    bool conflict=false;
+    const char* reader=v.queries;
+    for (unsigned index=0;index!=v.queryCount;++index) {
+        auto& q=*reinterpret_cast<const Query*>(reader);
+        for (auto iter=from;iter!=to;++iter) {
+            for (auto& op:(*iter).second) {
+                // Check if the relation is the same
+                if (op.first!=q.relationId)
+                    continue;
+
+                // Check if all predicates are satisfied
+                auto& tuple=op.second;
+                bool match=true;
+                for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
+                    uint64_t tupleValue=tuple[c->column],queryValue=c->value;
+                    bool result=false;
+                    switch (c->op) {
+                        case Query::Column::Equal: result=(tupleValue==queryValue); break;
+                        case Query::Column::NotEqual: result=(tupleValue!=queryValue); break;
+                        case Query::Column::Less: result=(tupleValue<queryValue); break;
+                        case Query::Column::LessOrEqual: result=(tupleValue<=queryValue); break;
+                        case Query::Column::Greater: result=(tupleValue>queryValue); break;
+                        case Query::Column::GreaterOrEqual: result=(tupleValue>=queryValue); break;
+                    }
+                    if (!result) { match=false; break; }
+                }
+                if (match) {
+                    conflict=true;
+                    break;
+                }
+            }
+        }
+        reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
+    }
     queryResults[v.validationId]=conflict;
-     */
+*/
+
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f)
@@ -285,47 +373,33 @@ static void processFlush(const Flush& f)
     cout.flush();
 }
 //---------------------------------------------------------------------------
-bool combCTRS(uint64_t trans_id, const CTransStruct& a) {
-    return a.trans_id <= trans_id;
-}
-struct CTRSLessThan_t
-{
-    bool operator() (const CTransStruct& left, const CTransStruct& right)
-    {
-        if (left.trans_id < right.trans_id) return true;
-        else if (left.trans_id > right.trans_id) return false;
-        else return left.value <= right.value;
-    }
-    bool operator() (const CTransStruct& left, uint64_t right)
-    {
-        return left.trans_id < right;
-    }
-    bool operator() (uint64_t left, const CTransStruct& right)
-    {
-        return left < right.trans_id;
-    }
-} CTRSLessThan;
 static void processForget(const Forget& f)
 {
+
+    //cerr << "Forget: " << f.transactionId << endl;
     auto iend = gTransactionHistory.upper_bound(f.transactionId);
 
     // Delete the transactions from inside the columns in the relations
     vector<bool> relationsCleaned(gRelations.size(), false);
     for(auto ctr=gTransactionHistory.begin(); ctr!=iend; ++ctr) {
+        //cerr << ":: each transaction: " << ctr->second.operations.size() << endl;
         for(auto cop=ctr->second.operations.begin(), opend=ctr->second.operations.end(); cop!=opend; ++cop ) {
+            //cerr << ":: each operation: " << cop->rel_id << ":" << gRelations.size() << endl;
             if (!relationsCleaned[cop->rel_id]) {
                 relationsCleaned[cop->rel_id] = true;
                 // delete this transaction from the lastRel columns
                 auto& relCols = gRelations[cop->rel_id].columns;
-                for_each(relCols.begin(), relCols.end(), [=] (ColumnStruct& col) {
+                for_each(relCols.begin(), relCols.end(), [&] (ColumnStruct& col) {
                         col.transactions.erase(col.transactions.begin(), 
-                            upper_bound(col.transactions.begin(), col.transactions.end(), f.transactionId, combCTRS));});
+                            upper_bound(col.transactions.begin(), col.transactions.end(), f.transactionId, combCTRS));
+                });
             }
         }
     }
 
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), iend);
+    //cerr << ":: Success Forget: " << f.transactionId << endl;
 
     /*
        while ((!transactionHistory.empty())&&((*transactionHistory.begin()).first<=f.transactionId))

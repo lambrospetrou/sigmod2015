@@ -12,4 +12,4 @@ cd ..
 ./compile.sh
 
 # Run test driver with basic test case
-testdriver/testdriver ./run.sh small.test
+testdriver/testdriver ./run.sh basic.test
