@@ -185,6 +185,8 @@ struct TransOperation {
     vector<uint64_t> tuple;
     TransOperation(uint64_t relid, uint32_t rowid, vector<uint64_t> t):
         rel_id(relid), row_id(rowid), tuple(t) {}
+    TransOperation(uint64_t relid, uint32_t rowid):
+        rel_id(relid), row_id(rowid), tuple(vector<uint64_t>()) {}
 };
 struct TransactionStruct {
     //    uint64_t trans_id; // we will use direct indexing
@@ -234,8 +236,9 @@ static void processTransaction(const Transaction& t) {
                 uint64_t rowid = lb->second[0];
                 // update the relation transactions
                 relation.transactions.push_back(TransStruct(t.transactionId, move(lb->second)));
-                // update the transactions history record
-                operations.push_back(TransOperation(o.relationId, rowid, relation.transactions.back().tuple));
+                // update the transactions history record - so far we to not need tuple
+                //operations.push_back(TransOperation(o.relationId, rowid, relation.transactions.back().tuple));
+                operations.push_back(TransOperation(o.relationId, rowid));
                 // remove the row from the relations table
                 rows.erase(lb);
             }
@@ -252,7 +255,8 @@ static void processTransaction(const Transaction& t) {
 
             // add the tuple to this transaction operations and to the relations table
             // TODO - we might not have to store the tuple into the transaction history
-            operations.push_back(TransOperation(o.relationId, tuple[0], tuple));
+            //operations.push_back(TransOperation(o.relationId, tuple[0], tuple));
+            operations.push_back(TransOperation(o.relationId, tuple[0]));
             
             gRelations[o.relationId].transactions.push_back(TransStruct(t.transactionId, tuple));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
@@ -339,7 +343,7 @@ static void processFlush(const Flush& f) {
 
 static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
-    auto start = std::chrono::system_clock::now();
+    //auto start = std::chrono::system_clock::now();
     TransStruct fstruct(f.transactionId);
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
@@ -350,41 +354,11 @@ static void processForget(const Forget& f) {
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
-    auto end = std::chrono::system_clock::now();
-    cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
+    //auto end = std::chrono::system_clock::now();
+    //cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
 }
 
-//---------------------------------------------------------------------------
-/*
-static void processForget(const Forget& f) {
-    //cerr << "Forget: " << f.transactionId << endl;
-    auto start = std::chrono::system_clock::now();
-    auto iend = gTransactionHistory.upper_bound(f.transactionId);
-    TransStruct fstruct(f.transactionId);
 
-    // Delete the transactions from inside the columns in the relations
-    vector<bool> relationsCleaned(gRelations.size(), false);
-    for(auto ctr=gTransactionHistory.begin(); ctr!=iend; ++ctr) {
-        //cerr << ":: each transaction: " << ctr->second.operations.size() << endl;
-        for(auto cop=ctr->second.operations.begin(), opend=ctr->second.operations.end(); cop!=opend; ++cop ) {
-            //cerr << ":: each operation: " << cop->rel_id << ":" << gRelations.size() << endl;
-            if (!relationsCleaned[cop->rel_id]) {
-                relationsCleaned[cop->rel_id] = true;
-                // delete this transaction from the lastRel columns
-                auto& transactions = gRelations[cop->rel_id].transactions;
-                transactions.erase(transactions.begin(), 
-                    upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
-            }
-        }
-    }
-
-    // then delete the transactions from the transaction history
-    gTransactionHistory.erase(gTransactionHistory.begin(), iend);
-    //cerr << ":: Success Forget: " << f.transactionId << endl;
-    auto end = std::chrono::system_clock::now();
-    cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
-}
-*/
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
 template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
