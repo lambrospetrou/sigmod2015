@@ -33,11 +33,13 @@
 #include <unordered_map>
 #include <set>
 #include <vector>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <algorithm>
 #include <utility>
 #include <chrono>
+#include <cstring>
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
@@ -131,6 +133,22 @@ struct Forget {
 // Begin reference implementation
 //---------------------------------------------------------------------------
 
+struct LPQuery {
+    /// The relation
+    uint32_t relationId;
+    /// The number of bound columns
+    uint32_t columnCount;
+    /// The bindings
+    vector<Query::Column> columns;
+    LPQuery() : relationId(-1), columnCount(0), columns(vector<Query::Column>()) {}
+    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
+            columns(vector<Query::Column>(q.columnCount)) {
+        if (columnCount > 0) memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
+    }
+};
+bool operator< (const LPQuery& left, const LPQuery& right) {
+    return left.relationId < right.relationId;
+}
 bool operator<(const Query::Column& left, const Query::Column& right) {
         if (left.column < right.column) return true;
         else if (right.column < left.column) return false;
@@ -138,6 +156,7 @@ bool operator<(const Query::Column& left, const Query::Column& right) {
         else if (right.op < left.op) return false;
         else return left.value < right.value;    
 }
+
 struct QueryEqual_t {
     bool operator() (const Query* left, const Query* right) {
         if (left->relationId != right->relationId) return false;
@@ -298,21 +317,24 @@ static void processValidationQueries(const ValidationQueries& v) {
     TransStruct toTRS(v.to);
 
     // try to put all the queries into a vector
-    vector<const Query*> queries;
+    vector<LPQuery> queries;
     const char* qreader=v.queries;
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
-        queries.push_back(q);
+        queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
 
     // TODO - PROCESS the queries in order to take out common predicates on the same relations
     // TODO - to avoid multiple times the same query validation
-    stable_sort(queries.begin(), queries.end(), QueryLessThan);
-    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i]->relationId << " "; } cerr << endl;
+    //stable_sort(queries.begin(), queries.end(), QueryLessThan);
+    stable_sort(queries.begin(), queries.end());
+    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
     //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
     //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i]->relationId << " "; } cerr << endl;
+
+    //cerr << "going into check" << endl;
 
     // TODO -  VERY NAIVE HERE - validate each query separately
     uint32_t lastRelId = gRelations.size()+1; // not valid relation id
@@ -320,7 +342,8 @@ static void processValidationQueries(const ValidationQueries& v) {
     decltype(gRelations[0].transactions)::iterator transFrom;
     decltype(gRelations[0].transactions)::iterator transTo;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
-        auto& q=*queries[index];
+        //auto& q=*queries[index];
+        auto& q=queries[index];
         // avoid searching for the range of transactions too many times 
         if (q.relationId != lastRelId) {
             lastRelId = q.relationId;
@@ -333,7 +356,8 @@ static void processValidationQueries(const ValidationQueries& v) {
         for(auto iter=transFrom;iter!=transTo;++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
-            for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
+            //for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
+            for (auto c=q.columns.begin(),cLimit=q.columns.end();c!=cLimit;++c) {
                 //cerr << "\nquery[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
 
                 // make the actual check
