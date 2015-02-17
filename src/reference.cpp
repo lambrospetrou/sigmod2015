@@ -196,38 +196,12 @@ ostream& operator<< (ostream& os, const Query::Column& o) {
     return os;
 }
 
-
-struct QueryEqual_t {
-    bool operator() (const Query* left, const Query* right) {
-        if (left->relationId != right->relationId) return false;
-        if (left->columnCount != right->columnCount) return false;
-        // compare predicates - columns
-        set<Query::Column> preds;
-        for (uint32_t i=0; i<left->columnCount; ++i) {
-            preds.insert(left->columns[i]);
-        }
-        set<Query::Column> preds2;
-        for (uint32_t i=0; i<right->columnCount; ++i) {
-            preds.insert(right->columns[i]);
-        }
-        set<Query::Column> diff;
-        std::set_difference(preds.begin(), preds.end(), preds2.begin(), preds2.end(),std::inserter(diff, diff.begin()));
-        return diff.empty();
-    }
-} QueryEqual;
-struct QueryLessThan_t {
-    bool operator() (const Query* left, const Query* right) {
-        return left->relationId < right->relationId;
-    }
-} QueryLessThan;
-
 // Custom data structures to hold data
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
     uint64_t minVal;
     uint64_t maxVal;
 };
-
 struct TransStruct {
     uint64_t trans_id;
     vector<uint64_t> tuple;
@@ -330,7 +304,7 @@ static void processTransaction(const Transaction& t) {
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*gSchema[o.relationId]);
     }
 
-    gTransactionHistory.insert(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations)))); 
+    gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
     //cerr << "Success Transaction: " << t.transactionId << endl;
 }
 //---------------------------------------------------------------------------
