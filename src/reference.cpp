@@ -30,6 +30,7 @@
 //---------------------------------------------------------------------------
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <cassert>
 #include <cstdint>
@@ -175,7 +176,7 @@ struct TRSLessThan_t {
 struct RelationStruct {
     vector<ColumnStruct> columns;
     vector<TransStruct> transactions;
-    map<uint32_t, vector<uint64_t>> insertedRows;
+    unordered_map<uint32_t, vector<uint64_t>> insertedRows;
 };
 static vector<RelationStruct> gRelations;
 
@@ -183,9 +184,9 @@ struct TransOperation {
     uint32_t rel_id;
     uint64_t row_id;
     vector<uint64_t> tuple;
-    TransOperation(uint64_t relid, uint32_t rowid, vector<uint64_t> t):
+    TransOperation(uint32_t relid, uint64_t rowid, vector<uint64_t> t):
         rel_id(relid), row_id(rowid), tuple(t) {}
-    TransOperation(uint64_t relid, uint32_t rowid):
+    TransOperation(uint32_t relid, uint64_t rowid):
         rel_id(relid), row_id(rowid), tuple(vector<uint64_t>()) {}
 };
 struct TransactionStruct {
@@ -276,9 +277,6 @@ static void processValidationQueries(const ValidationQueries& v) {
 
     // TODO -  VERY NAIVE HERE - validate each query separately
     bool conflict=false;
-    //const char* reader=v.queries;
-    //for (unsigned int index=0;index<v.queryCount;++index) {
-    //    auto& q=*reinterpret_cast<const Query*>(reader);
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=*queries[index];
 
@@ -326,7 +324,6 @@ static void processValidationQueries(const ValidationQueries& v) {
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
-        //reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
