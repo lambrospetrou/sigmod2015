@@ -133,6 +133,23 @@ struct Forget {
 // Begin reference implementation
 //---------------------------------------------------------------------------
 
+template<typename T>
+ostream& operator<< (ostream& os, const vector<T> v) {
+    if (v.empty()) return os;
+    os << *v.begin();
+    for (auto it=v.begin()+1,vend=v.end(); it!=vend; ++it) {
+        os << " " << *it;
+    }
+    return os;
+}
+template<typename T>
+void cerrVecln(vector<T> v) {
+    for (auto it=v.begin(),vend=v.end(); it!=vend; ++it) {
+        cerr << *it << " ";
+    }
+    cerr << endl;
+}
+
 struct LPQuery {
     /// The relation
     uint32_t relationId;
@@ -143,19 +160,42 @@ struct LPQuery {
     LPQuery() : relationId(-1), columnCount(0), columns(vector<Query::Column>()) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
             columns(vector<Query::Column>(q.columnCount)) {
-        if (columnCount > 0) memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
+        memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
+        std::stable_sort(columns.begin(), columns.end());
+        columns.resize(std::distance(columns.begin(), std::unique(columns.begin(), columns.end())));
+        //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
+        columnCount = columns.size();
     }
 };
 bool operator< (const LPQuery& left, const LPQuery& right) {
     return left.relationId < right.relationId;
 }
-bool operator<(const Query::Column& left, const Query::Column& right) {
-        if (left.column < right.column) return true;
-        else if (right.column < left.column) return false;
-        else if (left.op < right.op) return true;
-        else if (right.op < left.op) return false;
-        else return left.value < right.value;    
+bool operator== (const LPQuery& left, const LPQuery& right)  {
+    if (left.relationId != right.relationId) return false;
+    if (left.columnCount != right.columnCount) return false;
+    return left.columns == right.columns;
 }
+ostream& operator<< (ostream& os, const LPQuery& o) {
+    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.columns << "}";
+    return os;
+}
+bool operator< (const Query::Column& left, const Query::Column& right) {
+    if (left.column < right.column) return true;
+    else if (right.column < left.column) return false;
+    else if (left.op < right.op) return true;
+    else if (right.op < left.op) return false;
+    else return left.value < right.value;    
+}
+bool operator== (const Query::Column& left, const Query::Column& right) {
+    if (left.column != right.column) return false;
+    else if (left.op != right.op) return false;
+    else return left.value == right.value;    
+}
+ostream& operator<< (ostream& os, const Query::Column& o) {
+    os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
+    return os;
+}
+
 
 struct QueryEqual_t {
     bool operator() (const Query* left, const Query* right) {
@@ -182,23 +222,6 @@ struct QueryLessThan_t {
 } QueryLessThan;
 
 // Custom data structures to hold data
-struct CTransStruct{
-    uint64_t trans_id;
-    uint64_t value;
-    CTransStruct(uint64_t tid, uint64_t v): trans_id(tid), value(v) {}
-};
-struct CTRSLessThan_t {
-    bool operator() (const CTransStruct& left, const CTransStruct& right) {
-        return left.trans_id < right.trans_id;
-    }
-    bool operator() (const CTransStruct& o, uint64_t target) {
-        return o.trans_id < target;
-    }
-    bool operator() (uint64_t target, const CTransStruct& o) {
-        return target < o.trans_id;
-    }
-} CTRSLessThan;
-
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
     uint64_t minVal;
@@ -328,11 +351,11 @@ static void processValidationQueries(const ValidationQueries& v) {
 
     // TODO - PROCESS the queries in order to take out common predicates on the same relations
     // TODO - to avoid multiple times the same query validation
-    //stable_sort(queries.begin(), queries.end(), QueryLessThan);
     stable_sort(queries.begin(), queries.end());
+    //cerr << queries << endl;
     //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
-    //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
-    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i]->relationId << " "; } cerr << endl;
+    queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
+    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
 
     //cerr << "going into check" << endl;
 
