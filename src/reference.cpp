@@ -331,8 +331,6 @@ static void processValidationQueries(const ValidationQueries& v) {
     queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
     //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
 
-    //cerr << "going into check" << endl;
-
     // TODO -  VERY NAIVE HERE - validate each query separately
     uint32_t lastRelId = gRelations.size()+1; // not valid relation id
     bool conflict=false;
@@ -355,8 +353,6 @@ static void processValidationQueries(const ValidationQueries& v) {
             bool match=true;
             //for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
             for (auto c=q.columns.begin(),cLimit=q.columns.end();c!=cLimit;++c) {
-                //cerr << "\nquery[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
-
                 // make the actual check
                 uint64_t tupleValue = tuple[c->column];
                 uint64_t queryValue=c->value;
