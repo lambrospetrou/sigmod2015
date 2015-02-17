@@ -31,6 +31,7 @@
 #include <iostream>
 #include <map>
 #include <unordered_map>
+#include <set>
 #include <vector>
 #include <cassert>
 #include <cstdint>
@@ -129,6 +130,37 @@ struct Forget {
 //---------------------------------------------------------------------------
 // Begin reference implementation
 //---------------------------------------------------------------------------
+
+bool operator<(const Query::Column& left, const Query::Column& right) {
+        if (left.column < right.column) return true;
+        else if (right.column < left.column) return false;
+        else if (left.op < right.op) return true;
+        else if (right.op < left.op) return false;
+        else return left.value < right.value;    
+}
+struct QueryEqual_t {
+    bool operator() (const Query* left, const Query* right) {
+        if (left->relationId != right->relationId) return false;
+        if (left->columnCount != right->columnCount) return false;
+        // compare predicates - columns
+        set<Query::Column> preds;
+        for (uint32_t i=0; i<left->columnCount; ++i) {
+            preds.insert(left->columns[i]);
+        }
+        set<Query::Column> preds2;
+        for (uint32_t i=0; i<right->columnCount; ++i) {
+            preds.insert(right->columns[i]);
+        }
+        set<Query::Column> diff;
+        std::set_difference(preds.begin(), preds.end(), preds2.begin(), preds2.end(),std::inserter(diff, diff.begin()));
+        return diff.empty();
+    }
+} QueryEqual;
+struct QueryLessThan_t {
+    bool operator() (const Query* left, const Query* right) {
+        return left->relationId < right->relationId;
+    }
+} QueryLessThan;
 
 // Custom data structures to hold data
 struct CTransStruct{
@@ -275,18 +307,31 @@ static void processValidationQueries(const ValidationQueries& v) {
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
 
+    // TODO - PROCESS the queries in order to take out common predicates on the same relations
+    // TODO - to avoid multiple times the same query validation
+    stable_sort(queries.begin(), queries.end(), QueryLessThan);
+    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i]->relationId << " "; } cerr << endl;
+    //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
+    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i]->relationId << " "; } cerr << endl;
+
     // TODO -  VERY NAIVE HERE - validate each query separately
+    uint32_t lastRelId = gRelations.size()+1; // not valid relation id
     bool conflict=false;
+    decltype(gRelations[0].transactions)::iterator transFrom;
+    decltype(gRelations[0].transactions)::iterator transTo;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=*queries[index];
+        // avoid searching for the range of transactions too many times 
+        if (q.relationId != lastRelId) {
+            lastRelId = q.relationId;
+            auto& relation = gRelations[q.relationId];
+            auto& transactions = relation.transactions;
+            transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
+            transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
+        }
 
-        auto& relation = gRelations[q.relationId];
-        auto& transactions = relation.transactions;
-        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
-        auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
-
-        for(;transFrom!=transTo;++transFrom) {
-            auto& tuple = transFrom->tuple;
+        for(auto iter=transFrom;iter!=transTo;++iter) {
+            auto& tuple = iter->tuple;
             bool match=true;
             for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
                 //cerr << "\nquery[" << index << "] rel[" << q.relationId << "] col[" << c->column << "] op[" << c->op << "] qv[" << c->value << "]" << endl;
