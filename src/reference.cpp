@@ -240,6 +240,19 @@ static map<uint64_t,bool> gQueryResults;
 
 static vector<uint32_t> gSchema;
 
+
+struct LPTimer_t {
+    uint64_t validations;
+    uint64_t transactions;
+    uint64_t flushes;
+    uint64_t forgets;
+    LPTimer_t() : validations(0), transactions(0), flushes(0), forgets(0) {}
+} LPTimer;
+ostream& operator<< (ostream& os, const LPTimer_t& t) {
+    os << "LPTimer [val: " << t.validations << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << "]" << endl;
+    return os;
+}
+
 //---------------------------------------------------------------------------
 static void processDefineSchema(const DefineSchema& d) {
     gSchema.clear();
@@ -254,6 +267,7 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
+    auto start = std::chrono::system_clock::now();
     //cerr << "Transaction: " << t.transactionId << endl;
     vector<TransOperation> operations;
     const char* reader=t.operations;
@@ -299,6 +313,8 @@ static void processTransaction(const Transaction& t) {
 
     gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
     //cerr << "Success Transaction: " << t.transactionId << endl;
+    auto end = std::chrono::system_clock::now();
+    LPTimer.transactions += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 //---------------------------------------------------------------------------
 struct NullComb {
@@ -306,7 +322,9 @@ bool operator() (const TransStruct* p, std::nullptr_t target) {
     return p != target;
 }
 };
+
 static void processValidationQueries(const ValidationQueries& v) {
+    auto start = std::chrono::system_clock::now();
     //cerr << "Validate: " << v.from << ":" << v.to << endl;
     TransStruct fromTRS(v.from);
     TransStruct toTRS(v.to);
@@ -384,9 +402,14 @@ static void processValidationQueries(const ValidationQueries& v) {
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
+    auto end = std::chrono::system_clock::now();
+    LPTimer.validations += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    //cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " total: ";
+    //cerr << totalValTime << endl;
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
+    auto start = std::chrono::system_clock::now();
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
         char c='0'+(*gQueryResults.begin()).second;
@@ -394,12 +417,14 @@ static void processFlush(const Flush& f) {
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
+    auto end = std::chrono::system_clock::now();
+    LPTimer.flushes += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 //---------------------------------------------------------------------------
 
 static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
-    //auto start = std::chrono::system_clock::now();
+    auto start = std::chrono::system_clock::now();
     TransStruct fstruct(f.transactionId);
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
@@ -410,7 +435,8 @@ static void processForget(const Forget& f) {
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
-    //auto end = std::chrono::system_clock::now();
+    auto end = std::chrono::system_clock::now();
+    LPTimer.forgets += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     //cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
 }
 
@@ -438,7 +464,7 @@ int main()
             case MessageHead::ValidationQueries: processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); break;
             case MessageHead::Flush: processFlush(readBody<Flush>(cin,message,head.messageLen)); break;
             case MessageHead::Forget: processForget(readBody<Forget>(cin,message,head.messageLen)); break;
-            case MessageHead::Done: return 0;
+            case MessageHead::Done: cerr << LPTimer << endl; return 0;
             case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
