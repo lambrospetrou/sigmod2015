@@ -353,59 +353,6 @@ static void processValidationQueries(const ValidationQueries& v) {
             transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
         }
         
-        vector<TransStruct*> cTransactions;
-        for(auto iter=transFrom;iter!=transTo;++iter) {
-            cTransactions.push_back(&(*iter));
-        }
-        
-        for (auto c=q.columns.begin(),cLimit=q.columns.end();c!=cLimit;++c) {
-            if (cTransactions.empty()) { break; }
-            uint64_t queryValue = c->value;
-            for (uint64_t i=0,sz=cTransactions.size(); i<sz; ++i) {
-                auto& tuple = cTransactions[i]->tuple;
-                uint64_t tupleValue = tuple[c->column];
-                bool result = false;
-                switch (c->op) {
-                    case Query::Column::Equal: 
-                        result=(tupleValue==queryValue); 
-                        break;
-                    case Query::Column::NotEqual: 
-                        result=(tupleValue!=queryValue); 
-                        break;
-                    case Query::Column::Less: 
-                        result=(tupleValue<queryValue); 
-                        break;
-                    case Query::Column::LessOrEqual: 
-                        result=(tupleValue<=queryValue); 
-                        break;
-                    case Query::Column::Greater: 
-                        result=(tupleValue>queryValue); 
-                        break;
-                    case Query::Column::GreaterOrEqual: 
-                        result=(tupleValue>=queryValue); 
-                        break;
-                } 
-                if (!result) cTransactions[i] = nullptr;
-            }
-            // one round passed so clean up the failed transactions
-            for (int64_t left=0,right=cTransactions.size()-1; left<right;) {
-                while (cTransactions[left] != nullptr && left<right) ++left;
-                while (cTransactions[right] == nullptr && left<right) --right;
-                if (left<right) {
-                    std::swap(cTransactions[left], cTransactions[right]);
-                    ++left; --right;
-                }
-            }
-            //cerr << "old size: " << cTransactions.size() << endl;
-            cTransactions.resize(std::distance(cTransactions.begin(), 
-                        std::lower_bound(cTransactions.begin(), cTransactions.end(), nullptr, NullComb())));
-            //cerr << "new size: " << cTransactions.size() << endl;
-        }
-        if (!cTransactions.empty()) {
-            conflict = true;
-            break;
-        }
-/*
         for(auto iter=transFrom;iter!=transTo;++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
@@ -444,7 +391,6 @@ static void processValidationQueries(const ValidationQueries& v) {
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
-*/
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
