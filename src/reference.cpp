@@ -142,13 +142,6 @@ ostream& operator<< (ostream& os, const vector<T> v) {
     }
     return os;
 }
-template<typename T>
-void cerrVecln(vector<T> v) {
-    for (auto it=v.begin(),vend=v.end(); it!=vend; ++it) {
-        cerr << *it << " ";
-    }
-    cerr << endl;
-}
 
 struct LPQuery {
     /// The relation
@@ -331,7 +324,6 @@ static void processValidationQueries(const ValidationQueries& v) {
     // TODO - PROCESS the queries in order to take out common predicates on the same relations
     // TODO - to avoid multiple times the same query validation
     stable_sort(queries.begin(), queries.end());
-    //cerr << queries << endl;
     //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
     queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
     //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
@@ -342,7 +334,6 @@ static void processValidationQueries(const ValidationQueries& v) {
     decltype(gRelations[0].transactions)::iterator transFrom;
     decltype(gRelations[0].transactions)::iterator transTo;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
-        //auto& q=*queries[index];
         auto& q=queries[index];
         // avoid searching for the range of transactions too many times 
         if (q.relationId != lastRelId) {
@@ -356,7 +347,6 @@ static void processValidationQueries(const ValidationQueries& v) {
         for(auto iter=transFrom;iter!=transTo;++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
-            //for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
             for (auto c=q.columns.begin(),cLimit=q.columns.end();c!=cLimit;++c) {
                 // make the actual check
                 uint64_t tupleValue = tuple[c->column];
@@ -394,7 +384,6 @@ static void processValidationQueries(const ValidationQueries& v) {
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
-    //if (v.validationId == 21) exit(1);
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
@@ -445,12 +434,12 @@ int main()
 
         // And interpret it
         switch (head.type) {
-            case MessageHead::Done: return 0;
-            case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
             case MessageHead::Transaction: processTransaction(readBody<Transaction>(cin,message,head.messageLen)); break;
             case MessageHead::ValidationQueries: processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); break;
             case MessageHead::Flush: processFlush(readBody<Flush>(cin,message,head.messageLen)); break;
             case MessageHead::Forget: processForget(readBody<Forget>(cin,message,head.messageLen)); break;
+            case MessageHead::Done: return 0;
+            case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
     }
