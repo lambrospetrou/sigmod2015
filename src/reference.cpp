@@ -264,11 +264,23 @@ static void processValidationQueries(const ValidationQueries& v) {
     TransStruct fromTRS(v.from);
     TransStruct toTRS(v.to);
 
+    // try to put all the queries into a vector
+    vector<const Query*> queries;
+    const char* qreader=v.queries;
+    const Query *q;
+    for (unsigned int i=0;i<v.queryCount;++i) {
+        q=reinterpret_cast<const Query*>(qreader);
+        queries.push_back(q);
+        qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
+    }
+
     // TODO -  VERY NAIVE HERE - validate each query separately
     bool conflict=false;
-    const char* reader=v.queries;
-    for (unsigned int index=0;index<v.queryCount;++index) {
-        auto& q=*reinterpret_cast<const Query*>(reader);
+    //const char* reader=v.queries;
+    //for (unsigned int index=0;index<v.queryCount;++index) {
+    //    auto& q=*reinterpret_cast<const Query*>(reader);
+    for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
+        auto& q=*queries[index];
 
         auto& relation = gRelations[q.relationId];
         auto& transactions = relation.transactions;
@@ -314,7 +326,7 @@ static void processValidationQueries(const ValidationQueries& v) {
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
-        reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
+        //reader+=sizeof(Query)+(sizeof(Query::Column)*q.columnCount);
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
