@@ -198,13 +198,6 @@ static map<uint64_t,bool> gQueryResults;
 
 static vector<uint32_t> gSchema;
 
-/*
-   static vector<uint32_t> schema;
-   static vector<map<uint32_t,vector<uint64_t>>> relations;
-//---------------------------------------------------------------------------
-static map<uint64_t,vector<pair<uint32_t,vector<uint64_t>>>> transactionHistory;
-static map<uint64_t,bool> queryResults;
- */
 //---------------------------------------------------------------------------
 static void processDefineSchema(const DefineSchema& d) {
     gSchema.clear();
@@ -220,8 +213,6 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
     //cerr << "Transaction: " << t.transactionId << endl;
-
-    //vector<pair<uint32_t,vector<uint64_t>>> operations;
     vector<TransOperation> operations;
     const char* reader=t.operations;
 
@@ -273,7 +264,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     TransStruct fromTRS(v.from);
     TransStruct toTRS(v.to);
 
-    // TODO - VERY NAIVE HERE - validate each query separately
+    // TODO -  VERY NAIVE HERE - validate each query separately
     bool conflict=false;
     const char* reader=v.queries;
     for (unsigned int index=0;index<v.queryCount;++index) {
