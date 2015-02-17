@@ -224,11 +224,8 @@ static vector<RelationStruct> gRelations;
 struct TransOperation {
     uint32_t rel_id;
     uint64_t row_id;
-    vector<uint64_t> tuple;
-    TransOperation(uint32_t relid, uint64_t rowid, vector<uint64_t> t):
-        rel_id(relid), row_id(rowid), tuple(t) {}
     TransOperation(uint32_t relid, uint64_t rowid):
-        rel_id(relid), row_id(rowid), tuple(vector<uint64_t>()) {}
+        rel_id(relid), row_id(rowid) {}
 };
 struct TransactionStruct {
     //    uint64_t trans_id; // we will use direct indexing
@@ -282,10 +279,10 @@ static void processTransaction(const Transaction& t) {
             if (lb != rows.end()) {
                 uint64_t rowid = lb->second[0];
                 // update the relation transactions
-                relation.transactions.push_back(TransStruct(t.transactionId, move(lb->second)));
+                relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                 // update the transactions history record - so far we to not need tuple
                 //operations.push_back(TransOperation(o.relationId, rowid, relation.transactions.back().tuple));
-                operations.push_back(TransOperation(o.relationId, rowid));
+                operations.push_back(move(TransOperation(o.relationId, rowid)));
                 // remove the row from the relations table
                 rows.erase(lb);
             }
@@ -301,11 +298,9 @@ static void processTransaction(const Transaction& t) {
             tuple.insert(tuple.begin(),values,values+gSchema[o.relationId]);
 
             // add the tuple to this transaction operations and to the relations table
-            // TODO - we might not have to store the tuple into the transaction history
-            //operations.push_back(TransOperation(o.relationId, tuple[0], tuple));
-            operations.push_back(TransOperation(o.relationId, tuple[0]));
+            operations.push_back(move(TransOperation(o.relationId, tuple[0])));
             
-            gRelations[o.relationId].transactions.push_back(TransStruct(t.transactionId, tuple));
+            gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
         }
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*gSchema[o.relationId]);
@@ -444,7 +439,7 @@ static void processForget(const Forget& f) {
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
 template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
-    buffer.resize(len);
+    if (len > buffer.size()) buffer.resize(len);
     in.read(buffer.data(),len);
     return *reinterpret_cast<const Type*>(buffer.data());
 }
@@ -452,9 +447,9 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
 int main()
 {
     vector<char> message;
+    MessageHead head;
     while (true) {
         // Retrieve the message
-        MessageHead head;
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
@@ -464,8 +459,11 @@ int main()
             case MessageHead::ValidationQueries: processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); break;
             case MessageHead::Flush: processFlush(readBody<Flush>(cin,message,head.messageLen)); break;
             case MessageHead::Forget: processForget(readBody<Forget>(cin,message,head.messageLen)); break;
-            case MessageHead::Done: cerr << LPTimer << endl; return 0;
             case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
+            case MessageHead::Done: {
+                cerr << "\ttimings:: " << LPTimer << endl; 
+                return 0;
+            }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
     }
