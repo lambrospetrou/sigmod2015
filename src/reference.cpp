@@ -155,7 +155,7 @@ struct LPQuery {
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
             columns(vector<Query::Column>(q.columnCount)) {
         memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
-        std::sort(columns.begin(), columns.end());
+        std::sort(columns.begin(), columns.end(), QCSortColumn);
         columns.resize(std::distance(columns.begin(), std::unique(columns.begin(), columns.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
         columnCount = columns.size();
@@ -175,6 +175,13 @@ bool operator== (const LPQuery& left, const LPQuery& right)  {
 ostream& operator<< (ostream& os, const LPQuery& o) {
     os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.columns << "}";
     return os;
+}
+bool QCSortColumn (const Query::Column& left, const Query::Column& right) {
+    if (left.column < right.column) return true;
+    else if (right.column < left.column) return false;
+    else if (left.op < right.op) return true;
+    else if (right.op < left.op) return false;
+    else return left.value < right.value;    
 }
 bool operator< (const Query::Column& left, const Query::Column& right) {
     if (left.op < right.op) return true;
@@ -387,20 +394,14 @@ static void processValidationQueries(const ValidationQueries& v) {
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
     // TODO -  VERY NAIVE HERE - validate each query separately
-    uint32_t lastRelId = gRelations.size()+1; // not valid relation id
     bool conflict=false;
-    decltype(gRelations[0].transactions)::iterator transFrom;
-    decltype(gRelations[0].transactions)::iterator transTo;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=queries[index];
         // avoid searching for the range of transactions too many times 
-        if (q.relationId != lastRelId) {
-            lastRelId = q.relationId;
-            auto& relation = gRelations[q.relationId];
-            auto& transactions = relation.transactions;
-            transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
-            transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
-        }
+        auto& relation = gRelations[q.relationId];
+        auto& transactions = relation.transactions;
+        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
+        auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
         
         for(auto iter=transFrom;iter!=transTo;++iter) {
             auto& tuple = iter->tuple;
