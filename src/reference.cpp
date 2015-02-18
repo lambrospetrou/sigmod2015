@@ -177,10 +177,10 @@ ostream& operator<< (ostream& os, const LPQuery& o) {
     return os;
 }
 bool operator< (const Query::Column& left, const Query::Column& right) {
-    if (left.column < right.column) return true;
-    else if (right.column < left.column) return false;
-    else if (left.op < right.op) return true;
+    if (left.op < right.op) return true;
     else if (right.op < left.op) return false;
+    else if (left.column < right.column) return true;
+    else if (right.column < left.column) return false;
     else return left.value < right.value;    
 }
 bool operator== (const Query::Column& left, const Query::Column& right) {
@@ -435,13 +435,13 @@ static void processValidationQueries(const ValidationQueries& v) {
             }
             if (match) {
                 conflict=true;
-                cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
+                //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
                 break;
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
     }
-    if (!conflict) cerr << "no conflict" << endl;
+    //if (!conflict) cerr << "no conflict" << endl;
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
     LPTimer.validations += getChronoMillis(start);
