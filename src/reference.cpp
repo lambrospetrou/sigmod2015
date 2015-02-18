@@ -155,14 +155,17 @@ struct LPQuery {
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
             columns(vector<Query::Column>(q.columnCount)) {
         memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
-        std::stable_sort(columns.begin(), columns.end());
+        std::sort(columns.begin(), columns.end());
         columns.resize(std::distance(columns.begin(), std::unique(columns.begin(), columns.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
         columnCount = columns.size();
     }
 };
 bool operator< (const LPQuery& left, const LPQuery& right) {
-    return left.relationId < right.relationId;
+    if (left.relationId < right.relationId) return true;
+    else if (right.relationId < left.relationId) return false;
+    else if (left.columnCount < right.columnCount) return true;
+    else return left.columns < right.columns;;
 }
 bool operator== (const LPQuery& left, const LPQuery& right)  {
     if (left.relationId != right.relationId) return false;
@@ -188,6 +191,11 @@ bool operator== (const Query::Column& left, const Query::Column& right) {
 ostream& operator<< (ostream& os, const Query::Column& o) {
     os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
     return os;
+}
+bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
+    if (left.columnCount < right.columnCount) return true;
+    else if (right.columnCount < left.columnCount) return false;
+    else return left.relationId < right.relationId;
 }
 
 // Custom data structures to hold data
@@ -326,8 +334,9 @@ static void processTransaction(const Transaction& t) {
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*gSchema[o.relationId]);values!=valuesLimit;values+=gSchema[o.relationId]) {
-            vector<uint64_t> tuple;
-            tuple.insert(tuple.begin(),values,values+gSchema[o.relationId]);
+            vector<uint64_t> tuple(gSchema[o.relationId]);
+            //tuple.insert(tuple.begin(),values,values+gSchema[o.relationId]);
+            memcpy(tuple.data(),values,gSchema[o.relationId]*sizeof(uint64_t));
 
             // add the tuple to this transaction operations and to the relations table
             operations.push_back(move(TransOperation(o.relationId, tuple[0])));
@@ -367,10 +376,15 @@ static void processValidationQueries(const ValidationQueries& v) {
 
     // TODO - PROCESS the queries in order to take out common predicates on the same relations
     // TODO - to avoid multiple times the same query validation
-    stable_sort(queries.begin(), queries.end());
-    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
+
+    // sort the queries based on everything to remove duplicates
+    sort(queries.begin(), queries.end());
+    //cerr << "size before: " << queries.size() << endl;
     queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
-    //for (unsigned int i=0;i<v.queryCount;++i) { cerr << queries[i].relationId << " "; } cerr << endl;
+    //cerr << "size after: " << queries.size() << endl;
+    // sort the queries based on the number of the columns needed to check
+    // small queries first in order to try finding a solution faster
+    sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
     // TODO -  VERY NAIVE HERE - validate each query separately
     uint32_t lastRelId = gRelations.size()+1; // not valid relation id
@@ -421,11 +435,13 @@ static void processValidationQueries(const ValidationQueries& v) {
             }
             if (match) {
                 conflict=true;
+                cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
                 break;
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
     }
+    if (!conflict) cerr << "no conflict" << endl;
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
     LPTimer.validations += getChronoMillis(start);

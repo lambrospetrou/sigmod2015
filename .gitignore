@@ -1,6 +1,6 @@
 small.test
 reference
-testdriver
+testdriver/testdriver
 src/validator/validator
 */*.swp
 */*~
