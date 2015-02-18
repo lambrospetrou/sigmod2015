@@ -40,6 +40,7 @@
 #include <utility>
 #include <chrono>
 #include <cstring>
+#include <sys/time.h>
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
@@ -243,12 +244,31 @@ struct LPTimer_t {
     uint64_t transactions;
     uint64_t flushes;
     uint64_t forgets;
-    LPTimer_t() : validations(0), transactions(0), flushes(0), forgets(0) {}
+    uint64_t reading;
+    LPTimer_t() : validations(0), transactions(0), flushes(0), forgets(0), reading(0) {}
 } LPTimer;
 ostream& operator<< (ostream& os, const LPTimer_t& t) {
-    os << "LPTimer [val: " << t.validations << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << "]" << endl;
+    os << "LPTimer [val: " << t.validations << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "]" << endl;
     return os;
 }
+
+uint64_t getChrono() {      
+    struct timeval start;
+    gettimeofday(&start, NULL);
+    return start.tv_sec * 1000 + start.tv_usec / 1000;
+}
+uint64_t getChronoMillis(uint64_t start) {      
+    return getChrono() - start;
+}
+/*
+std::chrono::high_resolution_clock::time_point getChrono() {
+    return std::chrono::high_resolution_clock::now();
+}
+uint64_t getChronoMillis(std::chrono::high_resolution_clock::time_point start) {
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+}
+*/
 
 //---------------------------------------------------------------------------
 static void processDefineSchema(const DefineSchema& d) {
@@ -264,7 +284,7 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
-    auto start = std::chrono::system_clock::now();
+    auto start = getChrono();
     //cerr << "Transaction: " << t.transactionId << endl;
     vector<TransOperation> operations;
     const char* reader=t.operations;
@@ -308,8 +328,7 @@ static void processTransaction(const Transaction& t) {
 
     gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
     //cerr << "Success Transaction: " << t.transactionId << endl;
-    auto end = std::chrono::system_clock::now();
-    LPTimer.transactions += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LPTimer.transactions += getChronoMillis(start);
 }
 //---------------------------------------------------------------------------
 struct NullComb {
@@ -319,7 +338,7 @@ bool operator() (const TransStruct* p, std::nullptr_t target) {
 };
 
 static void processValidationQueries(const ValidationQueries& v) {
-    auto start = std::chrono::system_clock::now();
+    auto start = getChrono();
     //cerr << "Validate: " << v.from << ":" << v.to << endl;
     TransStruct fromTRS(v.from);
     TransStruct toTRS(v.to);
@@ -397,14 +416,11 @@ static void processValidationQueries(const ValidationQueries& v) {
     }
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
-    auto end = std::chrono::system_clock::now();
-    LPTimer.validations += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    //cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " total: ";
-    //cerr << totalValTime << endl;
+    LPTimer.validations += getChronoMillis(start);
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
-    auto start = std::chrono::system_clock::now();
+    auto start = getChrono();
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
         char c='0'+(*gQueryResults.begin()).second;
@@ -412,14 +428,13 @@ static void processFlush(const Flush& f) {
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
-    auto end = std::chrono::system_clock::now();
-    LPTimer.flushes += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LPTimer.flushes += getChronoMillis(start);
 }
 //---------------------------------------------------------------------------
 
 static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
-    auto start = std::chrono::system_clock::now();
+    auto start = getChrono();
     TransStruct fstruct(f.transactionId);
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
@@ -430,22 +445,27 @@ static void processForget(const Forget& f) {
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
-    auto end = std::chrono::system_clock::now();
-    LPTimer.forgets += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    //cerr << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << endl;
+    LPTimer.forgets += getChronoMillis(start);
 }
 
 
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
 template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
+    auto start = getChrono();
     if (len > buffer.size()) buffer.resize(len);
     in.read(buffer.data(),len);
+    LPTimer.reading += getChronoMillis(start);
     return *reinterpret_cast<const Type*>(buffer.data());
 }
 //---------------------------------------------------------------------------
 int main()
 {
+    // TODO - MAYBE some optimizations on reading
+    ios::sync_with_stdio(false);
+    char Buffer[1<<20];
+    cin.rdbuf()->pubsetbuf(Buffer, sizeof(Buffer));
+
     vector<char> message;
     MessageHead head;
     while (true) {
