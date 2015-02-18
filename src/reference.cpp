@@ -415,9 +415,11 @@ static void processValidationQueries(const ValidationQueries& v) {
         vec2.reserve(vec1.size());
         vecActive = &vec1; vecHelp = &vec2;
        
+
         int predsRem = q.columns.size();
-        for (auto c=q.columns.begin(),cEnd=q.columns.end(); c!=cEnd && !conflict; ++c) {
+        for (auto c=q.columns.begin(),cEnd=q.columns.end(); c!=cEnd && !conflict && !vecActive->empty(); ++c) {
             --predsRem;
+            //cerr << v.validationId << ":" << index << " size: " << vecActive->size() << endl;
             for (auto iter=vecActive->begin(), tend=vecActive->end(); iter!=tend && !conflict; ++iter) {
                 uint64_t tupleValue = (*iter)->tuple[c->column];
                 uint64_t queryValue=c->value;
