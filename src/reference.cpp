@@ -364,7 +364,10 @@ bool operator() (const TransStruct* p, std::nullptr_t target) {
     return p != target;
 }
 };
-
+template <typename Iter, typename Cont>
+bool is_last(Iter iter, const Cont& cont) {
+        return (iter != cont.end()) && (next(iter) == cont.end());
+}
 static void processValidationQueries(const ValidationQueries& v) {
     auto start = getChrono();
     //cerr << "Validate: " << v.from << ":" << v.to << endl;
@@ -394,6 +397,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
     // TODO -  VERY NAIVE HERE - validate each query separately
+    vector<TransStruct*> vec1, vec2, *vecActive, *vecHelp; 
     bool conflict=false;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=queries[index];
@@ -402,7 +406,69 @@ static void processValidationQueries(const ValidationQueries& v) {
         auto& transactions = relation.transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
         auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
-        
+    
+        // fetch all transactions into a vector in order to allow reduction later
+        vec1.clear(); vec2.clear();
+        for (; transFrom!=transTo; ++transFrom) {
+            vec1.push_back(&(*transFrom));
+        }
+        vec2.reserve(vec1.size());
+        vecActive = &vec1; vecHelp = &vec2;
+       
+        int predsRem = q.columns.size();
+        for (auto c=q.columns.begin(),cEnd=q.columns.end(); c!=cEnd && !conflict; ++c) {
+            --predsRem;
+            for (auto iter=vecActive->begin(), tend=vecActive->end(); iter!=tend && !conflict; ++iter) {
+                uint64_t tupleValue = (*iter)->tuple[c->column];
+                uint64_t queryValue=c->value;
+                bool result=false;
+                    switch (c->op) {
+                        case Query::Column::Equal: 
+                            result=(tupleValue==queryValue); 
+                            break;
+                        case Query::Column::NotEqual: 
+                            result=(tupleValue!=queryValue); 
+                            break;
+                        case Query::Column::Less: 
+                            result=(tupleValue<queryValue); 
+                            break;
+                        case Query::Column::LessOrEqual: 
+                            result=(tupleValue<=queryValue); 
+                            break;
+                        case Query::Column::Greater: 
+                            result=(tupleValue>queryValue); 
+                            break;
+                        case Query::Column::GreaterOrEqual: 
+                            result=(tupleValue>=queryValue); 
+                            break;
+                    } 
+                // there is one predicate not true so this whole query on this relation is false
+                if (result) {
+                    // next round - next predicate
+                    vecHelp->push_back(*iter); 
+                    //if (is_last(c, q.columns)) {
+                    if (predsRem == 0) {
+                        //cerr << "quick exit " << *c << endl;
+                        conflict = true;
+                    } 
+                }
+            } // end of active transactions
+            if (vecHelp->empty()) {
+                //if (v.validationId == 25) {cerr << "empty helper!" << endl;} 
+                vecActive->clear();
+            } else {
+                // swap the vectors for the next phase
+                std::swap(vecHelp, vecActive);
+                vecHelp->clear(); 
+            }
+        } // end of single query predicates
+        //cerr << conflict << ":" << !vecActive->empty() << endl;
+        if (conflict) break; 
+        else if (!conflict && !vecActive->empty()) {
+            conflict = true;
+            break;
+        }
+/*
         for(auto iter=transFrom;iter!=transTo;++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
@@ -441,6 +507,7 @@ static void processValidationQueries(const ValidationQueries& v) {
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
+*/
     }
     //if (!conflict) cerr << "no conflict" << endl;
     gQueryResults[v.validationId]=conflict;
