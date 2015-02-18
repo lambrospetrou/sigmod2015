@@ -155,7 +155,7 @@ struct LPQuery {
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
             columns(vector<Query::Column>(q.columnCount)) {
         memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
-        std::sort(columns.begin(), columns.end(), QCSortColumn);
+        std::sort(columns.begin(), columns.end());
         columns.resize(std::distance(columns.begin(), std::unique(columns.begin(), columns.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
         columnCount = columns.size();
@@ -176,14 +176,14 @@ ostream& operator<< (ostream& os, const LPQuery& o) {
     os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.columns << "}";
     return os;
 }
-bool QCSortColumn (const Query::Column& left, const Query::Column& right) {
+bool operator< (const Query::Column& left, const Query::Column& right) {
     if (left.column < right.column) return true;
     else if (right.column < left.column) return false;
     else if (left.op < right.op) return true;
     else if (right.op < left.op) return false;
     else return left.value < right.value;    
 }
-bool operator< (const Query::Column& left, const Query::Column& right) {
+bool QCSortOp (const Query::Column& left, const Query::Column& right) {
     if (left.op < right.op) return true;
     else if (right.op < left.op) return false;
     else if (left.column < right.column) return true;
