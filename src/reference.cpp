@@ -253,12 +253,24 @@ ostream& operator<< (ostream& os, const LPTimer_t& t) {
 }
 
 uint64_t getChrono() {      
+    // returns millisecods
     struct timeval start;
     gettimeofday(&start, NULL);
-    return start.tv_sec * 1000 + start.tv_usec / 1000;
+    // tv_sec = seconds | tv_usecs = microseconds
+    return (start.tv_sec * 1000LL) + start.tv_usec / 1000LL;
 }
 uint64_t getChronoMillis(uint64_t start) {      
     return getChrono() - start;
+}
+uint64_t getChronoNano() {      
+    // return nanoseconds
+    struct timeval start;
+    gettimeofday(&start, NULL);
+    // tv_sec = seconds | tv_usecs = microseconds
+    return (start.tv_sec * 1000000LL) + start.tv_usec;
+}
+uint64_t getChronoMicros(uint64_t start) {      
+    return getChronoNano() - start;
 }
 /*
 std::chrono::high_resolution_clock::time_point getChrono() {
