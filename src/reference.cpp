@@ -150,30 +150,30 @@ struct LPQuery {
     /// The number of bound columns
     uint32_t columnCount;
     /// The bindings
-    vector<Query::Column> columns;
-    LPQuery() : relationId(-1), columnCount(0), columns(vector<Query::Column>()) {}
+    vector<Query::Column> predicates;
+    LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
-            columns(vector<Query::Column>(q.columnCount)) {
-        memcpy(columns.data(), q.columns, sizeof(Query::Column)*columnCount);
-        std::sort(columns.begin(), columns.end());
-        columns.resize(std::distance(columns.begin(), std::unique(columns.begin(), columns.end())));
+            predicates(vector<Query::Column>(q.columnCount)) {
+        memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
+        std::sort(predicates.begin(), predicates.end());
+        predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
-        columnCount = columns.size();
+        columnCount = predicates.size();
     }
 };
 bool operator< (const LPQuery& left, const LPQuery& right) {
     if (left.relationId < right.relationId) return true;
     else if (right.relationId < left.relationId) return false;
     else if (left.columnCount < right.columnCount) return true;
-    else return left.columns < right.columns;;
+    else return left.predicates < right.predicates;
 }
 bool operator== (const LPQuery& left, const LPQuery& right)  {
     if (left.relationId != right.relationId) return false;
     if (left.columnCount != right.columnCount) return false;
-    return left.columns == right.columns;
+    return left.predicates == right.predicates;
 }
 ostream& operator<< (ostream& os, const LPQuery& o) {
-    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.columns << "}";
+    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "}";
     return os;
 }
 bool operator< (const Query::Column& left, const Query::Column& right) {
@@ -204,6 +204,15 @@ bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
     else if (right.columnCount < left.columnCount) return false;
     else return left.relationId < right.relationId;
 }
+
+struct LPValidation {
+    uint64_t validationId;
+    uint64_t from,to;
+    vector<LPQuery> queries;
+};
+
+
+
 
 // Custom data structures to hold data
 struct ColumnStruct {
@@ -254,6 +263,7 @@ static map<uint64_t,bool> gQueryResults;
 static vector<uint32_t> gSchema;
 
 
+
 struct LPTimer_t {
     uint64_t validations;
     uint64_t transactions;
@@ -265,18 +275,6 @@ struct LPTimer_t {
 ostream& operator<< (ostream& os, const LPTimer_t& t) {
     os << "LPTimer [val: " << t.validations << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "]" << endl;
     return os;
-}
-
-
-uint64_t getChronoMillis() {      
-    // returns millisecods
-    struct timeval start;
-    gettimeofday(&start, NULL);
-    // tv_sec = seconds | tv_usecs = microseconds
-    return (start.tv_sec * 1000LL) + start.tv_usec / 1000LL;
-}
-uint64_t getChronoMillis(uint64_t start) {      
-    return getChronoMillis() - start;
 }
 uint64_t getChronoMicro() {      
     // return nanoseconds
@@ -294,18 +292,17 @@ uint64_t getChrono() {
 uint64_t getChrono(uint64_t start) {
     return getChronoMicro() - start;
 }
-/*
-std::chrono::high_resolution_clock::time_point getChrono() {
-    return std::chrono::high_resolution_clock::now();
-}
-uint64_t getChronoMillis(std::chrono::high_resolution_clock::time_point start) {
-    auto end = std::chrono::high_resolution_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-}
-*/
+
+struct GlobalState {
+    enum State : uint32_t { SCHEMA, TRANSACTION, VALIDATION, FORGET, FLUSH };
+    State state;
+
+} Globals;
 
 //---------------------------------------------------------------------------
 static void processDefineSchema(const DefineSchema& d) {
+    Globals.state = GlobalState::SCHEMA;
+
     gSchema.clear();
     gSchema.insert(gSchema.begin(),d.columnCounts,d.columnCounts+d.relationCount);
 
@@ -318,6 +315,8 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
+    Globals.state = GlobalState::TRANSACTION;
+    
     auto start = getChrono();
     //cerr << "Transaction: " << t.transactionId << endl;
     vector<TransOperation> operations;
@@ -376,6 +375,7 @@ bool is_last(Iter iter, const Cont& cont) {
         return (iter != cont.end()) && (next(iter) == cont.end());
 }
 static void processValidationQueries(const ValidationQueries& v) {
+    Globals.state = GlobalState::VALIDATION;
     auto start = getChrono();
     //cerr << "Validate: " << v.from << ":" << v.to << endl;
     TransStruct fromTRS(v.from);
@@ -416,7 +416,7 @@ static void processValidationQueries(const ValidationQueries& v) {
         for(auto iter=transFrom; iter!=transTo; ++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
-            for (auto c=q.columns.begin(),cLimit=q.columns.end(); c!=cLimit; ++c) {
+            for (auto c=q.predicates.begin(),cLimit=q.predicates.end(); c!=cLimit; ++c) {
                 // make the actual check
                 uint64_t tupleValue = tuple[c->column];
                 uint64_t queryValue=c->value;
@@ -459,6 +459,7 @@ static void processValidationQueries(const ValidationQueries& v) {
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
+    Globals.state = GlobalState::FLUSH;
     auto start = getChrono();
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
@@ -472,6 +473,7 @@ static void processFlush(const Flush& f) {
 //---------------------------------------------------------------------------
 
 static void processForget(const Forget& f) {
+    Globals.state = GlobalState::FORGET;
     //cerr << "Forget: " << f.transactionId << endl;
     auto start = getChrono();
     TransStruct fstruct(f.transactionId);
