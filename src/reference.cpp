@@ -40,6 +40,8 @@
 #include <utility>
 #include <chrono>
 #include <cstring>
+#include <cstdlib>
+#include <climits>
 #include <sys/time.h>
 #include <thread>
 #include <mutex>
@@ -464,12 +466,20 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
     return *reinterpret_cast<const Type*>(buffer.data());
 }
 //---------------------------------------------------------------------------
-int main()
-{
+int main(int argc, char**argv) {
     // TODO - MAYBE some optimizations on reading
     ios::sync_with_stdio(false);
     char Buffer[1<<20];
     cin.rdbuf()->pubsetbuf(Buffer, sizeof(Buffer));
+
+    uint64_t numOfThreads = 1;
+    if (argc > 1) {
+        numOfThreads = strtol(argv[1], NULL, 10);
+        if (numOfThreads == LONG_MAX)
+            numOfThreads = 1;
+    }
+
+    cerr << "Number of threads: " << numOfThreads << endl;
 
     vector<char> message;
     MessageHead head;
