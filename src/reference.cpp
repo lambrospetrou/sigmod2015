@@ -46,7 +46,7 @@
 //---------------------------------------------------------------------------
 using namespace std;
 
-#define LPDEBUG  
+//#define LPDEBUG  
 
 //---------------------------------------------------------------------------
 // Wire protocol messages
@@ -453,10 +453,14 @@ static void processForget(const Forget& f) {
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
 template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
+#ifdef LPDEBUG
     auto start = getChrono();
+#endif
     if (len > buffer.size()) buffer.resize(len);
     in.read(buffer.data(),len);
+#ifdef LPDEBUG
     LPTimer.reading += getChrono(start);
+#endif 
     return *reinterpret_cast<const Type*>(buffer.data());
 }
 //---------------------------------------------------------------------------
@@ -488,7 +492,7 @@ int main()
         // And interpret it
         switch (head.type) {
             case MessageHead::Transaction: 
-                checkPendingValidations();
+                //checkPendingValidations();
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(readBody<Transaction>(cin,message,head.messageLen)); 
                 break;
@@ -502,6 +506,7 @@ int main()
                 processFlush(readBody<Flush>(cin,message,head.messageLen)); 
                 break;
             case MessageHead::Forget: 
+                checkPendingValidations();
                 Globals.state = GlobalState::FORGET;
                 processForget(readBody<Forget>(cin,message,head.messageLen)); 
                 break;
@@ -536,7 +541,21 @@ static void processPendingValidations() {
     
     if (gPendingValidations.empty()) return;
 
-    for (uint64_t vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi) {
+    //cerr << gPendingValidations.size() << endl;
+    uint64_t  vsz=gPendingValidations.size();
+    
+    vector<std::thread> threads;
+    std::mutex grmutex;
+    uint32_t numOfThreads=4, batch = vsz / numOfThreads;
+    for(uint32_t i = 0; i < numOfThreads; ++i){
+    uint64_t start = i*batch;
+    uint64_t finish = start + batch;
+    if (i == numOfThreads-1) finish = vsz;
+    threads.push_back(std::thread([=,&grmutex](){
+    vector<pair<uint64_t,uint64_t>> locals;
+    for (uint64_t vi=start; vi<finish; ++vi) {
+    
+    //for (uint64_t vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
 
         TransStruct fromTRS(v.from);
@@ -591,8 +610,20 @@ static void processPendingValidations() {
             if (conflict) break;
         }
         //if (!conflict) cerr << "no conflict" << endl;
-        gQueryResults[v.validationId]=conflict;
+//        gQueryResults[v.validationId]=conflict;
+//    }
+
+locals.push_back(move(make_pair(v.validationId,conflict)));
+ }
+    {
+        std::lock_guard<std::mutex> lock(grmutex);
+        for(auto& p : locals) gQueryResults[p.first]=p.second;
+        }
+    }));
     }
+        for(auto& t : threads){
+            t.join();
+        }
 
     gPendingValidations.clear();
 
