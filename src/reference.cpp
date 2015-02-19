@@ -375,9 +375,15 @@ bool is_last(Iter iter, const Cont& cont) {
         return (iter != cont.end()) && (next(iter) == cont.end());
 }
 static void processValidationQueries(const ValidationQueries& v) {
+    if (Globals.state != GlobalState::VALIDATION) {
+        // this is the first time we are called for this session
+    } else {
+        // VALIDATION was called previously so just add this one to the pending validaitons
+    }
+    
     Globals.state = GlobalState::VALIDATION;
-    auto start = getChrono();
-    //cerr << "Validate: " << v.from << ":" << v.to << endl;
+    auto start = getChrono();    
+    
     TransStruct fromTRS(v.from);
     TransStruct toTRS(v.to);
 
@@ -527,6 +533,7 @@ int main()
             }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
+        cerr << "state: " << Globals.state << endl;
     }
 }
 //---------------------------------------------------------------------------
