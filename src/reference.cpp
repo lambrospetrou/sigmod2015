@@ -153,7 +153,7 @@ struct LPQuery {
     vector<Query::Column> predicates;
     LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
-            predicates(vector<Query::Column>(q.columnCount)) {
+    predicates(vector<Query::Column>(q.columnCount)) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
@@ -209,6 +209,9 @@ struct LPValidation {
     uint64_t validationId;
     uint64_t from,to;
     vector<LPQuery> queries;
+
+    LPValidation(const ValidationQueries& v, vector<LPQuery> q)
+        : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
 };
 
 
@@ -262,18 +265,19 @@ static map<uint64_t,bool> gQueryResults;
 
 static vector<uint32_t> gSchema;
 
-
+static vector<LPValidation> gPendingValidations;
 
 struct LPTimer_t {
     uint64_t validations;
+    uint64_t validationsProcessing;
     uint64_t transactions;
     uint64_t flushes;
     uint64_t forgets;
     uint64_t reading;
-    LPTimer_t() : validations(0), transactions(0), flushes(0), forgets(0), reading(0) {}
+    LPTimer_t() : validations(0), validationsProcessing(0), transactions(0), flushes(0), forgets(0), reading(0) {}
 } LPTimer;
 ostream& operator<< (ostream& os, const LPTimer_t& t) {
-    os << "LPTimer [val: " << t.validations << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "]" << endl;
+    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "]" << endl;
     return os;
 }
 uint64_t getChronoMicro() {      
@@ -300,6 +304,13 @@ struct GlobalState {
 } Globals;
 
 //---------------------------------------------------------------------------
+
+// JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
+static inline void checkPendingValidations();
+static void processPendingValidations();
+///--------------------------------------------------------------------------
+///--------------------------------------------------------------------------
+
 static void processDefineSchema(const DefineSchema& d) {
     Globals.state = GlobalState::SCHEMA;
 
@@ -316,7 +327,7 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
     Globals.state = GlobalState::TRANSACTION;
-    
+
     auto start = getChrono();
     //cerr << "Transaction: " << t.transactionId << endl;
     vector<TransOperation> operations;
@@ -353,7 +364,7 @@ static void processTransaction(const Transaction& t) {
 
             // add the tuple to this transaction operations and to the relations table
             operations.push_back(move(TransOperation(o.relationId, tuple[0])));
-            
+
             gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
         }
@@ -366,26 +377,18 @@ static void processTransaction(const Transaction& t) {
 }
 //---------------------------------------------------------------------------
 struct NullComb {
-bool operator() (const TransStruct* p, std::nullptr_t target) {
-    return p != target;
-}
+    bool operator() (const TransStruct* p, std::nullptr_t target) {
+        return p != target;
+    }
 };
 template <typename Iter, typename Cont>
 bool is_last(Iter iter, const Cont& cont) {
-        return (iter != cont.end()) && (next(iter) == cont.end());
+    return (iter != cont.end()) && (next(iter) == cont.end());
 }
 static void processValidationQueries(const ValidationQueries& v) {
-    if (Globals.state != GlobalState::VALIDATION) {
-        // this is the first time we are called for this session
-    } else {
-        // VALIDATION was called previously so just add this one to the pending validaitons
-    }
-    
+    // add this one to the pending validaitons
     Globals.state = GlobalState::VALIDATION;
     auto start = getChrono();    
-    
-    TransStruct fromTRS(v.from);
-    TransStruct toTRS(v.to);
 
     // try to put all the queries into a vector
     vector<LPQuery> queries;
@@ -396,10 +399,6 @@ static void processValidationQueries(const ValidationQueries& v) {
         queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
-
-    // TODO - PROCESS the queries in order to take out common predicates on the same relations
-    // TODO - to avoid multiple times the same query validation
-
     // sort the queries based on everything to remove duplicates
     //sort(queries.begin(), queries.end());
     //cerr << "size before: " << queries.size() << endl;
@@ -409,57 +408,8 @@ static void processValidationQueries(const ValidationQueries& v) {
     // small queries first in order to try finding a solution faster
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
-    // TODO -  VERY NAIVE HERE - validate each query separately
-    bool conflict=false;
-    for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
-        auto& q=queries[index];
-        // avoid searching for the range of transactions too many times 
-        auto& relation = gRelations[q.relationId];
-        auto& transactions = relation.transactions;
-        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
-        auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
+    gPendingValidations.push_back(move(LPValidation(v, queries)));
 
-        for(auto iter=transFrom; iter!=transTo; ++iter) {
-            auto& tuple = iter->tuple;
-            bool match=true;
-            for (auto c=q.predicates.begin(),cLimit=q.predicates.end(); c!=cLimit; ++c) {
-                // make the actual check
-                uint64_t tupleValue = tuple[c->column];
-                uint64_t queryValue=c->value;
-                bool result=false;
-                    switch (c->op) {
-                        case Query::Column::Equal: 
-                            result=(tupleValue==queryValue); 
-                            break;
-                        case Query::Column::NotEqual: 
-                            result=(tupleValue!=queryValue); 
-                            break;
-                        case Query::Column::Less: 
-                            result=(tupleValue<queryValue); 
-                            break;
-                        case Query::Column::LessOrEqual: 
-                            result=(tupleValue<=queryValue); 
-                            break;
-                        case Query::Column::Greater: 
-                            result=(tupleValue>queryValue); 
-                            break;
-                        case Query::Column::GreaterOrEqual: 
-                            result=(tupleValue>=queryValue); 
-                            break;
-                    } 
-                // there is one predicate not true so this whole query on this relation is false
-                if (!result) { match=false; break; }
-            } // end of single query predicates
-            if (match) {
-                conflict=true;
-                //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
-                break;
-            }    
-        } // end of all transactions for this relation query
-        if (conflict) break;
-    }
-    //if (!conflict) cerr << "no conflict" << endl;
-    gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
     LPTimer.validations += getChrono(start);
 }
@@ -488,13 +438,12 @@ static void processForget(const Forget& f) {
         // delete this transaction from the lastRel columns
         auto& transactions = crel->transactions;
         transactions.erase(transactions.begin(), 
-            upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
+                upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
     LPTimer.forgets += getChrono(start);
 }
-
 
 //---------------------------------------------------------------------------
 // Read the message body and cast it to the desired type
@@ -520,20 +469,105 @@ int main()
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
+        // make sure we do not have any pending validations
+        if (head.type != MessageHead::ValidationQueries) {
+            checkPendingValidations();
+        }
+
         // And interpret it
         switch (head.type) {
-            case MessageHead::Transaction: processTransaction(readBody<Transaction>(cin,message,head.messageLen)); break;
+            case MessageHead::Transaction: 
+                processTransaction(readBody<Transaction>(cin,message,head.messageLen)); break;
             case MessageHead::ValidationQueries: processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); break;
             case MessageHead::Flush: processFlush(readBody<Flush>(cin,message,head.messageLen)); break;
             case MessageHead::Forget: processForget(readBody<Forget>(cin,message,head.messageLen)); break;
             case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
             case MessageHead::Done: {
-                cerr << "\ttimings:: " << LPTimer << endl; 
-                return 0;
-            }
+                                        cerr << "\ttimings:: " << LPTimer << endl; 
+                                        return 0;
+                                    }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
-        cerr << "state: " << Globals.state << endl;
     }
 }
 //---------------------------------------------------------------------------
+
+static inline void checkPendingValidations() {
+    if (Globals.state != GlobalState::VALIDATION) { return; }
+    // the last call was validation so we have to process any pending validations 
+    // before processing the current request since they might be related
+    processPendingValidations();
+}
+
+static void processPendingValidations() {
+    if (gPendingValidations.empty()) return;
+    auto start = getChrono();
+
+//#pragma omp parallel 
+{
+    
+    //vector<pair<uint64_t, bool>> localResults;
+        
+    for (unsigned int vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi ) {
+        auto& v = gPendingValidations[vi];
+
+        TransStruct fromTRS(v.from);
+        TransStruct toTRS(v.to);
+        // TODO -  VERY NAIVE HERE - validate each query separately
+        bool conflict=false;
+        for (unsigned int index=0,qsz=v.queries.size();index<qsz;++index) {
+            auto& q=v.queries[index];
+            // avoid searching for the range of transactions too many times 
+            auto& relation = gRelations[q.relationId];
+            auto& transactions = relation.transactions;
+            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
+            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
+
+            for(auto iter=transFrom; iter!=transTo; ++iter) {
+                auto& tuple = iter->tuple;
+                bool match=true;
+                for (auto c=q.predicates.begin(),cLimit=q.predicates.end(); c!=cLimit; ++c) {
+                    // make the actual check
+                    uint64_t tupleValue = tuple[c->column];
+                    uint64_t queryValue=c->value;
+                    bool result=false;
+                    switch (c->op) {
+                        case Query::Column::Equal: 
+                            result=(tupleValue==queryValue); 
+                            break;
+                        case Query::Column::NotEqual: 
+                            result=(tupleValue!=queryValue); 
+                            break;
+                        case Query::Column::Less: 
+                            result=(tupleValue<queryValue); 
+                            break;
+                        case Query::Column::LessOrEqual: 
+                            result=(tupleValue<=queryValue); 
+                            break;
+                        case Query::Column::Greater: 
+                            result=(tupleValue>queryValue); 
+                            break;
+                        case Query::Column::GreaterOrEqual: 
+                            result=(tupleValue>=queryValue); 
+                            break;
+                    } 
+                    // there is one predicate not true so this whole query on this relation is false
+                    if (!result) { match=false; break; }
+                } // end of single query predicates
+                if (match) {
+                    conflict=true;
+                    //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
+                    break;
+                }    
+            } // end of all transactions for this relation query
+            if (conflict) break;
+        }
+        //if (!conflict) cerr << "no conflict" << endl;
+        gQueryResults[v.validationId]=conflict;
+    }
+    
+} // end of omp parallel
+    
+    gPendingValidations.clear();
+    LPTimer.validationsProcessing += getChrono(start);
+}
