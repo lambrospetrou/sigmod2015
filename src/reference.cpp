@@ -491,14 +491,14 @@ int main()
 
         // And interpret it
         switch (head.type) {
+            case MessageHead::ValidationQueries: 
+                Globals.state = GlobalState::VALIDATION;
+                processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); 
+                break;
             case MessageHead::Transaction: 
                 //checkPendingValidations();
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(readBody<Transaction>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::ValidationQueries: 
-                Globals.state = GlobalState::VALIDATION;
-                processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); 
                 break;
             case MessageHead::Flush: 
                 checkPendingValidations();
@@ -541,13 +541,13 @@ static void processPendingValidations() {
     
     if (gPendingValidations.empty()) return;
 
-    cerr << gPendingValidations.size() << endl;
+    //cerr << gPendingValidations.size() << endl;
 
     uint64_t vsz=gPendingValidations.size();
     for (uint64_t vi=0; vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
 
-        cerr << "range: " << v.from << "-" << v.to << endl;
+        //cerr << "range: " << v.from << "-" << v.to << endl;
 
         TransStruct fromTRS(v.from);
         TransStruct toTRS(v.to);
@@ -592,11 +592,7 @@ static void processPendingValidations() {
                     // there is one predicate not true so this whole query on this relation is false
                     if (!result) { match=false; break; }
                 } // end of single query predicates
-                if (match) {
-                    conflict=true;
-                    //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
-                    break;
-                }    
+                if (match) { conflict=true; break; }    
             } // end of all transactions for this relation query
             if (conflict) break;
         }
