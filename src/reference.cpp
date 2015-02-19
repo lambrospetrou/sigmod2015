@@ -473,7 +473,7 @@ struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-static void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
+void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
     while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
@@ -494,6 +494,7 @@ static void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
         cin.read(buffer.data(), head.messageLen);
         msgQ.registerEnq();
     }
+    return;
 }
 
 int main(int argc, char**argv) {
@@ -509,7 +510,7 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    BoundedSRSWQueue<ReceivedMessage> msgQ(20);
+    BoundedSRSWQueue<ReceivedMessage> msgQ(10000);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
