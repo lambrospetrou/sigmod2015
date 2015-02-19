@@ -518,9 +518,6 @@ int main(int argc, char**argv) {
     //MessageHead head;
     while (true) {
         // Retrieve the message
-        //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-        //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-        
         ReceivedMessage& msg = msgQ.reqNextDeq();
         auto& head = msg.head;
         // And interpret it
@@ -559,42 +556,6 @@ int main(int argc, char**argv) {
         }
 
         msgQ.registerDeq();
-/*
-        // And interpret it
-        switch (head.type) {
-            case MessageHead::ValidationQueries: 
-                Globals.state = GlobalState::VALIDATION;
-                processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::Transaction: 
-                //checkPendingValidations();
-                Globals.state = GlobalState::TRANSACTION;
-                processTransaction(readBody<Transaction>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::Flush: 
-                checkPendingValidations();
-                Globals.state = GlobalState::FLUSH;
-                processFlush(readBody<Flush>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::Forget: 
-                checkPendingValidations();
-                Globals.state = GlobalState::FORGET;
-                processForget(readBody<Forget>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::DefineSchema: 
-                Globals.state = GlobalState::SCHEMA;
-                processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); 
-                break;
-            case MessageHead::Done: 
-                {
-#ifdef LPDEBUG
-                    cerr << "\ttimings:: " << LPTimer << endl; 
-#endif              
-                    return 0;
-                }
-            default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
-        }
-*/
     }
 }
 //---------------------------------------------------------------------------
@@ -603,13 +564,16 @@ int main(int argc, char**argv) {
 
 static inline void checkPendingValidations() {
     if (gPendingValidations.empty()) return;
-    processPendingValidations();
-}
-
-static void processPendingValidations() {
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
+    processPendingValidations();
+#ifdef LPDEBUG
+    LPTimer.validationsProcessing += getChrono(start);
+#endif
+}
+
+static void processPendingValidations() {
     //cerr << gPendingValidations.size() << endl;
     uint64_t vsz=gPendingValidations.size();
     for (uint64_t vi=0; vi<vsz; ++vi) {
@@ -668,7 +632,4 @@ static void processPendingValidations() {
 
     gPendingValidations.clear();
 
-#ifdef LPDEBUG
-    LPTimer.validationsProcessing += getChrono(start);
-#endif
 }
