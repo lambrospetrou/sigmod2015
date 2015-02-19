@@ -475,12 +475,13 @@ struct ReceivedMessage {
     vector<char> data;
 };
 // Only for Single Reader - Single Writer
+template<class T>
 class BoundedSRSWQueue {
 public:
     BoundedSRSWQueue(uint64_t sz) : mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), mCapacity(sz+1),
-        mQ(vector<ReceivedMessage>(mCapacity)) {}
+        mQ(vector<T>(mCapacity)) {}
 
-    ReceivedMessage& reqNextEnq() { 
+    T& reqNextEnq() { 
         // Wait until main() sends data
         std::unique_lock<std::mutex> lk(mMutexEnq);
         mCondFull.wait(lk, [this]{return !isFull();});
@@ -494,7 +495,7 @@ public:
         mCondEmpty.notify_one();
     }
     
-    ReceivedMessage& reqNextDeq() {
+    T& reqNextDeq() {
         std::unique_lock<std::mutex> lk(mMutexDeq);
         mCondEmpty.wait(lk, [this]{return !isEmpty();});
         lk.unlock();
@@ -528,7 +529,7 @@ private:
     }
 };
 
-static void ReaderTask(BoundedSRSWQueue& msgQ) {
+static void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
     while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
@@ -564,7 +565,7 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    BoundedSRSWQueue msgQ(20);
+    BoundedSRSWQueue<ReceivedMessage> msgQ(20);
 
     std::thread readerTask([&msgQ]{ ReaderTask(msgQ); });
 
