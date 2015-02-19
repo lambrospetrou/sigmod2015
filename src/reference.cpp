@@ -33,12 +33,10 @@
 #include <unordered_map>
 #include <set>
 #include <vector>
-#include <deque>
-#include <cassert>
 #include <cstdint>
 #include <algorithm>
 #include <utility>
-#include <chrono>
+#include <functional>
 #include <cstring>
 #include <cstdlib>
 #include <climits>
@@ -513,7 +511,7 @@ int main(int argc, char**argv) {
 
     BoundedSRSWQueue<ReceivedMessage> msgQ(20);
 
-    std::thread readerTask([&msgQ]{ ReaderTask(msgQ); });
+    std::thread readerTask(ReaderTask, std::ref(msgQ));
 
     //vector<char> message;
     //MessageHead head;
@@ -531,7 +529,6 @@ int main(int argc, char**argv) {
                 processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data())); 
                 break;
             case MessageHead::Transaction: 
-                //checkPendingValidations();
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
                 break;
