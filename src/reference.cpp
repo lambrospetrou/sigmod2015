@@ -267,7 +267,8 @@ ostream& operator<< (ostream& os, const LPTimer_t& t) {
     return os;
 }
 
-uint64_t getChrono() {      
+
+uint64_t getChronoMillis() {      
     // returns millisecods
     struct timeval start;
     gettimeofday(&start, NULL);
@@ -275,17 +276,23 @@ uint64_t getChrono() {
     return (start.tv_sec * 1000LL) + start.tv_usec / 1000LL;
 }
 uint64_t getChronoMillis(uint64_t start) {      
-    return getChrono() - start;
+    return getChronoMillis() - start;
 }
-uint64_t getChronoNano() {      
+uint64_t getChronoMicro() {      
     // return nanoseconds
     struct timeval start;
     gettimeofday(&start, NULL);
     // tv_sec = seconds | tv_usecs = microseconds
     return (start.tv_sec * 1000000LL) + start.tv_usec;
 }
-uint64_t getChronoMicros(uint64_t start) {      
-    return getChronoNano() - start;
+uint64_t getChronoMicro(uint64_t start) {      
+    return getChronoMicro() - start;
+}
+uint64_t getChrono() {
+    return getChronoMicro();
+}
+uint64_t getChrono(uint64_t start) {
+    return getChronoMicro() - start;
 }
 /*
 std::chrono::high_resolution_clock::time_point getChrono() {
@@ -356,7 +363,7 @@ static void processTransaction(const Transaction& t) {
 
     gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
     //cerr << "Success Transaction: " << t.transactionId << endl;
-    LPTimer.transactions += getChronoMillis(start);
+    LPTimer.transactions += getChrono(start);
 }
 //---------------------------------------------------------------------------
 struct NullComb {
@@ -388,16 +395,15 @@ static void processValidationQueries(const ValidationQueries& v) {
     // TODO - to avoid multiple times the same query validation
 
     // sort the queries based on everything to remove duplicates
-    sort(queries.begin(), queries.end());
+    //sort(queries.begin(), queries.end());
     //cerr << "size before: " << queries.size() << endl;
-    queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
+    //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
     //cerr << "size after: " << queries.size() << endl;
     // sort the queries based on the number of the columns needed to check
     // small queries first in order to try finding a solution faster
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
     // TODO -  VERY NAIVE HERE - validate each query separately
-    vector<uint64_t> vec1, vec2, *vecActive, *vecHelp; 
     bool conflict=false;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=queries[index];
@@ -406,78 +412,11 @@ static void processValidationQueries(const ValidationQueries& v) {
         auto& transactions = relation.transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
         auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
-   
-        uint64_t transFromIndex = std::distance(transactions.begin(), transFrom);
-        uint64_t transToIndex = std::distance(transactions.begin(), transTo);
 
-        // fetch all transactions into a vector in order to allow reduction later
-        vec1.clear(); vec2.clear();
-        for (; transFromIndex<transToIndex; ++transFromIndex) {
-            vec1.push_back(transFromIndex);
-        }
-        vec2.reserve(vec1.size());
-        vecActive = &vec1; vecHelp = &vec2;
-       
-
-        int predsRem = q.columns.size();
-        for (auto c=q.columns.begin(),cEnd=q.columns.end(); c!=cEnd && !conflict && !vecActive->empty(); ++c) {
-            --predsRem;
-            //cerr << v.validationId << ":" << index << " size: " << vecActive->size() << endl;
-            for (auto iter=vecActive->begin(), tend=vecActive->end(); iter!=tend && !conflict; ++iter) {
-                uint64_t tupleValue = transactions[*iter].tuple[c->column];
-                uint64_t queryValue=c->value;
-                bool result=false;
-                    switch (c->op) {
-                        case Query::Column::Equal: 
-                            result=(tupleValue==queryValue); 
-                            break;
-                        case Query::Column::NotEqual: 
-                            result=(tupleValue!=queryValue); 
-                            break;
-                        case Query::Column::Less: 
-                            result=(tupleValue<queryValue); 
-                            break;
-                        case Query::Column::LessOrEqual: 
-                            result=(tupleValue<=queryValue); 
-                            break;
-                        case Query::Column::Greater: 
-                            result=(tupleValue>queryValue); 
-                            break;
-                        case Query::Column::GreaterOrEqual: 
-                            result=(tupleValue>=queryValue); 
-                            break;
-                    } 
-                // there is one predicate not true so this whole query on this relation is false
-                if (result) {
-                    // next round - next predicate
-                    vecHelp->push_back(*iter); 
-                    //if (is_last(c, q.columns)) {
-                    if (predsRem == 0) {
-                        //cerr << "quick exit " << *c << endl;
-                        conflict = true;
-                    } 
-                }
-            } // end of active transactions
-            if (vecHelp->empty()) {
-                //if (v.validationId == 25) {cerr << "empty helper!" << endl;} 
-                vecActive->clear();
-            } else {
-                // swap the vectors for the next phase
-                std::swap(vecHelp, vecActive);
-                vecHelp->clear(); 
-            }
-        } // end of single query predicates
-        //cerr << conflict << ":" << !vecActive->empty() << endl;
-        if (conflict) break; 
-        else if (!conflict && !vecActive->empty()) {
-            conflict = true;
-            break;
-        }
-/*
-        for(auto iter=transFrom;iter!=transTo;++iter) {
+        for(auto iter=transFrom; iter!=transTo; ++iter) {
             auto& tuple = iter->tuple;
             bool match=true;
-            for (auto c=q.columns.begin(),cLimit=q.columns.end();c!=cLimit;++c) {
+            for (auto c=q.columns.begin(),cLimit=q.columns.end(); c!=cLimit; ++c) {
                 // make the actual check
                 uint64_t tupleValue = tuple[c->column];
                 uint64_t queryValue=c->value;
@@ -504,7 +443,7 @@ static void processValidationQueries(const ValidationQueries& v) {
                     } 
                 // there is one predicate not true so this whole query on this relation is false
                 if (!result) { match=false; break; }
-            }
+            } // end of single query predicates
             if (match) {
                 conflict=true;
                 //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
@@ -512,12 +451,11 @@ static void processValidationQueries(const ValidationQueries& v) {
             }    
         } // end of all transactions for this relation query
         if (conflict) break;
-*/
     }
     //if (!conflict) cerr << "no conflict" << endl;
     gQueryResults[v.validationId]=conflict;
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
-    LPTimer.validations += getChronoMillis(start);
+    LPTimer.validations += getChrono(start);
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
@@ -529,7 +467,7 @@ static void processFlush(const Flush& f) {
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
-    LPTimer.flushes += getChronoMillis(start);
+    LPTimer.flushes += getChrono(start);
 }
 //---------------------------------------------------------------------------
 
@@ -546,7 +484,7 @@ static void processForget(const Forget& f) {
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
-    LPTimer.forgets += getChronoMillis(start);
+    LPTimer.forgets += getChrono(start);
 }
 
 
@@ -556,7 +494,7 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
     auto start = getChrono();
     if (len > buffer.size()) buffer.resize(len);
     in.read(buffer.data(),len);
-    LPTimer.reading += getChronoMillis(start);
+    LPTimer.reading += getChrono(start);
     return *reinterpret_cast<const Type*>(buffer.data());
 }
 //---------------------------------------------------------------------------
