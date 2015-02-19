@@ -33,7 +33,7 @@
 #include <unordered_map>
 #include <set>
 #include <vector>
-#include <array>
+#include <deque>
 #include <cassert>
 #include <cstdint>
 #include <algorithm>
@@ -45,10 +45,11 @@
 #include <sys/time.h>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 //---------------------------------------------------------------------------
 using namespace std;
 
-//#define LPDEBUG  
+#define LPDEBUG  
 
 //---------------------------------------------------------------------------
 // Wire protocol messages
@@ -466,11 +467,85 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
     return *reinterpret_cast<const Type*>(buffer.data());
 }
 //---------------------------------------------------------------------------
+
+/////////////////// MAIN-READING STRUCTURES ///////////////////////
+
+struct ReceivedMessage {
+    MessageHead head;
+    vector<char> data;
+};
+// Only for Single Reader - Single Writer
+class BoundedQueue {
+public:
+    BoundedQueue(uint64_t sz) : mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), 
+        mQ(vector<ReceivedMessage>(sz+1)) {}
+
+    ReceivedMessage& reqNextEnq() { 
+        // Wait until main() sends data
+        std::unique_lock<std::mutex> lk(mMutex);
+        mCondFull.wait(lk, [this]{return !isFull();});
+        lk.unlock();
+        return mQ[mEnqIndex%mMaxSize]; 
+    }
+    void registerEnq() {
+        // might not be necessary
+        std::lock_guard<std::mutex> lk(mMutex);
+        ++mEnqIndex;
+        mCondEmpty.notify_one();
+    }
+    
+    ReceivedMessage& reqNextDeq() {
+        std::unique_lock<std::mutex> lk(mMutex);
+        mCondEmpty.wait(lk, [this]{return !isEmpty();});
+        lk.unlock();
+        return mQ[mDeqIndex%mMaxSize];  
+    }
+    void registerDeq() {
+        std::lock_guard<std::mutex> lk(mMutex);
+        ++mDeqIndex;
+        mCondFull.notify_one();    
+    }
+
+private:
+    uint64_t mEnqIndex; // points to where the next empty slot is
+    uint64_t mDeqIndex; // points to the next available message
+    uint64_t mMaxSize;  // the maximum number of messages in the queue
+    vector<ReceivedMessage> mQ;        
+
+    std::mutex mMutex;
+    std::condition_variable mCondFull;
+    std::condition_variable mCondEmpty;
+
+    inline bool isEmpty() const { return mEnqIndex == mDeqIndex; }
+    inline bool isFull() const { return mEnqIndex - mDeqIndex == mMaxSize; }
+};
+
+static void ReaderTask(BoundedQueue& msgQ) {
+    while (true) {
+        // request place from the message queue - it blocks if full
+        ReceivedMessage& msg = msgQ.reqNextEnq();
+        auto& head = msg.head;
+        auto& buffer = msg.data;
+        // read the head of the message - type and len
+        cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+        if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+        
+        if (head.type == MessageHead::Done) {
+            msgQ.registerEnq(); 
+            // exit the loop since the reader has finished its job
+            return;        
+        }
+        
+        // read the actual message content
+        if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
+        cin.read(buffer.data(), head.messageLen);
+        msgQ.registerEnq();
+    }
+}
+
 int main(int argc, char**argv) {
     // TODO - MAYBE some optimizations on reading
     ios::sync_with_stdio(false);
-    char Buffer[1<<20];
-    cin.rdbuf()->pubsetbuf(Buffer, sizeof(Buffer));
 
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -481,13 +556,57 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    vector<char> message;
-    MessageHead head;
+    BoundedQueue msgQ(10);
+
+    std::thread readerTask([&msgQ]{ ReaderTask(msgQ); });
+
+    //vector<char> message;
+    //MessageHead head;
     while (true) {
         // Retrieve the message
-        cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-        if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+        //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+        //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+        
+        ReceivedMessage& msg = msgQ.reqNextDeq();
+        auto& head = msg.head;
+        // And interpret it
+        switch (head.type) {
+            case MessageHead::ValidationQueries: 
+                Globals.state = GlobalState::VALIDATION;
+                processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data())); 
+                break;
+            case MessageHead::Transaction: 
+                //checkPendingValidations();
+                Globals.state = GlobalState::TRANSACTION;
+                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
+                break;
+            case MessageHead::Flush: 
+                checkPendingValidations();
+                Globals.state = GlobalState::FLUSH;
+                processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
+                break;
+            case MessageHead::Forget: 
+                checkPendingValidations();
+                Globals.state = GlobalState::FORGET;
+                processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
+                break;
+            case MessageHead::DefineSchema: 
+                Globals.state = GlobalState::SCHEMA;
+                processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data())); 
+                break;
+            case MessageHead::Done: 
+                {
+#ifdef LPDEBUG
+                    cerr << "\ttimings:: " << LPTimer << endl; 
+#endif              
+                    readerTask.join();
+                    return 0;
+                }
+            default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
+        }
 
+        msgQ.registerDeq();
+/*
         // And interpret it
         switch (head.type) {
             case MessageHead::ValidationQueries: 
@@ -522,9 +641,12 @@ int main(int argc, char**argv) {
                 }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
+*/
     }
 }
 //---------------------------------------------------------------------------
+
+
 
 static inline void checkPendingValidations() {
     if (gPendingValidations.empty()) return;
@@ -536,11 +658,9 @@ static void processPendingValidations() {
     auto start = getChrono();
 #endif
     //cerr << gPendingValidations.size() << endl;
-
     uint64_t vsz=gPendingValidations.size();
     for (uint64_t vi=0; vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
-
         //cerr << "range: " << v.from << "-" << v.to << endl;
 
         TransStruct fromTRS(v.from);
@@ -590,7 +710,6 @@ static void processPendingValidations() {
             } // end of all transactions for this relation query
             if (conflict) break;
         }
-        //if (!conflict) cerr << "no conflict" << endl;
         gQueryResults[v.validationId]=conflict;
     }
 
