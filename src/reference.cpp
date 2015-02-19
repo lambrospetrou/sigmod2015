@@ -475,52 +475,60 @@ struct ReceivedMessage {
     vector<char> data;
 };
 // Only for Single Reader - Single Writer
-class BoundedQueue {
+class BoundedSRSWQueue {
 public:
-    BoundedQueue(uint64_t sz) : mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), 
-        mQ(vector<ReceivedMessage>(sz+1)) {}
+    BoundedSRSWQueue(uint64_t sz) : mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), mCapacity(sz+1),
+        mQ(vector<ReceivedMessage>(mCapacity)) {}
 
     ReceivedMessage& reqNextEnq() { 
         // Wait until main() sends data
-        std::unique_lock<std::mutex> lk(mMutex);
+        std::unique_lock<std::mutex> lk(mMutexEnq);
         mCondFull.wait(lk, [this]{return !isFull();});
         lk.unlock();
-        return mQ[mEnqIndex%mMaxSize]; 
+        return mQ[mEnqIndex]; 
     }
     void registerEnq() {
         // might not be necessary
-        std::lock_guard<std::mutex> lk(mMutex);
-        ++mEnqIndex;
+        //std::lock_guard<std::mutex> lk(mMutex);
+        mEnqIndex = (mEnqIndex+1) % mCapacity;
         mCondEmpty.notify_one();
     }
     
     ReceivedMessage& reqNextDeq() {
-        std::unique_lock<std::mutex> lk(mMutex);
+        std::unique_lock<std::mutex> lk(mMutexDeq);
         mCondEmpty.wait(lk, [this]{return !isEmpty();});
         lk.unlock();
-        return mQ[mDeqIndex%mMaxSize];  
+        return mQ[mDeqIndex];
     }
     void registerDeq() {
-        std::lock_guard<std::mutex> lk(mMutex);
-        ++mDeqIndex;
+        //std::lock_guard<std::mutex> lk(mMutex);
+        mDeqIndex = (mDeqIndex + 1) % mCapacity;
         mCondFull.notify_one();    
     }
 
 private:
     uint64_t mEnqIndex; // points to where the next empty slot is
     uint64_t mDeqIndex; // points to the next available message
-    uint64_t mMaxSize;  // the maximum number of messages in the queue
+    uint64_t mMaxSize;  // the maximum number iof messages in the queue
+    uint64_t mCapacity; // the total storage
     vector<ReceivedMessage> mQ;        
 
-    std::mutex mMutex;
+    std::mutex mMutexEnq;
+    std::mutex mMutexDeq;
     std::condition_variable mCondFull;
     std::condition_variable mCondEmpty;
 
-    inline bool isEmpty() const { return mEnqIndex == mDeqIndex; }
-    inline bool isFull() const { return mEnqIndex - mDeqIndex == mMaxSize; }
+    inline bool isEmpty() const { 
+        if (mEnqIndex < mDeqIndex) return mEnqIndex + mCapacity == mDeqIndex; 
+        else return mEnqIndex == mDeqIndex; 
+    }
+    inline bool isFull() const { 
+        if (mEnqIndex < mDeqIndex) return (mEnqIndex + mCapacity) - mDeqIndex == mMaxSize; 
+        else return mEnqIndex - mDeqIndex == mMaxSize; 
+    }
 };
 
-static void ReaderTask(BoundedQueue& msgQ) {
+static void ReaderTask(BoundedSRSWQueue& msgQ) {
     while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
@@ -556,7 +564,7 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    BoundedQueue msgQ(10);
+    BoundedSRSWQueue msgQ(20);
 
     std::thread readerTask([&msgQ]{ ReaderTask(msgQ); });
 
