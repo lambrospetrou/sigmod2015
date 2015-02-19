@@ -466,9 +466,6 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
 //---------------------------------------------------------------------------
 int main()
 {
-    //omp_set_dynamic(0);
-    //omp_set_num_threads(omp_get_num_procs());
-
     // TODO - MAYBE some optimizations on reading
     ios::sync_with_stdio(false);
     char Buffer[1<<20];
@@ -480,14 +477,6 @@ int main()
         // Retrieve the message
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-
-        /*
-        // make sure we do not have any pending validations
-        if (head.type == MessageHead::Transaction 
-                || head.type == MessageHead::Flush) {
-            checkPendingValidations();
-        }
-        */
 
         // And interpret it
         switch (head.type) {
@@ -528,9 +517,7 @@ int main()
 //---------------------------------------------------------------------------
 
 static inline void checkPendingValidations() {
-    if (Globals.state != GlobalState::VALIDATION) { return; }
-    // the last call was validation so we have to process any pending validations 
-    // before processing the current request since they might be related
+    if (gPendingValidations.empty()) return;
     processPendingValidations();
 }
 
@@ -538,9 +525,6 @@ static void processPendingValidations() {
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
-    
-    if (gPendingValidations.empty()) return;
-
     //cerr << gPendingValidations.size() << endl;
 
     uint64_t vsz=gPendingValidations.size();
