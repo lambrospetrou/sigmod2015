@@ -397,7 +397,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
     // TODO -  VERY NAIVE HERE - validate each query separately
-    vector<TransStruct*> vec1, vec2, *vecActive, *vecHelp; 
+    vector<uint64_t> vec1, vec2, *vecActive, *vecHelp; 
     bool conflict=false;
     for (unsigned int index=0,qsz=queries.size();index<qsz;++index) {
         auto& q=queries[index];
@@ -406,11 +406,14 @@ static void processValidationQueries(const ValidationQueries& v) {
         auto& transactions = relation.transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
         auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
-    
+   
+        uint64_t transFromIndex = std::distance(transactions.begin(), transFrom);
+        uint64_t transToIndex = std::distance(transactions.begin(), transTo);
+
         // fetch all transactions into a vector in order to allow reduction later
         vec1.clear(); vec2.clear();
-        for (; transFrom!=transTo; ++transFrom) {
-            vec1.push_back(&(*transFrom));
+        for (; transFromIndex<transToIndex; ++transFromIndex) {
+            vec1.push_back(transFromIndex);
         }
         vec2.reserve(vec1.size());
         vecActive = &vec1; vecHelp = &vec2;
@@ -421,7 +424,7 @@ static void processValidationQueries(const ValidationQueries& v) {
             --predsRem;
             //cerr << v.validationId << ":" << index << " size: " << vecActive->size() << endl;
             for (auto iter=vecActive->begin(), tend=vecActive->end(); iter!=tend && !conflict; ++iter) {
-                uint64_t tupleValue = (*iter)->tuple[c->column];
+                uint64_t tupleValue = transactions[*iter].tuple[c->column];
                 uint64_t queryValue=c->value;
                 bool result=false;
                     switch (c->op) {
