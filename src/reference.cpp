@@ -45,6 +45,9 @@
 #include <mutex>
 //---------------------------------------------------------------------------
 using namespace std;
+
+#define LPDEBUG  
+
 //---------------------------------------------------------------------------
 // Wire protocol messages
 //---------------------------------------------------------------------------
@@ -328,10 +331,9 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
-    Globals.state = GlobalState::TRANSACTION;
-
+#ifdef LPDEBUG
     auto start = getChrono();
-    //cerr << "Transaction: " << t.transactionId << endl;
+#endif
     vector<TransOperation> operations;
     const char* reader=t.operations;
 
@@ -374,23 +376,16 @@ static void processTransaction(const Transaction& t) {
     }
 
     gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
-    //cerr << "Success Transaction: " << t.transactionId << endl;
+
+#ifdef LPDEBUG
     LPTimer.transactions += getChrono(start);
+#endif
 }
 //---------------------------------------------------------------------------
-struct NullComb {
-    bool operator() (const TransStruct* p, std::nullptr_t target) {
-        return p != target;
-    }
-};
-template <typename Iter, typename Cont>
-bool is_last(Iter iter, const Cont& cont) {
-    return (iter != cont.end()) && (next(iter) == cont.end());
-}
 static void processValidationQueries(const ValidationQueries& v) {
-    // add this one to the pending validaitons
-    Globals.state = GlobalState::VALIDATION;
+#ifdef LPDEBUG
     auto start = getChrono();    
+#endif
 
     // try to put all the queries into a vector
     vector<LPQuery> queries;
@@ -410,15 +405,19 @@ static void processValidationQueries(const ValidationQueries& v) {
     // small queries first in order to try finding a solution faster
     sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
 
-    gPendingValidations.push_back(move(LPValidation(v, queries)));
+    gPendingValidations.push_back(move(LPValidation(v, move(queries))));
 
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
+#ifdef LPDEBUG
     LPTimer.validations += getChrono(start);
+#endif
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
-    Globals.state = GlobalState::FLUSH;
+#ifdef LPDEBUG
     auto start = getChrono();
+#endif
+
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
         char c='0'+(*gQueryResults.begin()).second;
@@ -426,14 +425,18 @@ static void processFlush(const Flush& f) {
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
+#ifdef LPDEBUG
     LPTimer.flushes += getChrono(start);
+#endif
 }
 //---------------------------------------------------------------------------
 
 static void processForget(const Forget& f) {
-    Globals.state = GlobalState::FORGET;
+#ifdef LPDEBUG
     //cerr << "Forget: " << f.transactionId << endl;
     auto start = getChrono();
+#endif
+
     TransStruct fstruct(f.transactionId);
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
@@ -444,7 +447,9 @@ static void processForget(const Forget& f) {
     }
     // then delete the transactions from the transaction history
     gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
+#ifdef LPDEBUG
     LPTimer.forgets += getChrono(start);
+#endif
 }
 
 //---------------------------------------------------------------------------
@@ -482,15 +487,32 @@ int main()
         // And interpret it
         switch (head.type) {
             case MessageHead::Transaction: 
-                processTransaction(readBody<Transaction>(cin,message,head.messageLen)); break;
-            case MessageHead::ValidationQueries: processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); break;
-            case MessageHead::Flush: processFlush(readBody<Flush>(cin,message,head.messageLen)); break;
-            case MessageHead::Forget: processForget(readBody<Forget>(cin,message,head.messageLen)); break;
-            case MessageHead::DefineSchema: processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); break;
-            case MessageHead::Done: {
-                                        cerr << "\ttimings:: " << LPTimer << endl; 
-                                        return 0;
-                                    }
+                Globals.state = GlobalState::TRANSACTION;
+                processTransaction(readBody<Transaction>(cin,message,head.messageLen)); 
+                break;
+            case MessageHead::ValidationQueries: 
+                Globals.state = GlobalState::VALIDATION;
+                processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); 
+                break;
+            case MessageHead::Flush: 
+                Globals.state = GlobalState::FLUSH;
+                processFlush(readBody<Flush>(cin,message,head.messageLen)); 
+                break;
+            case MessageHead::Forget: 
+                Globals.state = GlobalState::FORGET;
+                processForget(readBody<Forget>(cin,message,head.messageLen)); 
+                break;
+            case MessageHead::DefineSchema: 
+                Globals.state = GlobalState::SCHEMA;
+                processDefineSchema(readBody<DefineSchema>(cin,message,head.messageLen)); 
+                break;
+            case MessageHead::Done: 
+                {
+#ifdef LPDEBUG
+                    cerr << "\ttimings:: " << LPTimer << endl; 
+#endif              
+                    return 0;
+                }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
     }
@@ -505,20 +527,21 @@ static inline void checkPendingValidations() {
 }
 
 static void processPendingValidations() {
-    if (gPendingValidations.empty()) return;
+#ifdef LPDEBUG
     auto start = getChrono();
+#endif
     
-    uint64_t vsz=gPendingValidations.size();
-    //cerr << vsz << " ";
-    for (uint64_t vi=0; vi<vsz; ++vi) {
+    if (gPendingValidations.empty()) return;
+
+    for (uint64_t vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
 
         TransStruct fromTRS(v.from);
         TransStruct toTRS(v.to);
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict=false;
-        for (unsigned int index=0,qsz=v.queries.size();index<qsz;++index) {
-            auto& q=v.queries[index];
+        for (auto& q : v.queries) {
+            //auto& q=v.queries[index];
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
@@ -528,12 +551,12 @@ static void processPendingValidations() {
             for(auto iter=transFrom; iter!=transTo; ++iter) {
                 auto& tuple = iter->tuple;
                 bool match=true;
-                for (auto c=q.predicates.begin(),cLimit=q.predicates.end(); c!=cLimit; ++c) {
+                for (auto& c : q.predicates) {
                     // make the actual check
-                    uint64_t tupleValue = tuple[c->column];
-                    uint64_t queryValue=c->value;
+                    uint64_t tupleValue = tuple[c.column];
+                    uint64_t queryValue=c.value;
                     bool result=false;
-                    switch (c->op) {
+                    switch (c.op) {
                         case Query::Column::Equal: 
                             result=(tupleValue==queryValue); 
                             break;
@@ -569,5 +592,8 @@ static void processPendingValidations() {
     }
 
     gPendingValidations.clear();
+
+#ifdef LPDEBUG
     LPTimer.validationsProcessing += getChrono(start);
+#endif
 }
