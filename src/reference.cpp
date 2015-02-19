@@ -41,6 +41,8 @@
 #include <chrono>
 #include <cstring>
 #include <sys/time.h>
+#include <thread>
+#include <mutex>
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
@@ -457,6 +459,9 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
 //---------------------------------------------------------------------------
 int main()
 {
+    //omp_set_dynamic(0);
+    //omp_set_num_threads(omp_get_num_procs());
+
     // TODO - MAYBE some optimizations on reading
     ios::sync_with_stdio(false);
     char Buffer[1<<20];
@@ -502,13 +507,88 @@ static inline void checkPendingValidations() {
 static void processPendingValidations() {
     if (gPendingValidations.empty()) return;
     auto start = getChrono();
-
-//#pragma omp parallel 
-{
     
-    //vector<pair<uint64_t, bool>> localResults;
-        
-    for (unsigned int vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi ) {
+    uint64_t vsz=gPendingValidations.size();
+
+    vector<std::thread> threads;
+    std::mutex grmutex; 
+    for(int i = 0; i < 2; ++i){
+        uint64_t start = i*(vsz>>1);
+        uint64_t finish = start + (vsz>>1);
+        if (i == 1) finish = vsz;
+        threads.push_back(std::thread([=,&grmutex](){
+                //cerr  << "Hello from thread " << std::this_thread::get_id() << " " << start << ":" << finish << endl;
+            vector<pair<uint64_t,uint64_t>> locals;
+    for (uint64_t vi=start; vi<finish; ++vi) {
+        auto& v = gPendingValidations[vi];
+
+        TransStruct fromTRS(v.from);
+        TransStruct toTRS(v.to);
+        // TODO -  VERY NAIVE HERE - validate each query separately
+        bool conflict=false;
+        for (unsigned int index=0,qsz=v.queries.size();index<qsz;++index) {
+            auto& q=v.queries[index];
+            // avoid searching for the range of transactions too many times 
+            auto& relation = gRelations[q.relationId];
+            auto& transactions = relation.transactions;
+            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
+            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
+
+            for(auto iter=transFrom; iter!=transTo; ++iter) {
+                auto& tuple = iter->tuple;
+                bool match=true;
+                for (auto c=q.predicates.begin(),cLimit=q.predicates.end(); c!=cLimit; ++c) {
+                    // make the actual check
+                    uint64_t tupleValue = tuple[c->column];
+                    uint64_t queryValue=c->value;
+                    bool result=false;
+                    switch (c->op) {
+                        case Query::Column::Equal: 
+                            result=(tupleValue==queryValue); 
+                            break;
+                        case Query::Column::NotEqual: 
+                            result=(tupleValue!=queryValue); 
+                            break;
+                        case Query::Column::Less: 
+                            result=(tupleValue<queryValue); 
+                            break;
+                        case Query::Column::LessOrEqual: 
+                            result=(tupleValue<=queryValue); 
+                            break;
+                        case Query::Column::Greater: 
+                            result=(tupleValue>queryValue); 
+                            break;
+                        case Query::Column::GreaterOrEqual: 
+                            result=(tupleValue>=queryValue); 
+                            break;
+                    } 
+                    // there is one predicate not true so this whole query on this relation is false
+                    if (!result) { match=false; break; }
+                } // end of single query predicates
+                if (match) {
+                    conflict=true;
+                    //cerr << "\tconflict found: " << std::distance(transFrom, iter) << "/" << std::distance(transFrom, transTo) << endl;
+                    break;
+                }    
+            } // end of all transactions for this relation query
+            if (conflict) break;
+        }
+        //if (!conflict) cerr << "no conflict" << endl;
+        locals.push_back(make_pair(v.validationId,conflict));
+    }
+    {
+        std::lock_guard<std::mutex> lock(grmutex);
+        for(auto& p : locals) gQueryResults[p.first]=p.second;
+    }
+        }));
+    }
+
+    for(auto& t : threads){
+        t.join();
+    }
+/*
+    //cerr << vsz << " ";
+    for (uint64_t vi=0; vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
 
         TransStruct fromTRS(v.from);
@@ -565,9 +645,7 @@ static void processPendingValidations() {
         //if (!conflict) cerr << "no conflict" << endl;
         gQueryResults[v.validationId]=conflict;
     }
-    
-} // end of omp parallel
-    
+*/
     gPendingValidations.clear();
     LPTimer.validationsProcessing += getChrono(start);
 }
