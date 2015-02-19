@@ -541,22 +541,13 @@ static void processPendingValidations() {
     
     if (gPendingValidations.empty()) return;
 
-    //cerr << gPendingValidations.size() << endl;
-    uint64_t  vsz=gPendingValidations.size();
-    
-    vector<std::thread> threads;
-    std::mutex grmutex;
-    uint32_t numOfThreads=4, batch = vsz / numOfThreads;
-    for(uint32_t i = 0; i < numOfThreads; ++i){
-    uint64_t start = i*batch;
-    uint64_t finish = start + batch;
-    if (i == numOfThreads-1) finish = vsz;
-    threads.push_back(std::thread([=,&grmutex](){
-    vector<pair<uint64_t,uint64_t>> locals;
-    for (uint64_t vi=start; vi<finish; ++vi) {
-    
-    //for (uint64_t vi=0, vsz=gPendingValidations.size(); vi<vsz; ++vi) {
+    cerr << gPendingValidations.size() << endl;
+
+    uint64_t vsz=gPendingValidations.size();
+    for (uint64_t vi=0; vi<vsz; ++vi) {
         auto& v = gPendingValidations[vi];
+
+        cerr << "range: " << v.from << "-" << v.to << endl;
 
         TransStruct fromTRS(v.from);
         TransStruct toTRS(v.to);
@@ -610,20 +601,8 @@ static void processPendingValidations() {
             if (conflict) break;
         }
         //if (!conflict) cerr << "no conflict" << endl;
-//        gQueryResults[v.validationId]=conflict;
-//    }
-
-locals.push_back(move(make_pair(v.validationId,conflict)));
- }
-    {
-        std::lock_guard<std::mutex> lock(grmutex);
-        for(auto& p : locals) gQueryResults[p.first]=p.second;
-        }
-    }));
+        gQueryResults[v.validationId]=conflict;
     }
-        for(auto& t : threads){
-            t.join();
-        }
 
     gPendingValidations.clear();
 
