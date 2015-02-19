@@ -317,8 +317,6 @@ static void processPendingValidations();
 ///--------------------------------------------------------------------------
 
 static void processDefineSchema(const DefineSchema& d) {
-    Globals.state = GlobalState::SCHEMA;
-
     gSchema.clear();
     gSchema.insert(gSchema.begin(),d.columnCounts,d.columnCounts+d.relationCount);
 
@@ -334,7 +332,7 @@ static void processTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
-    vector<TransOperation> operations;
+    //vector<TransOperation> operations;
     const char* reader=t.operations;
 
     // Delete all indicated tuples
@@ -345,12 +343,12 @@ static void processTransaction(const Transaction& t) {
             auto& rows = relation.insertedRows;
             auto lb = relation.insertedRows.find(*key);
             if (lb != rows.end()) {
-                uint64_t rowid = lb->second[0];
+                //uint64_t rowid = lb->second[0];
                 // update the relation transactions
                 relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                 // update the transactions history record - so far we to not need tuple
                 //operations.push_back(TransOperation(o.relationId, rowid, relation.transactions.back().tuple));
-                operations.push_back(move(TransOperation(o.relationId, rowid)));
+                //operations.push_back(move(TransOperation(o.relationId, rowid)));
                 // remove the row from the relations table
                 rows.erase(lb);
             }
@@ -367,7 +365,7 @@ static void processTransaction(const Transaction& t) {
             memcpy(tuple.data(),values,gSchema[o.relationId]*sizeof(uint64_t));
 
             // add the tuple to this transaction operations and to the relations table
-            operations.push_back(move(TransOperation(o.relationId, tuple[0])));
+            //operations.push_back(move(TransOperation(o.relationId, tuple[0])));
 
             gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
@@ -375,7 +373,7 @@ static void processTransaction(const Transaction& t) {
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*gSchema[o.relationId]);
     }
 
-    gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
+    //gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
 
 #ifdef LPDEBUG
     LPTimer.transactions += getChrono(start);
@@ -479,14 +477,18 @@ int main()
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
+        /*
         // make sure we do not have any pending validations
-        if (head.type != MessageHead::ValidationQueries) {
+        if (head.type == MessageHead::Transaction 
+                || head.type == MessageHead::Flush) {
             checkPendingValidations();
         }
+        */
 
         // And interpret it
         switch (head.type) {
             case MessageHead::Transaction: 
+                checkPendingValidations();
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(readBody<Transaction>(cin,message,head.messageLen)); 
                 break;
@@ -495,6 +497,7 @@ int main()
                 processValidationQueries(readBody<ValidationQueries>(cin,message,head.messageLen)); 
                 break;
             case MessageHead::Flush: 
+                checkPendingValidations();
                 Globals.state = GlobalState::FLUSH;
                 processFlush(readBody<Flush>(cin,message,head.messageLen)); 
                 break;
