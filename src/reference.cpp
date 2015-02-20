@@ -501,12 +501,13 @@ void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
 
 class SingleTaskPool {
     public:
-        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
+        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mThreadsActivity(0), 
+            mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
         }
 
         void initThreads(void (*func)(uint32_t, uint32_t)) {
-            mThreadsActivity.resize(mNumOfThreads);
-            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
+            //mThreadsActivity.resize(mNumOfThreads);
+            //memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
                 mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
             }
@@ -522,11 +523,12 @@ class SingleTaskPool {
         void waitAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
-                    for (auto ta : mThreadsActivity) if (ta == 0) return false;
-                    return mWaiting == mNumOfThreads;
+                    //for (auto ta : mThreadsActivity) if (ta == 0) return false;
+                    return (mThreadsActivity == ((uint64_t)1<<mNumOfThreads)-1) && (mWaiting == mNumOfThreads);
                     });
             mPoolRunning = false;
-            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
+            //memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
+            mThreadsActivity = 0;
             lk.unlock();
         }
 
@@ -542,7 +544,8 @@ class SingleTaskPool {
     private:
         uint32_t mNumOfThreads;
         vector<std::thread> mThreads;
-        vector<uint32_t> mThreadsActivity;
+        uint64_t mThreadsActivity;
+        //vector<uint32_t> mThreadsActivity;
         bool mPoolStopped, mPoolRunning;
         std::condition_variable mCondActive;
         std::mutex mMutex;
@@ -557,10 +560,12 @@ class SingleTaskPool {
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
                 if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
-                mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
+                //mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
+                mCondActive.wait(lk, [tid, this]{return (((mThreadsActivity&(1<<tid))==0 && mPoolRunning) || mPoolStopped);});
                 --mWaiting;
+                mThreadsActivity |= (1<<tid);
                 lk.unlock();
-                mThreadsActivity[tid] = 1;
+                //mThreadsActivity[tid] = 1;
                 // check if the pool is still active
                 if (mPoolStopped) { 
                     //cerr << "e" <<tid << endl; 
