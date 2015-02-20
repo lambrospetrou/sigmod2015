@@ -1,5 +1,5 @@
-#ifndef __LP_BOUNDEDSRSWQUEUE__
-#define __LP_BOUNDEDSRSWQUEUE__
+#ifndef __LP_LF_BOUNDEDSRSWQUEUE__
+#define __LP_LF_BOUNDEDSRSWQUEUE__
 
 #include <vector>
 #include <mutex>
@@ -8,59 +8,46 @@
 #include <chrono>
 #include <thread>
 #include <functional>
+#include <atomic>
 
-// NOW IT IS MRMW !!!
 // previous:: Only for Single Reader - Single Writer
 template<class T>
-class BoundedSRSWQueue {
+class LockFreeBoundedSRSWQueue {
 public:
-    BoundedSRSWQueue(uint64_t sz) : mCurSize(0), mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), mCapacity(sz+1),
+    LockFreeBoundedSRSWQueue(uint64_t sz) : mCurSize(0), mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), mCapacity(sz+1),
         mQ(std::vector<T>(mCapacity)) {}
 
     T& reqNextEnq() { 
-        // Wait until main() sends data
-        std::unique_lock<std::mutex> lk(mMutex);
-        mCondFull.wait(lk, [this]{return !isFull();});
-        lk.unlock();
+        // Wait until the buffer is at least half empty
+        lp_spin_sleep([this]{return !isHalfFull();});
         return mQ[mEnqIndex]; 
     }
     void registerEnq() {
         // might not be necessary
-        std::lock_guard<std::mutex> lk(mMutex);
         mEnqIndex = (mEnqIndex+1) % mCapacity;
-        ++mCurSize;
-        mCondEmpty.notify_one();
+        ++mCurSize; // atomically
     }
     
     T& reqNextDeq() {
-        std::unique_lock<std::mutex> lk(mMutex);
-        mCondEmpty.wait(lk, [this]{return !isEmpty();});
-        lk.unlock();
+        lp_spin_sleep([this]{return !isEmpty();});
         return mQ[mDeqIndex];
     }
     void registerDeq() {
-        std::lock_guard<std::mutex> lk(mMutex);
         mDeqIndex = (mDeqIndex + 1) % mCapacity;
         --mCurSize;
-        mCondFull.notify_one();    
     }
 
 private:
-    uint64_t mCurSize;  // this is just for speedup in isFull and isEmpty
+    std::atomic<uint64_t> mCurSize;  // this is just for speedup in isFull and isEmpty
     uint64_t mEnqIndex; // points to where the next empty slot is
     uint64_t mDeqIndex; // points to the next available message
     uint64_t mMaxSize;  // the maximum number iof messages in the queue
     uint64_t mCapacity; // the total storage
     std::vector<T> mQ;        
 
-    //std::mutex mMutexEnq;
-    //std::mutex mMutexDeq;
-    std::mutex mMutex;
-    std::condition_variable mCondFull;
-    std::condition_variable mCondEmpty;
-
-    inline bool isEmpty() const { return mCurSize == 0; }
-    inline bool isFull() const { return mCurSize == mMaxSize; }
+    inline bool isEmpty() const { return mCurSize.load() == 0; }
+    inline bool isFull() const { return mCurSize.load() == mMaxSize; }
+    inline bool isHalfFull() const { return mCurSize.load() >= (mMaxSize>>1); }
     
     // busy waiting with yield in order to allow other threads waiting in execution
     // queue to be executed

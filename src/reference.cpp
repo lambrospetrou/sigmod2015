@@ -45,6 +45,7 @@
 #include <mutex>
 #include <condition_variable>
 #include "BoundedSRSWQueue.hpp"
+#include "LockFreeBoundedSRSWQueue.hpp"
 //---------------------------------------------------------------------------
 using namespace std;
 
@@ -475,7 +476,7 @@ struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
+void ReaderTask(LockFreeBoundedSRSWQueue<ReceivedMessage>& msgQ) {
     while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
@@ -501,15 +502,14 @@ void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
 
 class SingleTaskPool {
     public:
-        SingleTaskPool(uint32_t tsz, void(*func)(uint32_t, uint32_t)) : mNumOfThreads(tsz), mThreadsActivity(0), 
-            mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
-                mMaskAll = (1 << mNumOfThreads) - 1;
-                mFunc = func;
+        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
         }
 
-        void initThreads() {
+        void initThreads(void (*func)(uint32_t, uint32_t)) {
+            mThreadsActivity.resize(mNumOfThreads);
+            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i));
+                mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
             }
         }
 
@@ -519,21 +519,15 @@ class SingleTaskPool {
             lk.unlock();
             mCondActive.notify_all();
         }
-        void startAll(void (*func)(uint32_t, uint32_t)) {
-            std::unique_lock<std::mutex> lk(mMutex);
-            mFunc = func;
-            mPoolRunning = true;
-            lk.unlock();
-            mCondActive.notify_all();
-        }
 
         void waitAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
-                    return (mThreadsActivity == mMaskAll) && (mWaiting == mNumOfThreads);
+                    for (auto ta : mThreadsActivity) if (ta == 0) return false;
+                    return mWaiting == mNumOfThreads;
                     });
             mPoolRunning = false;
-            mThreadsActivity = 0;
+            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             lk.unlock();
         }
 
@@ -547,21 +541,16 @@ class SingleTaskPool {
         }
 
     private:
-        uint64_t mMaskAll;
         uint32_t mNumOfThreads;
         vector<std::thread> mThreads;
-        uint64_t mThreadsActivity;
+        vector<uint32_t> mThreadsActivity;
         bool mPoolStopped, mPoolRunning;
         std::condition_variable mCondActive;
         std::mutex mMutex;
         uint64_t mWaiting;
         std::condition_variable mCondMaster;
 
-        // the function to be called
-        void (*mFunc)(uint32_t, uint32_t);
-
-        void worker(uint32_t tid) {
-            uint64_t tMask = 1<<tid;
+        void worker(uint32_t tid, void (*func)(uint32_t, uint32_t)) {
             //cerr << tid << endl;
             while(true) {
                 std::unique_lock<std::mutex> lk(mMutex);
@@ -569,10 +558,10 @@ class SingleTaskPool {
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
                 if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
-                mCondActive.wait(lk, [tid,tMask,this]{return ((mThreadsActivity & tMask)==0 && mPoolRunning) || mPoolStopped;});
+                mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
                 --mWaiting;
-                mThreadsActivity |= tMask;
                 lk.unlock();
+                mThreadsActivity[tid] = 1;
                 // check if the pool is still active
                 if (mPoolStopped) { 
                     //cerr << "e" <<tid << endl; 
@@ -581,12 +570,11 @@ class SingleTaskPool {
                 //cerr << "-" << endl;
 
                 // run the function passing the thread ID
-                mFunc(mNumOfThreads, tid);
+                func(mNumOfThreads, tid);
                 // wait after the execution for the other threads
                 //cerr << "2" << endl;
             }
         }
-
 };
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
@@ -604,13 +592,16 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
+    //BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
+    LockFreeBoundedSRSWQueue<ReceivedMessage> msgQ(100);
 
-    SingleTaskPool validationThreads(numOfThreads-1, processPendingValidationsTask);
-    validationThreads.initThreads();
+    SingleTaskPool validationThreads(numOfThreads);
+    validationThreads.initThreads(processPendingValidationsTask);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
+    //vector<char> message;
+    //MessageHead head;
     while (true) {
         // Retrieve the message
         ReceivedMessage& msg = msgQ.reqNextDeq();
