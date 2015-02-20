@@ -20,7 +20,7 @@ public:
     T& reqNextEnq() { 
         // Wait until main() sends data
         std::unique_lock<std::mutex> lk(mMutex);
-        mCondFull.wait(lk, [this]{return !isHalfFull();});
+        mCondFull.wait(lk, [this]{return !isFull();});
         lk.unlock();
         return mQ[mEnqIndex]; 
     }

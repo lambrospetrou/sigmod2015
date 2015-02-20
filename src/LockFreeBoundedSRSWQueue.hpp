@@ -19,7 +19,7 @@ public:
 
     T& reqNextEnq() { 
         // Wait until the buffer is at least half empty
-        lp_spin_sleep([this]{return !isHalfFull();});
+        lp_spin_sleep([this]{return !isFull();});
         return mQ[mEnqIndex]; 
     }
     void registerEnq() {
