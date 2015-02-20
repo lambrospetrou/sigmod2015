@@ -501,19 +501,27 @@ void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
 
 class SingleTaskPool {
     public:
-        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mThreadsActivity(0), 
+        SingleTaskPool(uint32_t tsz, void(*func)(uint32_t, uint32_t)) : mNumOfThreads(tsz), mThreadsActivity(0), 
             mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
                 mMaskAll = (1 << mNumOfThreads) - 1;
+                mFunc = func;
         }
 
-        void initThreads(void (*func)(uint32_t, uint32_t)) {
+        void initThreads() {
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
+                mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i));
             }
         }
 
         void startAll() {
             std::unique_lock<std::mutex> lk(mMutex);
+            mPoolRunning = true;
+            lk.unlock();
+            mCondActive.notify_all();
+        }
+        void startAll(void (*func)(uint32_t, uint32_t)) {
+            std::unique_lock<std::mutex> lk(mMutex);
+            mFunc = func;
             mPoolRunning = true;
             lk.unlock();
             mCondActive.notify_all();
@@ -549,7 +557,10 @@ class SingleTaskPool {
         uint64_t mWaiting;
         std::condition_variable mCondMaster;
 
-        void worker(uint32_t tid, void (*func)(uint32_t, uint32_t)) {
+        // the function to be called
+        void (*mFunc)(uint32_t, uint32_t);
+
+        void worker(uint32_t tid) {
             uint64_t tMask = 1<<tid;
             //cerr << tid << endl;
             while(true) {
@@ -570,11 +581,12 @@ class SingleTaskPool {
                 //cerr << "-" << endl;
 
                 // run the function passing the thread ID
-                func(mNumOfThreads, tid);
+                mFunc(mNumOfThreads, tid);
                 // wait after the execution for the other threads
                 //cerr << "2" << endl;
             }
         }
+
 };
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
@@ -594,8 +606,8 @@ int main(int argc, char**argv) {
 
     BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
 
-    SingleTaskPool validationThreads(numOfThreads-1);
-    validationThreads.initThreads(processPendingValidationsTask);
+    SingleTaskPool validationThreads(numOfThreads-1, processPendingValidationsTask);
+    validationThreads.initThreads();
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
