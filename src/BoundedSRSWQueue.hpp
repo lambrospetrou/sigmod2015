@@ -56,6 +56,7 @@ private:
     std::condition_variable mCondFull;
     std::condition_variable mCondEmpty;
 
+
     inline bool isEmpty() const { return mCurSize == 0; }
     inline bool isFull() const { return mCurSize == mMaxSize; }
 /*
