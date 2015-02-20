@@ -505,8 +505,9 @@ class SingleTaskPool {
         }
 
         void initThreads(void (*func)(uint32_t, uint32_t)) {
+            mThreadsActivity.resize(mNumOfThreads);
+            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreadsActivity.push_back(0);
                 mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
             }
         }
@@ -525,9 +526,7 @@ class SingleTaskPool {
                     return mWaiting == mNumOfThreads;
                     });
             mPoolRunning = false;
-            for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreadsActivity[i] = 0;
-            }
+            memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             lk.unlock();
         }
 
@@ -560,8 +559,8 @@ class SingleTaskPool {
                 if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
                 mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
                 --mWaiting;
-                mThreadsActivity[tid] = 1;
                 lk.unlock();
+                mThreadsActivity[tid] = 1;
                 // check if the pool is still active
                 if (mPoolStopped) { 
                     //cerr << "e" <<tid << endl; 
@@ -592,9 +591,9 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    BoundedSRSWQueue<ReceivedMessage> msgQ(10000);
+    BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
 
-    SingleTaskPool validationThreads(numOfThreads);
+    SingleTaskPool validationThreads(numOfThreads-1);
     validationThreads.initThreads(processPendingValidationsTask);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
