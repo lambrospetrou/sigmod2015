@@ -523,8 +523,8 @@ int main(int argc, char**argv) {
     //BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
     SRSWQueue<ReceivedMessage> msgQ(100);
 
-    SingleTaskPool validationThreads(numOfThreads);
-    validationThreads.initThreads(processPendingValidationsTask);
+    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
+    validationThreads.initThreads();
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
