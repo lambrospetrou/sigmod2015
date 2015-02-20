@@ -317,7 +317,10 @@ struct GlobalState {
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
 class SingleTaskPool;
 static inline void checkPendingValidations(SingleTaskPool&);
-//static void processPendingValidations();
+
+template<class T> using SRSWQueue = LockFreeBoundedSRSWQueue<T>;
+
+
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
 
@@ -476,7 +479,7 @@ struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-void ReaderTask(LockFreeBoundedSRSWQueue<ReceivedMessage>& msgQ) {
+void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
     while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
@@ -593,7 +596,7 @@ int main(int argc, char**argv) {
     cerr << "Number of threads: " << numOfThreads << endl;
 
     //BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
-    LockFreeBoundedSRSWQueue<ReceivedMessage> msgQ(100);
+    SRSWQueue<ReceivedMessage> msgQ(100);
 
     SingleTaskPool validationThreads(numOfThreads);
     validationThreads.initThreads(processPendingValidationsTask);

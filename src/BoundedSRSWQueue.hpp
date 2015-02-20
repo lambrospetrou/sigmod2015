@@ -20,7 +20,7 @@ public:
     T& reqNextEnq() { 
         // Wait until main() sends data
         std::unique_lock<std::mutex> lk(mMutex);
-        mCondFull.wait(lk, [this]{return !isFull();});
+        mCondFull.wait(lk, [this]{return !isHalfFull();});
         lk.unlock();
         return mQ[mEnqIndex]; 
     }
@@ -42,7 +42,7 @@ public:
         std::lock_guard<std::mutex> lk(mMutex);
         mDeqIndex = (mDeqIndex + 1) % mCapacity;
         --mCurSize;
-        mCondFull.notify_one();    
+        if (!isHalfFull()) mCondFull.notify_one();    
     }
 
 private:
@@ -61,6 +61,7 @@ private:
 
     inline bool isEmpty() const { return mCurSize == 0; }
     inline bool isFull() const { return mCurSize == mMaxSize; }
+    inline bool isHalfFull() const { return mCurSize >= (mMaxSize>>1); }
     
     // busy waiting with yield in order to allow other threads waiting in execution
     // queue to be executed
