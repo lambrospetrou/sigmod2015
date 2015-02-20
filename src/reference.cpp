@@ -284,10 +284,11 @@ struct LPTimer_t {
     uint64_t flushes;
     uint64_t forgets;
     uint64_t reading;
-    LPTimer_t() : validations(0), validationsProcessing(0), transactions(0), flushes(0), forgets(0), reading(0) {}
+    uint64_t readingTotal;
+    LPTimer_t() : validations(0), validationsProcessing(0), transactions(0), flushes(0), forgets(0), reading(0), readingTotal(0) {}
 } LPTimer;
 ostream& operator<< (ostream& os, const LPTimer_t& t) {
-    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "]" << endl;
+    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "/" << t.readingTotal<< "]" << endl;
     return os;
 }
 uint64_t getChronoMicro() {      
@@ -467,10 +468,10 @@ struct ReceivedMessage {
     vector<char> data;
 };
 void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
-    while (true) {
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
+    while (true) {
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
         auto& head = msg.head;
@@ -478,22 +479,28 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         // read the head of the message - type and len
         // Read the message body and cast it to the desired type
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
+    auto startInner = getChrono();
+#endif
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
         if (head.type == MessageHead::Done) {
             msgQ.registerEnq(); 
             // exit the loop since the reader has finished its job
-            return;        
+            break;        
         }
 
         // read the actual message content
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
-        msgQ.registerEnq();
 #ifdef LPDEBUG
-    LPTimer.reading += getChrono(start);
+    LPTimer.reading += getChrono(startInner);
 #endif 
+        msgQ.registerEnq();
     }
+#ifdef LPDEBUG
+    LPTimer.readingTotal += getChrono(start);
+#endif 
     return;
 }
 
@@ -514,7 +521,7 @@ int main(int argc, char**argv) {
     cerr << "Number of threads: " << numOfThreads << endl;
 
     //BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
-    SRSWQueue<ReceivedMessage> msgQ(100);
+    SRSWQueue<ReceivedMessage> msgQ(50);
 
     SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
     validationThreads.initThreads();
@@ -554,7 +561,7 @@ int main(int argc, char**argv) {
             case MessageHead::Done: 
                 {
 #ifdef LPDEBUG
-                    cerr << "\ttimings:: " << LPTimer << endl; 
+                    cerr << "  :::: " << LPTimer << endl; 
 #endif              
                     readerTask.join();
                     validationThreads.destroy();
