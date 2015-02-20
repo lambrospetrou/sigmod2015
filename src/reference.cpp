@@ -162,12 +162,26 @@ struct LPQuery {
     vector<Query::Column> predicates;
     LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
-    predicates(vector<Query::Column>(q.columnCount)) {
+            predicates(vector<Query::Column>(q.columnCount)) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
+        // sort them in order to have the equality checks first
+        std::sort(predicates.begin(), predicates.end(), LPQuery::QCSortOp);
         columnCount = predicates.size();
+    }
+    static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
+        if (left.op < right.op) return true;
+        else if (right.op < left.op) return false;
+        else if (left.column < right.column) return true;
+        else if (right.column < left.column) return false;
+        else return left.value < right.value;    
+    }
+    static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
+        if (left.columnCount < right.columnCount) return true;
+        else if (right.columnCount < left.columnCount) return false;
+        else return left.relationId < right.relationId;
     }
 };
 bool operator< (const LPQuery& left, const LPQuery& right) {
@@ -192,13 +206,6 @@ bool operator< (const Query::Column& left, const Query::Column& right) {
     else if (right.op < left.op) return false;
     else return left.value < right.value;    
 }
-bool QCSortOp (const Query::Column& left, const Query::Column& right) {
-    if (left.op < right.op) return true;
-    else if (right.op < left.op) return false;
-    else if (left.column < right.column) return true;
-    else if (right.column < left.column) return false;
-    else return left.value < right.value;    
-}
 bool operator== (const Query::Column& left, const Query::Column& right) {
     if (left.column != right.column) return false;
     else if (left.op != right.op) return false;
@@ -207,11 +214,6 @@ bool operator== (const Query::Column& left, const Query::Column& right) {
 ostream& operator<< (ostream& os, const Query::Column& o) {
     os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
     return os;
-}
-bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
-    if (left.columnCount < right.columnCount) return true;
-    else if (right.columnCount < left.columnCount) return false;
-    else return left.relationId < right.relationId;
 }
 
 struct LPValidation {
@@ -411,7 +413,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     //cerr << "size after: " << queries.size() << endl;
     // sort the queries based on the number of the columns needed to check
     // small queries first in order to try finding a solution faster
-    sort(queries.begin(), queries.end(), LPQuerySizeLessThan);
+    sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
 
     gPendingValidations.push_back(move(LPValidation(v, move(queries))));
 
@@ -520,8 +522,7 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    //BoundedSRSWQueue<ReceivedMessage> msgQ(1000);
-    SRSWQueue<ReceivedMessage> msgQ(50);
+    SRSWQueue<ReceivedMessage> msgQ(100);
 
     SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
     validationThreads.initThreads();
