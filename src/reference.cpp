@@ -313,7 +313,8 @@ struct GlobalState {
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-static inline void checkPendingValidations();
+class SingleTaskPool;
+static inline void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidations();
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
@@ -482,19 +483,108 @@ void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
         // read the head of the message - type and len
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-        
+
         if (head.type == MessageHead::Done) {
             msgQ.registerEnq(); 
             // exit the loop since the reader has finished its job
             return;        
         }
-        
+
         // read the actual message content
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
         msgQ.registerEnq();
     }
     return;
+}
+
+class Barrier
+{
+    private:
+        std::mutex _mutex;
+        std::condition_variable _cv;
+        std::size_t _count;
+        uint32_t mSize;
+    public:
+        explicit Barrier(std::size_t count) : _count{count}, mSize(count) { }
+        void wait()
+        {
+            std::unique_lock<std::mutex> lock{_mutex};
+            if (--_count == 0) {
+                _cv.notify_all();
+            } else {
+                _cv.wait(lock, [this] { return _count == 0; });
+            }
+        }
+
+        void reset() {
+            std::lock_guard<std::mutex> lock(_mutex);
+            _count = mSize;
+        }
+};
+
+class SingleTaskPool {
+    public:
+        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mPoolStopped(false), 
+            mActiveThreadsReq(0), mBarrier(tsz+1) {
+        }
+
+        template<typename Func>
+        void initThreads(Func func) {
+            for (uint32_t i=0; i<mNumOfThreads; ++i) {
+                mThreads.push_back(
+                        std::thread([i,func,this](){
+                            uint32_t tid = i;
+                            //cerr << "tid:" << tid << endl;
+                            while(true) {
+                            std::unique_lock<std::mutex> lk(mMutex);
+                            mCondActive.wait(lk, [this]{return mActiveThreadsReq > 0 || mPoolStopped;});
+                            --mActiveThreadsReq;
+                            lk.unlock();
+
+                            // check if the pool is still active
+                            if (mPoolStopped) return;
+                            // run the function passing the thread ID
+                            func(tid);
+                            // wait after the execution for the other threads
+                            mBarrier.wait();
+                            }
+                            }));
+            }
+        }
+
+        void startAll() {
+            std::lock_guard<std::mutex> lk(mMutex);
+            mActiveThreadsReq = mNumOfThreads;
+            mBarrier.reset();
+            mCondActive.notify_all();
+        }
+
+        void waitAll() {
+            mBarrier.wait();
+        }
+
+        void destroy() {
+            std::lock_guard<std::mutex> lk(mMutex);
+            mPoolStopped = true;
+            mActiveThreadsReq = 0;
+            mCondActive.notify_all();
+            for(auto& t : mThreads) t.join();
+        }
+
+    private:
+        uint32_t mNumOfThreads;
+        vector<std::thread> mThreads;
+        bool mPoolStopped;
+        uint32_t mActiveThreadsReq;
+        std::condition_variable mCondActive;
+        std::mutex mMutex;
+
+        Barrier mBarrier;
+};
+
+void dummy(uint32_t tid) {
+    cerr << "thread executing : " << tid << endl;
 }
 
 int main(int argc, char**argv) {
@@ -511,6 +601,9 @@ int main(int argc, char**argv) {
     cerr << "Number of threads: " << numOfThreads << endl;
 
     BoundedSRSWQueue<ReceivedMessage> msgQ(10000);
+
+    SingleTaskPool validationThreads(numOfThreads);
+    validationThreads.initThreads(dummy);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
@@ -531,12 +624,12 @@ int main(int argc, char**argv) {
                 processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
                 break;
             case MessageHead::Flush: 
-                checkPendingValidations();
+                checkPendingValidations(validationThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
                 break;
             case MessageHead::Forget: 
-                checkPendingValidations();
+                checkPendingValidations(validationThreads);
                 Globals.state = GlobalState::FORGET;
                 processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
                 break;
@@ -550,6 +643,7 @@ int main(int argc, char**argv) {
                     cerr << "\ttimings:: " << LPTimer << endl; 
 #endif              
                     readerTask.join();
+                    validationThreads.destroy();
                     return 0;
                 }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
@@ -560,14 +654,16 @@ int main(int argc, char**argv) {
 }
 //---------------------------------------------------------------------------
 
-
-
-static inline void checkPendingValidations() {
+static inline void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
+
+    pool.startAll();
     processPendingValidations();
+    pool.waitAll();
+
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += getChrono(start);
 #endif
