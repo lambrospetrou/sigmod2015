@@ -543,7 +543,6 @@ class SingleTaskPool {
         uint32_t mNumOfThreads;
         vector<std::thread> mThreads;
         uint64_t mThreadsActivity;
-        //vector<uint32_t> mThreadsActivity;
         bool mPoolStopped, mPoolRunning;
         std::condition_variable mCondActive;
         std::mutex mMutex;
@@ -561,7 +560,7 @@ class SingleTaskPool {
                 if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
                 mCondActive.wait(lk, [tid,tMask,this]{return ((mThreadsActivity & tMask)==0 && mPoolRunning) || mPoolStopped;});
                 --mWaiting;
-                mThreadsActivity |= (1<<tid);
+                mThreadsActivity |= tMask;
                 lk.unlock();
                 // check if the pool is still active
                 if (mPoolStopped) { 
@@ -600,8 +599,6 @@ int main(int argc, char**argv) {
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    //vector<char> message;
-    //MessageHead head;
     while (true) {
         // Retrieve the message
         ReceivedMessage& msg = msgQ.reqNextDeq();
