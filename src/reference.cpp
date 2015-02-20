@@ -460,20 +460,7 @@ static void processForget(const Forget& f) {
 }
 
 //---------------------------------------------------------------------------
-// Read the message body and cast it to the desired type
-template<typename Type> static const Type& readBody(istream& in,vector<char>& buffer,uint32_t len) {
-#ifdef LPDEBUG
-    auto start = getChrono();
-#endif
-    if (len > buffer.size()) buffer.resize(len);
-    in.read(buffer.data(),len);
-#ifdef LPDEBUG
-    LPTimer.reading += getChrono(start);
-#endif 
-    return *reinterpret_cast<const Type*>(buffer.data());
-}
 //---------------------------------------------------------------------------
-
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 struct ReceivedMessage {
     MessageHead head;
@@ -481,11 +468,15 @@ struct ReceivedMessage {
 };
 void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
     while (true) {
+#ifdef LPDEBUG
+    auto start = getChrono();
+#endif
         // request place from the message queue - it blocks if full
         ReceivedMessage& msg = msgQ.reqNextEnq();
         auto& head = msg.head;
         auto& buffer = msg.data;
         // read the head of the message - type and len
+        // Read the message body and cast it to the desired type
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
@@ -499,6 +490,9 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
         msgQ.registerEnq();
+#ifdef LPDEBUG
+    LPTimer.reading += getChrono(start);
+#endif 
     }
     return;
 }
