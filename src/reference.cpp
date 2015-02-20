@@ -269,6 +269,7 @@ struct TransactionStruct {
 };
 static map<uint64_t, TransactionStruct> gTransactionHistory;
 static map<uint64_t,bool> gQueryResults;
+static std::mutex gQueryResultsMutex;
 
 static vector<uint32_t> gSchema;
 
@@ -315,7 +316,7 @@ struct GlobalState {
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
 class SingleTaskPool;
 static inline void checkPendingValidations(SingleTaskPool&);
-static void processPendingValidations();
+//static void processPendingValidations();
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
 
@@ -498,94 +499,85 @@ void ReaderTask(BoundedSRSWQueue<ReceivedMessage>& msgQ) {
     return;
 }
 
-class Barrier
-{
-    private:
-        std::mutex _mutex;
-        std::condition_variable _cv;
-        std::size_t _count;
-        uint32_t mSize;
-    public:
-        explicit Barrier(std::size_t count) : _count{count}, mSize(count) { }
-        void wait()
-        {
-            std::unique_lock<std::mutex> lock{_mutex};
-            if (--_count == 0) {
-                _cv.notify_all();
-            } else {
-                _cv.wait(lock, [this] { return _count == 0; });
-            }
-        }
-
-        void reset() {
-            std::lock_guard<std::mutex> lock(_mutex);
-            _count = mSize;
-        }
-};
-
 class SingleTaskPool {
     public:
-        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mPoolStopped(false), 
-            mActiveThreadsReq(0), mBarrier(tsz+1) {
+        SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
         }
 
-        template<typename Func>
-        void initThreads(Func func) {
+        void initThreads(void (*func)(uint32_t, uint32_t)) {
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreads.push_back(
-                        std::thread([i,func,this](){
-                            uint32_t tid = i;
-                            //cerr << "tid:" << tid << endl;
-                            while(true) {
-                            std::unique_lock<std::mutex> lk(mMutex);
-                            mCondActive.wait(lk, [this]{return mActiveThreadsReq > 0 || mPoolStopped;});
-                            --mActiveThreadsReq;
-                            lk.unlock();
-
-                            // check if the pool is still active
-                            if (mPoolStopped) return;
-                            // run the function passing the thread ID
-                            func(tid);
-                            // wait after the execution for the other threads
-                            mBarrier.wait();
-                            }
-                            }));
+                mThreadsActivity.push_back(0);
+                mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
             }
         }
 
         void startAll() {
-            std::lock_guard<std::mutex> lk(mMutex);
-            mActiveThreadsReq = mNumOfThreads;
-            mBarrier.reset();
+            std::unique_lock<std::mutex> lk(mMutex);
+            mPoolRunning = true;
+            lk.unlock();
             mCondActive.notify_all();
         }
 
         void waitAll() {
-            mBarrier.wait();
+            std::unique_lock<std::mutex> lk(mMutex);
+            mCondMaster.wait(lk, [this]{
+                    for (auto ta : mThreadsActivity) if (ta == 0) return false;
+                    return mWaiting == mNumOfThreads;
+                    });
+            mPoolRunning = false;
+            for (uint32_t i=0; i<mNumOfThreads; ++i) {
+                mThreadsActivity[i] = 0;
+            }
+            lk.unlock();
         }
 
         void destroy() {
-            std::lock_guard<std::mutex> lk(mMutex);
+            std::unique_lock<std::mutex> lk(mMutex);
             mPoolStopped = true;
-            mActiveThreadsReq = 0;
+            lk.unlock();
             mCondActive.notify_all();
+            mCondMaster.notify_all();
             for(auto& t : mThreads) t.join();
         }
 
     private:
         uint32_t mNumOfThreads;
         vector<std::thread> mThreads;
-        bool mPoolStopped;
-        uint32_t mActiveThreadsReq;
+        vector<uint32_t> mThreadsActivity;
+        bool mPoolStopped, mPoolRunning;
         std::condition_variable mCondActive;
         std::mutex mMutex;
+        uint64_t mWaiting;
+        std::condition_variable mCondMaster;
 
-        Barrier mBarrier;
+        void worker(uint32_t tid, void (*func)(uint32_t, uint32_t)) {
+            //cerr << tid << endl;
+            while(true) {
+                std::unique_lock<std::mutex> lk(mMutex);
+                ++mWaiting;
+                //cerr << ">" << endl;
+                // signal for synchronization!!! - all threads are waiting
+                if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
+                mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
+                --mWaiting;
+                mThreadsActivity[tid] = 1;
+                lk.unlock();
+                // check if the pool is still active
+                if (mPoolStopped) { 
+                    //cerr << "e" <<tid << endl; 
+                    return; 
+                }
+                //cerr << "-" << endl;
+
+                // run the function passing the thread ID
+                func(mNumOfThreads, tid);
+                // wait after the execution for the other threads
+                //cerr << "2" << endl;
+            }
+        }
 };
 
-void dummy(uint32_t tid) {
-    cerr << "thread executing : " << tid << endl;
-}
+static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 
 int main(int argc, char**argv) {
     // TODO - MAYBE some optimizations on reading
@@ -603,7 +595,7 @@ int main(int argc, char**argv) {
     BoundedSRSWQueue<ReceivedMessage> msgQ(10000);
 
     SingleTaskPool validationThreads(numOfThreads);
-    validationThreads.initThreads(dummy);
+    validationThreads.initThreads(processPendingValidationsTask);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
@@ -660,19 +652,36 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     auto start = getChrono();
 #endif
 
+    //cerr << "before start!" << endl;
     pool.startAll();
-    processPendingValidations();
+    //processPendingValidations();
+    //cerr << "before wait!" << endl;
     pool.waitAll();
+    //cerr << "after wait!" << endl;
 
+    gPendingValidations.clear();
+    //if (!gPendingValidations.empty()) processPendingValidations(); 
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += getChrono(start);
 #endif
 }
 
-static void processPendingValidations() {
-    //cerr << gPendingValidations.size() << endl;
+static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
+    //cerr << gPendingValidations.size() << " " << endl;
+    vector<pair<uint64_t, uint64_t>> localResults;
+
+    //cerr << nThreads << ":" << tid << endl;
+
     uint64_t vsz=gPendingValidations.size();
-    for (uint64_t vi=0; vi<vsz; ++vi) {
+    uint64_t batchSize = vsz/nThreads;
+    uint64_t remSize = vsz%nThreads;
+    uint64_t rStart = tid*batchSize + (tid < remSize ? tid : remSize);
+    // do not give all the remaining to the last node but each thread take sone more
+    uint64_t rEnd = rStart + batchSize + (tid < remSize);
+
+    //cerr << "start: " << rStart << " end: " << rEnd << endl;
+
+    for (uint64_t vi=rStart; vi<rEnd; ++vi) {
         auto& v = gPendingValidations[vi];
         //cerr << "range: " << v.from << "-" << v.to << endl;
 
@@ -723,9 +732,12 @@ static void processPendingValidations() {
             } // end of all transactions for this relation query
             if (conflict) break;
         }
-        gQueryResults[v.validationId]=conflict;
+        localResults.push_back(move(make_pair(v.validationId, conflict)));
     }
-
-    gPendingValidations.clear();
-
+    {
+        std::lock_guard<std::mutex> lk(gQueryResultsMutex);
+        for (auto& p : localResults) gQueryResults[p.first]=p.second;
+        //cerr << "global results: " << tid << endl;
+    }
 }
+
