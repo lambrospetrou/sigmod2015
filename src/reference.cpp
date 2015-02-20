@@ -503,11 +503,10 @@ class SingleTaskPool {
     public:
         SingleTaskPool(uint32_t tsz) : mNumOfThreads(tsz), mThreadsActivity(0), 
             mPoolStopped(false), mPoolRunning(false), mWaiting(0) {
+                mMaskAll = (1 << mNumOfThreads) - 1;
         }
 
         void initThreads(void (*func)(uint32_t, uint32_t)) {
-            //mThreadsActivity.resize(mNumOfThreads);
-            //memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
                 mThreads.push_back(std::thread(&SingleTaskPool::worker, this, i, func));
             }
@@ -523,11 +522,9 @@ class SingleTaskPool {
         void waitAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
-                    //for (auto ta : mThreadsActivity) if (ta == 0) return false;
-                    return (mThreadsActivity == ((uint64_t)1<<mNumOfThreads)-1) && (mWaiting == mNumOfThreads);
+                    return (mThreadsActivity == mMaskAll) && (mWaiting == mNumOfThreads);
                     });
             mPoolRunning = false;
-            //memset(mThreadsActivity.data(), 0, sizeof(uint32_t)*mNumOfThreads);
             mThreadsActivity = 0;
             lk.unlock();
         }
@@ -542,6 +539,7 @@ class SingleTaskPool {
         }
 
     private:
+        uint64_t mMaskAll;
         uint32_t mNumOfThreads;
         vector<std::thread> mThreads;
         uint64_t mThreadsActivity;
@@ -553,6 +551,7 @@ class SingleTaskPool {
         std::condition_variable mCondMaster;
 
         void worker(uint32_t tid, void (*func)(uint32_t, uint32_t)) {
+            uint64_t tMask = 1<<tid;
             //cerr << tid << endl;
             while(true) {
                 std::unique_lock<std::mutex> lk(mMutex);
@@ -560,12 +559,10 @@ class SingleTaskPool {
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
                 if (mWaiting == mNumOfThreads) mCondMaster.notify_all();
-                //mCondActive.wait(lk, [tid, this]{return ((mThreadsActivity[tid]==0 && mPoolRunning) || mPoolStopped);});
-                mCondActive.wait(lk, [tid, this]{return (((mThreadsActivity&(1<<tid))==0 && mPoolRunning) || mPoolStopped);});
+                mCondActive.wait(lk, [tid,tMask,this]{return ((mThreadsActivity & tMask)==0 && mPoolRunning) || mPoolStopped;});
                 --mWaiting;
                 mThreadsActivity |= (1<<tid);
                 lk.unlock();
-                //mThreadsActivity[tid] = 1;
                 // check if the pool is still active
                 if (mPoolStopped) { 
                     //cerr << "e" <<tid << endl; 
