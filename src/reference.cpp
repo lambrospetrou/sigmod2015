@@ -475,7 +475,6 @@ template<typename Type> static const Type& readBody(istream& in,vector<char>& bu
 //---------------------------------------------------------------------------
 
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
-
 struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
