@@ -366,7 +366,6 @@ static void processDefineSchema(const DefineSchema& d) {
     gSchema.insert(gSchema.begin(),d.columnCounts,d.columnCounts+d.relationCount);
 
     gRelations.clear();
-    // TODO - maybe always allocate the maximum of 1000 columns to avoid the following resize loop
     gRelations.resize(d.relationCount);
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
         gRelations[ci].columns.resize(gSchema[ci]);
