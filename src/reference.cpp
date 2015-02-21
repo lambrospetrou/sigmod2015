@@ -375,12 +375,9 @@ static void processTransaction(const Transaction& t) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         uint64_t relCols = gSchema[o.relationId];
         for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-            vector<uint64_t> tuple(relCols);
-            //tuple.insert(tuple.begin(),values,values+gSchema[o.relationId]);
-            memcpy(tuple.data(),values,relCols*sizeof(uint64_t));
-
-            // add the tuple to this transaction operations and to the relations table
-            //operations.push_back(move(TransOperation(o.relationId, tuple[0])));
+            //vector<uint64_t> tuple(relCols);
+            //memcpy(tuple.data(),values,relCols*sizeof(uint64_t));
+            vector<uint64_t> tuple(values, values+relCols);
 
             gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
