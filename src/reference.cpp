@@ -566,7 +566,10 @@ static void processSingleTransaction(const Transaction& t) {
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
         auto& relation = gRelations[o.relationId];
-        // TODO - lock here to make it to make all the deletions parallel
+        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
+        // TODO try to lock with try_lock and try again at the end if some relations failed
+        {// start of lock_guard
+        std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
         for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
             auto& rows = relation.insertedRows;
             auto lb = relation.insertedRows.find(*key);
@@ -577,6 +580,7 @@ static void processSingleTransaction(const Transaction& t) {
                 rows.erase(lb);
             }
         }
+        }// end of lock_guard
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
     }
@@ -584,12 +588,18 @@ static void processSingleTransaction(const Transaction& t) {
     // Insert new tuples
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
+        auto& relation = gRelations[o.relationId];
         uint64_t relCols = gSchema[o.relationId];
+        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
+        // TODO try to lock with try_lock and try again at the end if some relations failed
+        {// start of lock_guard
+        std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
         for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
             vector<uint64_t> tuple(values, values+relCols);
-            gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
-            gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
+            relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
+            relation.insertedRows[values[0]]=move(tuple);
         }
+        }// end of lock_guard
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
