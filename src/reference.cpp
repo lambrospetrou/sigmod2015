@@ -44,6 +44,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <memory>
 #include "BoundedSRSWQueue.hpp"
 #include "LockFreeBoundedSRSWQueue.hpp"
 #include "SingleTaskPool.hpp"
@@ -162,7 +163,7 @@ struct LPQuery {
     vector<Query::Column> predicates;
     LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
-            predicates(vector<Query::Column>(q.columnCount)) {
+    predicates(vector<Query::Column>(q.columnCount)) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
@@ -216,18 +217,6 @@ ostream& operator<< (ostream& os, const Query::Column& o) {
     return os;
 }
 
-struct LPValidation {
-    uint64_t validationId;
-    uint64_t from,to;
-    vector<LPQuery> queries;
-
-    LPValidation(const ValidationQueries& v, vector<LPQuery> q)
-        : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
-};
-
-
-
-
 // Custom data structures to hold data
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
@@ -271,13 +260,47 @@ struct TransactionStruct {
     vector<TransOperation> operations;
     TransactionStruct(vector<TransOperation> ops) : operations(ops) {}
 };
+
 static map<uint64_t, TransactionStruct> gTransactionHistory;
 static map<uint64_t,bool> gQueryResults;
 static std::mutex gQueryResultsMutex;
 
 static vector<uint32_t> gSchema;
 
+
+template <typename T>
+class atomic_wrapper {
+    private:
+        std::atomic<T> _a;
+    public:
+        atomic_wrapper()
+            :_a() {}
+
+        atomic_wrapper(const std::atomic<T> &a)
+            :_a(a.load()){}
+
+        atomic_wrapper(const atomic_wrapper &other)
+            :_a(other._a.load()){}
+
+        atomic_wrapper &operator=(const atomic_wrapper &other) {
+            _a.store(other._a.load());
+        }
+
+        void store(T desired) {_a.store(desired);}
+        void store(T desired) volatile {_a.store(desired);}
+        T load() const { return _a.load(); }
+        T load() const volatile { return _a.load(); }
+};
+struct LPValidation {
+    uint64_t validationId;
+    uint64_t from,to;
+    vector<LPQuery> queries;
+    LPValidation(const ValidationQueries& v, vector<LPQuery> q)
+        : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
+};
 static vector<LPValidation> gPendingValidations;
+//static unique_ptr<std::atomic<bool>[]> gPendingResults;
+static vector<atomic_wrapper<bool>> gPendingResults;
 
 struct LPTimer_t {
     uint64_t validations;
@@ -433,9 +456,12 @@ static void processFlush(const Flush& f) {
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
         cout << (gQueryResults.begin()->second == true ? one : zero); 
+        //cerr << (gQueryResults.begin()->second == true ? one : zero) << " "; 
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
+
+    //cerr << "finished flushing" << endl;
 #ifdef LPDEBUG
     LPTimer.flushes += getChrono(start);
 #endif
@@ -483,7 +509,7 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         // Read the message body and cast it to the desired type
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
-    auto startInner = getChrono();
+        auto startInner = getChrono();
 #endif
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
@@ -497,7 +523,7 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
 #ifdef LPDEBUG
-    LPTimer.reading += getChrono(startInner);
+        LPTimer.reading += getChrono(startInner);
 #endif 
         msgQ.registerEnq();
     }
@@ -527,8 +553,10 @@ int main(int argc, char**argv) {
 
     while (true) {
         // Retrieve the message
+        //cerr << "try for incoming" << endl;
         ReceivedMessage& msg = msgQ.reqNextDeq();
         auto& head = msg.head;
+        //cerr << "incoming: " << head.type << endl;
         // And interpret it
         switch (head.type) {
             case MessageHead::ValidationQueries: 
@@ -570,11 +598,26 @@ int main(int argc, char**argv) {
 }
 //---------------------------------------------------------------------------
 
+static uint64_t resIndexOffset = 0;
+static std::atomic<uint64_t> gNextPending;
+
 static inline void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
+    //if (!gPendingValidations.empty()) processPendingValidations(); 
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
+
+    //cerr << gPendingValidations.size() << " " << endl;
+    // find the min & max validation id
+    // assuming that gPendingValidations is sorted on the validation Id
+    resIndexOffset = gPendingValidations[0].validationId;    
+    if (gPendingValidations.size() > gPendingResults.size())
+        gPendingResults.resize(gPendingValidations.size());
+    memset(gPendingResults.data(), 0, sizeof(atomic_wrapper<bool>)*gPendingResults.size());
+    //gPendingResults.reset(new std::atomic<bool>[gPendingValidations.size()]());
+    //    for (uint64_t i=0; i<gPendingValidations.size();++i) if (gPendingResults[i].load()) cerr << "ERRORORROROROOROROROROROR" << endl;
+    gNextPending.store(0);
 
     //cerr << "before start!" << endl;
     pool.startAll();
@@ -583,38 +626,53 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     pool.waitAll();
     //cerr << "after wait!" << endl;
 
+    // update the results - you can get the validation id by adding resIndexOffset to the position
+    for (uint64_t i=0, sz=gPendingValidations.size(); i<sz; ++i) { 
+        //cerr << i << ":" << gPendingResults[i].load() << " ";
+        gQueryResults[gPendingValidations[i].validationId] = gPendingResults[i].load();
+    }
     gPendingValidations.clear();
-    //if (!gPendingValidations.empty()) processPendingValidations(); 
+
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += getChrono(start);
 #endif
 }
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
+    (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << gPendingValidations.size() << " " << endl;
-    vector<pair<uint64_t, bool>> localResults;
-
+    //vector<pair<uint64_t, bool>> localResults;
     //cerr << nThreads << ":" << tid << endl;
 
-    uint64_t vsz=gPendingValidations.size();
-    uint64_t batchSize = vsz/nThreads;
-    uint64_t remSize = vsz%nThreads;
-    uint64_t rStart = tid*batchSize + (tid < remSize ? tid : remSize);
+    //uint64_t vsz=gPendingValidations.size();
+    //uint64_t batchSize = vsz/nThreads;
+    //uint64_t remSize = vsz%nThreads;
+    //uint64_t rStart = tid*batchSize + (tid < remSize ? tid : remSize);
     // do not give all the remaining to the last node but each thread take sone more
-    uint64_t rEnd = rStart + batchSize + (tid < remSize);
-
+    //uint64_t rEnd = rStart + batchSize + (tid < remSize);
+    uint64_t totalPending = gPendingValidations.size();
     //cerr << "start: " << rStart << " end: " << rEnd << endl;
+    //for (uint64_t vi=rStart; vi<rEnd; ++vi) {
+    for (;true;) {
 
-    for (uint64_t vi=rStart; vi<rEnd; ++vi) {
+        // get a validation ID - atomic operation
+        uint64_t vi = gNextPending++;
+        if (vi >= totalPending) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
+        //cerr << "got: " << vi << endl;
+
         auto& v = gPendingValidations[vi];
-        //cerr << "range: " << v.from << "-" << v.to << endl;
+        auto resPos = v.validationId - resIndexOffset;
+        auto& atoRes = gPendingResults[resPos];
+        // check if someone else found a conflict already for this validation ID
+        if (atoRes.load()) continue;
 
+        //cerr << "range: " << v.from << "-" << v.to << endl;
         TransStruct fromTRS(v.from);
         TransStruct toTRS(v.to);
         // TODO -  VERY NAIVE HERE - validate each query separately
-        bool conflict=false;
+        bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
-            //auto& q=v.queries[index];
+            if (atoRes.load()) { otherFinishedThis = true; break; }
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
@@ -656,12 +714,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             } // end of all transactions for this relation query
             if (conflict) break;
         }
-        localResults.push_back(move(make_pair(v.validationId, conflict)));
+        // update the pending results to help other threads skip this validation 
+        // if it has other parts
+        if (conflict && !otherFinishedThis) atoRes.store(true);
     }
-    {
-        std::lock_guard<std::mutex> lk(gQueryResultsMutex);
-        for (auto& p : localResults) gQueryResults[p.first]=p.second;
-        //cerr << "global results: " << tid << endl;
+    /*
+       {
+       std::lock_guard<std::mutex> lk(gQueryResultsMutex);
+       for (auto& p : localResults) gQueryResults[p.first]=p.second;
+    //cerr << "global results: " << tid << endl;
     }
+     */
 }
 
