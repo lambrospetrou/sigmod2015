@@ -312,6 +312,10 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
+
+static std::mutex *gRelTransMutex;
+
+
 LPTimer_t LPTimer;
 
 struct GlobalState {
@@ -322,8 +326,9 @@ struct GlobalState {
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-static inline void checkPendingValidations(SingleTaskPool&);
-
+static void checkPendingValidations(SingleTaskPool&);
+static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
+static void processSingleTransaction(const Transaction&);
 template<class T> using SRSWQueue = LockFreeBoundedSRSWQueue<T>;
 
 
@@ -342,46 +347,7 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
-#ifdef LPDEBUG
-    auto start = LPTimer.getChrono();
-#endif
-    const char* reader=t.operations;
-
-    // Delete all indicated tuples
-    for (uint32_t index=0;index!=t.deleteCount;++index) {
-        auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
-        auto& relation = gRelations[o.relationId];
-        // TODO - lock here to make it to make all the deletions parallel
-        for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
-            auto& rows = relation.insertedRows;
-            auto lb = relation.insertedRows.find(*key);
-            if (lb != rows.end()) {
-                // update the relation transactions
-                relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
-                // remove the row from the relations table
-                rows.erase(lb);
-            }
-        }
-        // advance to the next Relation deletions
-        reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
-    }
-
-    // Insert new tuples
-    for (uint32_t index=0;index!=t.insertCount;++index) {
-        auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
-        uint64_t relCols = gSchema[o.relationId];
-        for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-            vector<uint64_t> tuple(values, values+relCols);
-            gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
-            gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
-        }
-        // advance to next Relation insertions
-        reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
-    }
-
-#ifdef LPDEBUG
-    LPTimer.transactions += LPTimer.getChrono(start);
-#endif
+    processSingleTransaction(t);
 }
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
@@ -523,7 +489,6 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
     return;
 }
 
-static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -568,13 +533,15 @@ int main(int argc, char**argv) {
                 break;
             case MessageHead::DefineSchema: 
                 Globals.state = GlobalState::SCHEMA;
-                processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data())); 
+                processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
+                gRelTransMutex = new std::mutex[gSchema.size()]();
                 break;
             case MessageHead::Done: 
                 {
 #ifdef LPDEBUG
                     cerr << "  :::: " << LPTimer << endl; 
 #endif              
+                    delete[] gRelTransMutex;
                     readerTask.join();
                     validationThreads.destroy();
                     return 0;
@@ -587,10 +554,58 @@ int main(int argc, char**argv) {
 }
 //---------------------------------------------------------------------------
 
+
+
+static void processSingleTransaction(const Transaction& t) {
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+#endif
+    const char* reader=t.operations;
+
+    // Delete all indicated tuples
+    for (uint32_t index=0;index!=t.deleteCount;++index) {
+        auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
+        auto& relation = gRelations[o.relationId];
+        // TODO - lock here to make it to make all the deletions parallel
+        for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
+            auto& rows = relation.insertedRows;
+            auto lb = relation.insertedRows.find(*key);
+            if (lb != rows.end()) {
+                // update the relation transactions
+                relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
+                // remove the row from the relations table
+                rows.erase(lb);
+            }
+        }
+        // advance to the next Relation deletions
+        reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
+    }
+
+    // Insert new tuples
+    for (uint32_t index=0;index!=t.insertCount;++index) {
+        auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
+        uint64_t relCols = gSchema[o.relationId];
+        for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
+            vector<uint64_t> tuple(values, values+relCols);
+            gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
+            gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
+        }
+        // advance to next Relation insertions
+        reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
+    }
+
+#ifdef LPDEBUG
+    LPTimer.transactions += LPTimer.getChrono(start);
+#endif
+}
+
+
+
+
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
-static inline void checkPendingValidations(SingleTaskPool &pool) {
+static void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
     //if (!gPendingValidations.empty()) processPendingValidations(); 
 #ifdef LPDEBUG
