@@ -397,6 +397,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     auto start = getChrono();    
 #endif
 
+    // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
     const char* qreader=v.queries;
@@ -427,11 +428,11 @@ static void processFlush(const Flush& f) {
 #ifdef LPDEBUG
     auto start = getChrono();
 #endif
-
+    char zero = 48;
+    char one = 49;
     // TODO - NEEDS A COMPLETE REFACTORING
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
-        char c='0'+(*gQueryResults.begin()).second;
-        cout.write(&c,1);
+        cout << (gQueryResults.begin()->second == true ? one : zero); 
         gQueryResults.erase(gQueryResults.begin());
     }
     cout.flush();
@@ -506,7 +507,6 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
     return;
 }
 
-
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 
 int main(int argc, char**argv) {
@@ -522,15 +522,12 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    SRSWQueue<ReceivedMessage> msgQ(100);
-
-    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool validationThreads(1, processPendingValidationsTask);
     validationThreads.initThreads();
 
+    SRSWQueue<ReceivedMessage> msgQ(100);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    //vector<char> message;
-    //MessageHead head;
     while (true) {
         // Retrieve the message
         ReceivedMessage& msg = msgQ.reqNextDeq();
@@ -598,7 +595,7 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     //cerr << gPendingValidations.size() << " " << endl;
-    vector<pair<uint64_t, uint64_t>> localResults;
+    vector<pair<uint64_t, bool>> localResults;
 
     //cerr << nThreads << ":" << tid << endl;
 
