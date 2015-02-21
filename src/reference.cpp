@@ -477,14 +477,6 @@ static void processFlush(const Flush& f) {
 #endif
     char zero = 48;
     char one = 49;
-    // TODO - NEEDS A COMPLETE REFACTORING
-    /*
-    while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
-        cout << (gQueryResults.begin()->second == true ? one : zero); 
-        //cerr << (gQueryResults.begin()->second == true ? one : zero) << " "; 
-        gQueryResults.erase(gQueryResults.begin());
-    }
-    */
     if (!gQueryResults.empty()) {
         uint64_t removed = 0;
         for (auto& vp : gQueryResults) {
@@ -493,7 +485,10 @@ static void processFlush(const Flush& f) {
             //cerr << (vp.second == true ? one : zero); 
             ++removed;  
         }
-        if (removed > 0) gQueryResults.erase(gQueryResults.begin(), gQueryResults.begin()+removed);
+        if (removed > 0) {
+            if (removed == gQueryResults.size()) gQueryResults.clear();
+            else gQueryResults.erase(gQueryResults.begin(), gQueryResults.begin()+removed);
+        }
         cout.flush();
     }
 
