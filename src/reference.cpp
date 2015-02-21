@@ -290,6 +290,11 @@ class atomic_wrapper {
         void store(T desired) volatile {_a.store(desired);}
         T load() const { return _a.load(); }
         T load() const volatile { return _a.load(); }
+
+        std::atomic<T>& operator=(T desired) { _a.store(desired); return _a; }
+        std::atomic<T>& operator=(T desired) volatile { _a.store(desired); return _a; }
+
+        operator bool() const { return _a.load(); }
 };
 struct LPValidation {
     uint64_t validationId;
@@ -301,7 +306,9 @@ struct LPValidation {
         : validationId(vid), from(fr), to(t), queries(q) {}
 };
 static vector<LPValidation> gPendingValidations;
-static vector<atomic_wrapper<bool>> gPendingResults;
+//typedef atomic_wrapper<bool> PendingResultType;
+typedef char PendingResultType;
+static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
@@ -440,15 +447,18 @@ static void processValidationQueries(const ValidationQueries& v) {
     //cerr << "size after: " << queries.size() << endl;
     // sort the queries based on the number of the columns needed to check
     // small queries first in order to try finding a solution faster
-    //sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
+    sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
     //cerr << "====" << v.from << ":" << v.to << endl;
+    uint64_t batchPos = v.from; 
+    
     uint64_t trRange = v.to - v.from + 1;
-    uint64_t batchPos = v.from; uint64_t bSize = 500;
+    uint64_t bSize = 1000;
     while (trRange > bSize) {
         //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
         trRange -= bSize; batchPos += bSize;
     }
+    
     gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
     //cerr << batchPos << "-" << v.to << endl;
 
@@ -642,7 +652,7 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    memset(gPendingResults.data(), 0, sizeof(atomic_wrapper<bool>)*gPRsz);
+    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     gNextPending.store(0);
 
     //cerr << "before start!" << endl;
@@ -655,7 +665,7 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
         //cerr << valId << ":" << gPendingResults[valId-resIndexOffset].load() << " ";
-        gQueryResults.push_back(move(make_pair(valId, gPendingResults[i].load())));
+        gQueryResults.push_back(move(make_pair(valId, gPendingResults[i])));
     }
     gPendingValidations.clear();
     gPVunique = 0;
@@ -683,7 +693,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         // check if someone else found a conflict already for this validation ID
-        if (atoRes.load()) continue;
+        if (atoRes) continue;
 
         //cerr << "range: " << v.from << "-" << v.to << endl;
         TransStruct fromTRS(v.from);
@@ -698,7 +708,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
 
             for(auto iter=transFrom; iter!=transTo; ++iter) {
-                if (atoRes.load()) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
+                if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
                 auto& tuple = iter->tuple;
                 bool match=true;
                 for (auto& c : q.predicates) {
@@ -735,7 +745,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         }
         // update the pending results to help other threads skip this validation 
         // if it has other parts
-        if (conflict && !otherFinishedThis) atoRes.store(true);
+        if (conflict && !otherFinishedThis) atoRes = true;
     }
     /*
        {
