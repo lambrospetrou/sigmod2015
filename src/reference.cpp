@@ -45,9 +45,12 @@
 #include <mutex>
 #include <condition_variable>
 #include <memory>
+
+#include "LPTimer.hpp"
 #include "BoundedSRSWQueue.hpp"
 #include "LockFreeBoundedSRSWQueue.hpp"
 #include "SingleTaskPool.hpp"
+
 //---------------------------------------------------------------------------
 using namespace std;
 
@@ -312,36 +315,7 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
-struct LPTimer_t {
-    uint64_t validations;
-    uint64_t validationsProcessing;
-    uint64_t transactions;
-    uint64_t flushes;
-    uint64_t forgets;
-    uint64_t reading;
-    uint64_t readingTotal;
-    LPTimer_t() : validations(0), validationsProcessing(0), transactions(0), flushes(0), forgets(0), reading(0), readingTotal(0) {}
-} LPTimer;
-ostream& operator<< (ostream& os, const LPTimer_t& t) {
-    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " trans: " << t.transactions << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "/" << t.readingTotal<< "]" << endl;
-    return os;
-}
-uint64_t getChronoMicro() {      
-    // return nanoseconds
-    struct timeval start;
-    gettimeofday(&start, NULL);
-    // tv_sec = seconds | tv_usecs = microseconds
-    return (start.tv_sec * 1000000LL) + start.tv_usec;
-}
-uint64_t getChronoMicro(uint64_t start) {      
-    return getChronoMicro() - start;
-}
-uint64_t getChrono() {
-    return getChronoMicro();
-}
-uint64_t getChrono(uint64_t start) {
-    return getChronoMicro() - start;
-}
+LPTimer_t LPTimer;
 
 struct GlobalState {
     enum State : uint32_t { SCHEMA, TRANSACTION, VALIDATION, FORGET, FLUSH };
@@ -374,7 +348,7 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 static void processTransaction(const Transaction& t) {
 #ifdef LPDEBUG
-    auto start = getChrono();
+    auto start = LPTimer.getChrono();
 #endif
     //vector<TransOperation> operations;
     const char* reader=t.operations;
@@ -420,13 +394,13 @@ static void processTransaction(const Transaction& t) {
     //gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
 
 #ifdef LPDEBUG
-    LPTimer.transactions += getChrono(start);
+    LPTimer.transactions += LPTimer.getChrono(start);
 #endif
 }
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
 #ifdef LPDEBUG
-    auto start = getChrono();    
+    auto start = LPTimer.getChrono();    
 #endif
 
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
@@ -466,13 +440,13 @@ static void processValidationQueries(const ValidationQueries& v) {
 
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
 #ifdef LPDEBUG
-    LPTimer.validations += getChrono(start);
+    LPTimer.validations += LPTimer.getChrono(start);
 #endif
 }
 //---------------------------------------------------------------------------
 static void processFlush(const Flush& f) {
 #ifdef LPDEBUG
-    auto start = getChrono();
+    auto start = LPTimer.getChrono();
 #endif
     char zero = 48;
     char one = 49;
@@ -493,7 +467,7 @@ static void processFlush(const Flush& f) {
 
     //cerr << "\nfinished flushing " << f.validationId << endl;
 #ifdef LPDEBUG
-    LPTimer.flushes += getChrono(start);
+    LPTimer.flushes += LPTimer.getChrono(start);
 #endif
 }
 //---------------------------------------------------------------------------
@@ -501,7 +475,7 @@ static void processFlush(const Flush& f) {
 static void processForget(const Forget& f) {
 #ifdef LPDEBUG
     //cerr << "Forget: " << f.transactionId << endl;
-    auto start = getChrono();
+    auto start = LPTimer.getChrono();
 #endif
 
     TransStruct fstruct(f.transactionId);
@@ -515,7 +489,7 @@ static void processForget(const Forget& f) {
     // then delete the transactions from the transaction history
     //gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
 #ifdef LPDEBUG
-    LPTimer.forgets += getChrono(start);
+    LPTimer.forgets += LPTimer.getChrono(start);
 #endif
 }
 
@@ -528,7 +502,7 @@ struct ReceivedMessage {
 };
 void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
 #ifdef LPDEBUG
-    auto start = getChrono();
+    auto start = LPTimer.getChrono();
 #endif
     while (true) {
         // request place from the message queue - it blocks if full
@@ -539,7 +513,7 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         // Read the message body and cast it to the desired type
         cin.read(reinterpret_cast<char*>(&head),sizeof(head));
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
-        auto startInner = getChrono();
+        auto startInner = LPTimer.getChrono();
 #endif
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
@@ -553,12 +527,12 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
 #ifdef LPDEBUG
-        LPTimer.reading += getChrono(startInner);
+        LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
         msgQ.registerEnq();
     }
 #ifdef LPDEBUG
-    LPTimer.readingTotal += getChrono(start);
+    LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
     return;
 }
@@ -635,7 +609,7 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
     //if (!gPendingValidations.empty()) processPendingValidations(); 
 #ifdef LPDEBUG
-    auto start = getChrono();
+    auto start = LPTimer.getChrono();
 #endif
 
     //cerr << gPendingValidations.size() << " " << endl;
@@ -664,7 +638,7 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     gPendingValidations.clear();
     gPVunique = 0;
 #ifdef LPDEBUG
-    LPTimer.validationsProcessing += getChrono(start);
+    LPTimer.validationsProcessing += LPTimer.getChrono(start);
 #endif
 }
 
