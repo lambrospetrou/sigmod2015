@@ -44,6 +44,8 @@ public:
         --mCurSize;
         if (!isHalfFull()) mCondFull.notify_one();    
     }
+    
+    uint64_t size() const { return mCurSize; }
 
 private:
     uint64_t mCurSize;  // this is just for speedup in isFull and isEmpty
@@ -53,8 +55,6 @@ private:
     uint64_t mCapacity; // the total storage
     std::vector<T> mQ;        
 
-    //std::mutex mMutexEnq;
-    //std::mutex mMutexDeq;
     std::mutex mMutex;
     std::condition_variable mCondFull;
     std::condition_variable mCondEmpty;
@@ -63,22 +63,6 @@ private:
     inline bool isFull() const { return mCurSize == mMaxSize; }
     inline bool isHalfFull() const { return mCurSize >= (mMaxSize>>1); }
     
-    // busy waiting with yield in order to allow other threads waiting in execution
-    // queue to be executed
-    inline void lp_spin_sleep(std::function<bool ()> pred) {
-        do { std::this_thread::yield(); } while (!pred());
-    }
-    inline void lp_spin_sleep(std::chrono::microseconds us = std::chrono::microseconds(0)) {
-        if (us == std::chrono::microseconds(0)) {
-            std::this_thread::yield();
-        } else {
-            auto start = std::chrono::high_resolution_clock::now();
-            auto tend = start + us;
-            do { std::this_thread::yield(); }
-            while (std::chrono::high_resolution_clock::now() < tend);
-        }
-    }
-
 };
 
 #endif

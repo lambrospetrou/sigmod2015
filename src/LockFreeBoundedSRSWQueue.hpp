@@ -14,7 +14,7 @@
 template<class T>
 class LockFreeBoundedSRSWQueue {
 public:
-    LockFreeBoundedSRSWQueue(uint64_t sz) : mCurSize(0), mEnqIndex(0), mDeqIndex(0), mMaxSize(sz), mCapacity(sz+1),
+    LockFreeBoundedSRSWQueue(uint64_t sz) : mCurSize(0), mEnqIndex(0), mDeqIndex(0), mDeqAsync(0), mMaxSize(sz), mCapacity(sz+1),
         mQ(std::vector<T>(mCapacity)) {}
 
     T& reqNextEnq() { 
@@ -36,19 +36,19 @@ public:
         mDeqIndex = (mDeqIndex + 1) % mCapacity;
         --mCurSize;
     }
+    
+    inline bool isEmpty() const { return mDeqAsync == 0 ? mCurSize == 0 : mCurSize - mDeqAsync == 0; }
+    inline bool isFull() const { return mCurSize == mMaxSize; }
 
 private:
     std::atomic<uint64_t> mCurSize;  // this is just for speedup in isFull and isEmpty
     uint64_t mEnqIndex; // points to where the next empty slot is
     uint64_t mDeqIndex; // points to the next available message
+    std::atomic<uint64_t> mDeqAsync; // holds the number of async dequeues
     uint64_t mMaxSize;  // the maximum number iof messages in the queue
     uint64_t mCapacity; // the total storage
     std::vector<T> mQ;        
 
-    inline bool isEmpty() const { return mCurSize.load() == 0; }
-    inline bool isFull() const { return mCurSize.load() == mMaxSize; }
-    inline bool isHalfFull() const { return mCurSize.load() >= (mMaxSize>>1); }
-    
     // busy waiting with yield in order to allow other threads waiting in execution
     // queue to be executed
     inline void lp_spin_sleep(std::function<bool ()> pred) {

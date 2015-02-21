@@ -45,6 +45,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <memory>
+#include <system_error>
+#include <exception>
 
 #include "LPTimer.hpp"
 #include "BoundedSRSWQueue.hpp"
@@ -312,6 +314,11 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
+struct ReceivedMessage {
+    MessageHead head;
+    vector<char> data;
+};
+static vector<ReceivedMessage*> gPendingTransactions;
 
 static std::mutex *gRelTransMutex;
 
@@ -329,7 +336,12 @@ struct GlobalState {
 static void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 static void processSingleTransaction(const Transaction&);
-template<class T> using SRSWQueue = LockFreeBoundedSRSWQueue<T>;
+/*
+static uint64_t processPendingTransactions(SingleTaskPool&);
+static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid);
+static uint64_t processPendingMessages(SingleTaskPool&);
+*/
+template<class T> using SRSWQueue = BoundedSRSWQueue<T>;
 
 
 ///--------------------------------------------------------------------------
@@ -346,9 +358,21 @@ static void processDefineSchema(const DefineSchema& d) {
     }
 }
 //---------------------------------------------------------------------------
-static void processTransaction(const Transaction& t) {
-    processSingleTransaction(t);
+/*
+static void processTransaction(vector<char>& data) {
+    gPendingTransactions.push_back(data.data());
 }
+*/
+
+static void processTransaction(const Transaction& t) {
+//static void processTransaction(char* t) {
+    processSingleTransaction(t);
+    // hack to get the pointer to the beginning of the Transactiob structure!!!
+    //cerr << "tr:" << t.transactionId << endl;
+    //gPendingTransactions.push_back(reinterpret_cast<const Transaction*>((char*)t.operations-sizeof(uint64_t)-2*sizeof(uint32_t)));
+    //gPendingTransactions.push_back(t);
+}
+
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
 #ifdef LPDEBUG
@@ -448,10 +472,6 @@ static void processForget(const Forget& f) {
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
-struct ReceivedMessage {
-    MessageHead head;
-    vector<char> data;
-};
 void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -502,39 +522,64 @@ int main(int argc, char**argv) {
     SRSWQueue<ReceivedMessage> msgQ(100);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
     
-    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
-    validationThreads.initThreads();
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    workerThreads.initThreads();
 
+try {
+    uint64_t msgs = 0;
     while (true) {
+       
+        // make sure the producer-ReaderTask- can write a new message
+        /*if (msgQ.isFull()) {
+            cerr << "it is empty: " << endl;
+            // check if we have pending transactions to be processed
+            uint64_t trsz = processPendingMessages(workerThreads);
+            // release the space in msgQ
+            for (;trsz>0;--trsz) msgQ.registerDeq();
+            cerr << "processed messaegss" << endl;
+        }*/
+        
         // Retrieve the message
         //cerr << "try for incoming" << endl;
         ReceivedMessage& msg = msgQ.reqNextDeq();
         auto& head = msg.head;
-        //cerr << "incoming: " << head.type << endl;
+        cerr << "incoming: " << head.type << " =" << msgs++ << endl;
         // And interpret it
         switch (head.type) {
             case MessageHead::ValidationQueries: 
                 Globals.state = GlobalState::VALIDATION;
                 processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data())); 
+                msgQ.registerDeq();
                 break;
             case MessageHead::Transaction: 
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
+                msgQ.registerDeq();
+                //cerr << "T" << endl;
+                //gPendingTransactions.push_back(&msg);
+                // TODO - IMPORTANT DO NOT REGISTER THE DEQUEUE
                 break;
-            case MessageHead::Flush: 
-                checkPendingValidations(validationThreads);
+            case MessageHead::Flush: { 
+                // check if we have pending transactions to be processed
+                checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
+                msgQ.registerDeq();
                 break;
-            case MessageHead::Forget: 
-                checkPendingValidations(validationThreads);
+                                     }
+            case MessageHead::Forget: {
+                // check if we have pending transactions to be processed
+                checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FORGET;
                 processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
+                msgQ.registerDeq();
                 break;
+                                      }
             case MessageHead::DefineSchema: 
                 Globals.state = GlobalState::SCHEMA;
                 processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
                 gRelTransMutex = new std::mutex[gSchema.size()]();
+                msgQ.registerDeq();
                 break;
             case MessageHead::Done: 
                 {
@@ -543,24 +588,58 @@ int main(int argc, char**argv) {
 #endif              
                     delete[] gRelTransMutex;
                     readerTask.join();
-                    validationThreads.destroy();
+                    workerThreads.destroy();
                     return 0;
                 }
             default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
         }
 
-        msgQ.registerDeq();
     }
+} catch (const std::exception& e) { cerr <<  "exception " <<  e.what() << endl; }
 }
 //---------------------------------------------------------------------------
 
+/*
+static uint64_t processPendingMessages(SingleTaskPool& pool) {
+    uint64_t msgs = 0;
+    if (!gPendingTransactions.empty()) msgs += processPendingTransactions(pool);
+    return msgs;
+}
 
+static std::atomic<uint64_t> gNextTrans;
 
+static uint64_t processPendingTransactions(SingleTaskPool& pool) {
+    if (gPendingTransactions.empty()) return 0;
+
+    cerr << "ptrz: " << gPendingTransactions.size() << endl; 
+
+    uint64_t ptrsz = gPendingTransactions.size();
+    gNextTrans.store(0);
+    pool.startAll(processPendingTransactionsTask);
+    pool.waitAll();
+    gPendingTransactions.clear();
+
+    return ptrsz;
+}
+static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid) {
+    (void)nThreads; (void)tid;
+    uint64_t ptrsz = gPendingTransactions.size();
+    
+    for (;true;) {
+        uint64_t nextPos=gNextTrans++; 
+        if (nextPos>=ptrsz) return;
+        cerr << nextPos << ":" << ptrsz << endl;
+        processSingleTransaction(*reinterpret_cast<const Transaction*>(gPendingTransactions[nextPos]->data.data()));
+    }
+}
+*/
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
     const char* reader=t.operations;
+
+    cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -634,7 +713,7 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     gNextPending.store(0);
 
     //cerr << "before start!" << endl;
-    pool.startAll();
+    pool.startAll(processPendingValidationsTask);
     //processPendingValidations();
     //cerr << "before wait!" << endl;
     pool.waitAll();
