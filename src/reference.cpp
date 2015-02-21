@@ -165,8 +165,7 @@ struct LPQuery {
     /// The bindings
     vector<Query::Column> predicates;
     LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
-    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), 
-    predicates(vector<Query::Column>(q.columnCount)) {
+    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(vector<Query::Column>(q.columnCount)) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
@@ -350,37 +349,35 @@ static void processTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    //vector<TransOperation> operations;
     const char* reader=t.operations;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
+        auto& relation = gRelations[o.relationId];
+        // TODO - lock here to make it to make all the deletions parallel
         for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
-            auto& relation = gRelations[o.relationId];
             auto& rows = relation.insertedRows;
             auto lb = relation.insertedRows.find(*key);
             if (lb != rows.end()) {
-                //uint64_t rowid = lb->second[0];
                 // update the relation transactions
                 relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
-                // update the transactions history record - so far we to not need tuple
-                //operations.push_back(TransOperation(o.relationId, rowid, relation.transactions.back().tuple));
-                //operations.push_back(move(TransOperation(o.relationId, rowid)));
                 // remove the row from the relations table
                 rows.erase(lb);
             }
         }
+        // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
     }
 
     // Insert new tuples
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
-        for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*gSchema[o.relationId]);values!=valuesLimit;values+=gSchema[o.relationId]) {
-            vector<uint64_t> tuple(gSchema[o.relationId]);
+        uint64_t relCols = gSchema[o.relationId];
+        for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
+            vector<uint64_t> tuple(relCols);
             //tuple.insert(tuple.begin(),values,values+gSchema[o.relationId]);
-            memcpy(tuple.data(),values,gSchema[o.relationId]*sizeof(uint64_t));
+            memcpy(tuple.data(),values,relCols*sizeof(uint64_t));
 
             // add the tuple to this transaction operations and to the relations table
             //operations.push_back(move(TransOperation(o.relationId, tuple[0])));
@@ -388,7 +385,7 @@ static void processTransaction(const Transaction& t) {
             gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
         }
-        reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*gSchema[o.relationId]);
+        reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
 
     //gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
@@ -546,14 +543,13 @@ int main(int argc, char**argv) {
         if (numOfThreads == LONG_MAX)
             numOfThreads = 1;
     }
-
     cerr << "Number of threads: " << numOfThreads << endl;
-
-    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
-    validationThreads.initThreads();
 
     SRSWQueue<ReceivedMessage> msgQ(100);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
+    
+    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
+    validationThreads.initThreads();
 
     while (true) {
         // Retrieve the message
