@@ -44,13 +44,14 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 #include <memory>
 #include <system_error>
 #include <exception>
 
 #include "LPTimer.hpp"
-#include "BoundedSRSWQueue.hpp"
-#include "LockFreeBoundedSRSWQueue.hpp"
+//#include "BoundedSRSWQueue.hpp"
+#include "BoundedQueue.hpp"
 #include "SingleTaskPool.hpp"
 
 //---------------------------------------------------------------------------
@@ -341,7 +342,7 @@ static uint64_t processPendingTransactions(SingleTaskPool&);
 static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid);
 static uint64_t processPendingMessages(SingleTaskPool&);
 */
-template<class T> using SRSWQueue = BoundedSRSWQueue<T>;
+template<class T> using SRSWQueue = BoundedQueue<T>;
 
 
 ///--------------------------------------------------------------------------
