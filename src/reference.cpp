@@ -262,8 +262,6 @@ struct TransactionStruct {
 };
 
 static map<uint64_t, TransactionStruct> gTransactionHistory;
-static map<uint64_t,bool> gQueryResults;
-static std::mutex gQueryResultsMutex;
 
 static vector<uint32_t> gSchema;
 
@@ -272,6 +270,7 @@ template <typename T>
 class atomic_wrapper {
     private:
         std::atomic<T> _a;
+        //char _padding[64-sizeof(std::atomic<T>)];
     public:
         atomic_wrapper()
             :_a() {}
@@ -284,6 +283,7 @@ class atomic_wrapper {
 
         atomic_wrapper &operator=(const atomic_wrapper &other) {
             _a.store(other._a.load());
+            return *this;
         }
 
         void store(T desired) {_a.store(desired);}
@@ -297,10 +297,13 @@ struct LPValidation {
     vector<LPQuery> queries;
     LPValidation(const ValidationQueries& v, vector<LPQuery> q)
         : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
+    LPValidation(uint64_t vid, uint64_t fr, uint64_t t, vector<LPQuery> q)
+        : validationId(vid), from(fr), to(t), queries(q) {}
 };
 static vector<LPValidation> gPendingValidations;
-//static unique_ptr<std::atomic<bool>[]> gPendingResults;
 static vector<atomic_wrapper<bool>> gPendingResults;
+static vector<pair<uint64_t,bool>> gQueryResults;
+static uint64_t gPVunique;
 
 struct LPTimer_t {
     uint64_t validations;
@@ -437,9 +440,20 @@ static void processValidationQueries(const ValidationQueries& v) {
     //cerr << "size after: " << queries.size() << endl;
     // sort the queries based on the number of the columns needed to check
     // small queries first in order to try finding a solution faster
-    sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
+    //sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
+    //cerr << "====" << v.from << ":" << v.to << endl;
+    uint64_t trRange = v.to - v.from + 1;
+    uint64_t batchPos = v.from; uint64_t bSize = 500;
+    while (trRange > bSize) {
+        //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
+        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
+        trRange -= bSize; batchPos += bSize;
+    }
+    gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
+    //cerr << batchPos << "-" << v.to << endl;
 
-    gPendingValidations.push_back(move(LPValidation(v, move(queries))));
+    // update the global pending validations to reflect this new one
+    ++gPVunique;
 
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
 #ifdef LPDEBUG
@@ -454,14 +468,26 @@ static void processFlush(const Flush& f) {
     char zero = 48;
     char one = 49;
     // TODO - NEEDS A COMPLETE REFACTORING
+    /*
     while ((!gQueryResults.empty())&&((*gQueryResults.begin()).first<=f.validationId)) {
         cout << (gQueryResults.begin()->second == true ? one : zero); 
         //cerr << (gQueryResults.begin()->second == true ? one : zero) << " "; 
         gQueryResults.erase(gQueryResults.begin());
     }
-    cout.flush();
+    */
+    if (!gQueryResults.empty()) {
+        uint64_t removed = 0;
+        for (auto& vp : gQueryResults) {
+            if (vp.first > f.validationId) break;
+            cout << (vp.second == true ? one : zero); 
+            //cerr << (vp.second == true ? one : zero); 
+            ++removed;  
+        }
+        if (removed > 0) gQueryResults.erase(gQueryResults.begin(), gQueryResults.begin()+removed);
+        cout.flush();
+    }
 
-    //cerr << "finished flushing" << endl;
+    //cerr << "\nfinished flushing " << f.validationId << endl;
 #ifdef LPDEBUG
     LPTimer.flushes += getChrono(start);
 #endif
@@ -483,7 +509,7 @@ static void processForget(const Forget& f) {
                 upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
     }
     // then delete the transactions from the transaction history
-    gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
+    //gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
 #ifdef LPDEBUG
     LPTimer.forgets += getChrono(start);
 #endif
@@ -612,13 +638,11 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
     resIndexOffset = gPendingValidations[0].validationId;   
-    auto gPVsz = gPendingValidations.size();
+    //auto gPVsz = gPendingValidations.size();
     auto gPRsz = gPendingResults.size();
-    if (gPVsz > gPRsz)
-        gPendingResults.resize(gPVsz);
+    if (gPVunique > gPRsz)
+        gPendingResults.resize(gPVunique);
     memset(gPendingResults.data(), 0, sizeof(atomic_wrapper<bool>)*gPRsz);
-    //gPendingResults.reset(new std::atomic<bool>[gPendingValidations.size()]());
-    //    for (uint64_t i=0; i<gPendingValidations.size();++i) if (gPendingResults[i].load()) cerr << "ERRORORROROROOROROROROROR" << endl;
     gNextPending.store(0);
 
     //cerr << "before start!" << endl;
@@ -629,12 +653,12 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     //cerr << "after wait!" << endl;
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
-    for (uint64_t i=0; i<gPVsz; ++i) { 
-        //cerr << i << ":" << gPendingResults[i].load() << " ";
-        gQueryResults[gPendingValidations[i].validationId] |= gPendingResults[i].load();
+    for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
+        //cerr << valId << ":" << gPendingResults[valId-resIndexOffset].load() << " ";
+        gQueryResults.push_back(move(make_pair(valId, gPendingResults[i].load())));
     }
     gPendingValidations.clear();
-
+    gPVunique = 0;
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += getChrono(start);
 #endif
@@ -667,7 +691,6 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
-            if (atoRes.load()) { otherFinishedThis = true; break; }
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
@@ -675,6 +698,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
 
             for(auto iter=transFrom; iter!=transTo; ++iter) {
+                if (atoRes.load()) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
                 auto& tuple = iter->tuple;
                 bool match=true;
                 for (auto& c : q.predicates) {
@@ -707,7 +731,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 } // end of single query predicates
                 if (match) { conflict=true; break; }    
             } // end of all transactions for this relation query
-            if (conflict) break;
+            if (conflict || otherFinishedThis) break;
         }
         // update the pending results to help other threads skip this validation 
         // if it has other parts
