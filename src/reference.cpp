@@ -510,9 +510,6 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 
 int main(int argc, char**argv) {
-    // TODO - MAYBE some optimizations on reading
-    ios::sync_with_stdio(false);
-
     uint64_t numOfThreads = 1;
     if (argc > 1) {
         numOfThreads = strtol(argv[1], NULL, 10);
@@ -522,7 +519,7 @@ int main(int argc, char**argv) {
 
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    SingleTaskPool validationThreads(1, processPendingValidationsTask);
+    SingleTaskPool validationThreads(numOfThreads, processPendingValidationsTask);
     validationThreads.initThreads();
 
     SRSWQueue<ReceivedMessage> msgQ(100);
