@@ -611,10 +611,12 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
-    resIndexOffset = gPendingValidations[0].validationId;    
-    if (gPendingValidations.size() > gPendingResults.size())
-        gPendingResults.resize(gPendingValidations.size());
-    memset(gPendingResults.data(), 0, sizeof(atomic_wrapper<bool>)*gPendingResults.size());
+    resIndexOffset = gPendingValidations[0].validationId;   
+    auto gPVsz = gPendingValidations.size();
+    auto gPRsz = gPendingResults.size();
+    if (gPVsz > gPRsz)
+        gPendingResults.resize(gPVsz);
+    memset(gPendingResults.data(), 0, sizeof(atomic_wrapper<bool>)*gPRsz);
     //gPendingResults.reset(new std::atomic<bool>[gPendingValidations.size()]());
     //    for (uint64_t i=0; i<gPendingValidations.size();++i) if (gPendingResults[i].load()) cerr << "ERRORORROROROOROROROROROR" << endl;
     gNextPending.store(0);
@@ -627,9 +629,9 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
     //cerr << "after wait!" << endl;
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
-    for (uint64_t i=0, sz=gPendingValidations.size(); i<sz; ++i) { 
+    for (uint64_t i=0; i<gPVsz; ++i) { 
         //cerr << i << ":" << gPendingResults[i].load() << " ";
-        gQueryResults[gPendingValidations[i].validationId] = gPendingResults[i].load();
+        gQueryResults[gPendingValidations[i].validationId] |= gPendingResults[i].load();
     }
     gPendingValidations.clear();
 
@@ -641,27 +643,20 @@ static inline void checkPendingValidations(SingleTaskPool &pool) {
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << gPendingValidations.size() << " " << endl;
-    //vector<pair<uint64_t, bool>> localResults;
     //cerr << nThreads << ":" << tid << endl;
 
-    //uint64_t vsz=gPendingValidations.size();
-    //uint64_t batchSize = vsz/nThreads;
-    //uint64_t remSize = vsz%nThreads;
-    //uint64_t rStart = tid*batchSize + (tid < remSize ? tid : remSize);
-    // do not give all the remaining to the last node but each thread take sone more
-    //uint64_t rEnd = rStart + batchSize + (tid < remSize);
     uint64_t totalPending = gPendingValidations.size();
     //cerr << "start: " << rStart << " end: " << rEnd << endl;
-    //for (uint64_t vi=rStart; vi<rEnd; ++vi) {
+    uint64_t resPos, vi;
     for (;true;) {
 
         // get a validation ID - atomic operation
-        uint64_t vi = gNextPending++;
+        vi = gNextPending++;
         if (vi >= totalPending) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
         //cerr << "got: " << vi << endl;
 
         auto& v = gPendingValidations[vi];
-        auto resPos = v.validationId - resIndexOffset;
+        resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         // check if someone else found a conflict already for this validation ID
         if (atoRes.load()) continue;
