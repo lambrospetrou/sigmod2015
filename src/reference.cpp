@@ -263,8 +263,6 @@ struct TransactionStruct {
     TransactionStruct(vector<TransOperation> ops) : operations(ops) {}
 };
 
-static map<uint64_t, TransactionStruct> gTransactionHistory;
-
 static vector<uint32_t> gSchema;
 
 
@@ -375,17 +373,13 @@ static void processTransaction(const Transaction& t) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         uint64_t relCols = gSchema[o.relationId];
         for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-            //vector<uint64_t> tuple(relCols);
-            //memcpy(tuple.data(),values,relCols*sizeof(uint64_t));
             vector<uint64_t> tuple(values, values+relCols);
-
             gRelations[o.relationId].transactions.push_back(move(TransStruct(t.transactionId, tuple)));
             gRelations[o.relationId].insertedRows[values[0]]=move(tuple);
         }
+        // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
-
-    //gTransactionHistory.insert(move(std::pair<uint64_t, TransactionStruct>(t.transactionId, TransactionStruct(move(operations))))); 
 
 #ifdef LPDEBUG
     LPTimer.transactions += LPTimer.getChrono(start);
