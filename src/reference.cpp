@@ -317,13 +317,11 @@ LPTimer_t LPTimer;
 struct GlobalState {
     enum State : uint32_t { SCHEMA, TRANSACTION, VALIDATION, FORGET, FLUSH };
     State state;
-
 } Globals;
 
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-class SingleTaskPool;
 static inline void checkPendingValidations(SingleTaskPool&);
 
 template<class T> using SRSWQueue = LockFreeBoundedSRSWQueue<T>;
