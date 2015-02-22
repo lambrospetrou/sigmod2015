@@ -46,19 +46,19 @@ void producer(BoundedQueue<char>* Q) {
 void consumer(BoundedQueue<uint64_t>* Q) {
     while(true) {
         auto res = Q->reqNextDeq();
-        auto res1 = Q->reqNextDeq();
-        auto res2 = Q->reqNextDeq();
+        //auto res1 = Q->reqNextDeq();
+        //auto res2 = Q->reqNextDeq();
         cout << "deq id: " << res.refId << " deq val: " << *res.value << endl;
-        this_thread::sleep_for(chrono::seconds(1));
+        this_thread::sleep_for(chrono::milliseconds(20));
         Q->registerDeq(res.refId);
-        Q->registerDeq(res1.refId);
-        Q->registerDeq(res2.refId);
+        //Q->registerDeq(res1.refId);
+        //Q->registerDeq(res2.refId);
     }
 }   
 
 int main() {
 
-    BoundedQueue<uint64_t> Q(10);
+    BoundedQueue<uint64_t> Q(100);
 
     thread t1(producer2, &Q);
     thread t2(consumer, &Q);

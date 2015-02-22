@@ -47,7 +47,7 @@ public:
             }
             mNodes[sz-1].next = InvalidPtr;
             mlUnused = 0;
-            mlUnused = sz-1;
+            mlUnusedTail = sz-1;
     }
 
     BQResult reqNextEnq() { 
