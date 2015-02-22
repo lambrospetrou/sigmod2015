@@ -522,10 +522,10 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    SRSWQueue<ReceivedMessage> msgQ(2);
+    SRSWQueue<ReceivedMessage> msgQ(10);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
     
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     workerThreads.initThreads();
 
 try {
@@ -545,7 +545,7 @@ try {
         // Retrieve the message
         //cerr << "try for incoming" << endl;
         auto res = msgQ.reqNextDeq();
-        cerr << "deq id: " << res.refId << endl;
+        //cerr << "deq id: " << res.refId << endl;
         ReceivedMessage& msg = *res.value;
         auto& head = msg.head;
         //cerr << "incoming: " << head.type << " =" << msgs++ << endl;

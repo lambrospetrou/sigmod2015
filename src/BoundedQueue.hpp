@@ -52,7 +52,7 @@ public:
 
     BQResult reqNextEnq() { 
         std::unique_lock<std::mutex> lk(mMutex);
-        debugInfo("req-enq");
+        //debugInfo("req-enq");
         mCondFull.wait(lk, [this]{return mlUnused != InvalidPtr;});
         // transfer the node from Unused list to ReqEnq list
         NodePtr cN = disconnectHead(mlUnused, mlUnusedTail);
@@ -65,7 +65,7 @@ public:
     void registerEnq(uint64_t id) {
         // might not be necessary
         std::lock_guard<std::mutex> lk(mMutex);
-        debugInfo("register-enq");
+        //debugInfo("register-enq");
         // transfer node from mReqEnq to Available
         NodePtr nN = mNodes[id].refId;
         // remove it from ReqEnq
@@ -77,7 +77,7 @@ public:
     
     BQResult reqNextDeq() {
         std::unique_lock<std::mutex> lk(mMutex);
-        debugInfo("req-deq");
+        //debugInfo("req-deq");
         mCondEmpty.wait(lk, [this]{return mlAvailable != InvalidPtr;});
         // transfer the node from Available list to ReqDeq list
         NodePtr cN = disconnectHead(mlAvailable, mlAvailableTail);
@@ -88,7 +88,7 @@ public:
     }
     void registerDeq(uint64_t id) {
         std::lock_guard<std::mutex> lk(mMutex);
-        debugInfo("register-deq");
+        //debugInfo("register-deq");
         // transfer node from mReqDeq to Unused
         NodePtr cN = mNodes[id].refId;
         // remove it from ReqEnq
