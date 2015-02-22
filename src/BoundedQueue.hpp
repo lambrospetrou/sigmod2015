@@ -48,6 +48,7 @@ public:
             mNodes[sz-1].next = InvalidPtr;
             mlUnused = 0;
             mlUnusedTail = sz-1;
+            mReservedDeq = 0;
     }
 
     BQResult reqNextEnq() { 
@@ -77,6 +78,7 @@ public:
     
     BQResult reqNextDeq() {
         std::unique_lock<std::mutex> lk(mMutex);
+        ++mReservedDeq;
         //debugInfo("req-deq");
         mCondEmpty.wait(lk, [this]{return mlAvailable != InvalidPtr;});
         // transfer the node from Available list to ReqDeq list
@@ -88,6 +90,7 @@ public:
     }
     void registerDeq(uint64_t id) {
         std::lock_guard<std::mutex> lk(mMutex);
+        --mReservedDeq;
         //debugInfo("register-deq");
         // transfer node from mReqDeq to Unused
         NodePtr cN = mNodes[id].refId;
@@ -97,7 +100,7 @@ public:
         append(cN, mlUnused, mlUnusedTail);
         mCondFull.notify_one();    
     }
-   
+  
     void debugInfo(const std::string& s) {
         std::cerr << std::endl << s << std::endl;
         std::cerr << "Unused:"; cerrList(mlUnused);
@@ -120,7 +123,9 @@ private:
     NodePtr mlAvailableTail;
     NodePtr mlReqEnqTail;
     NodePtr mlReqDeqTail;
-    
+   
+    uint64_t mReservedDeq;
+
     std::vector<Node> mNodes;
     std::mutex mMutex;
     std::condition_variable mCondFull;

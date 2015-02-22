@@ -315,11 +315,12 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
+template<class T> using SRSWQueue = BoundedQueue<T>;
 struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-static vector<ReceivedMessage*> gPendingTransactions;
+static vector<SRSWQueue<ReceivedMessage>::BQResult> gPendingTransactions;
 
 static std::mutex *gRelTransMutex;
 
@@ -337,12 +338,11 @@ struct GlobalState {
 static void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 static void processSingleTransaction(const Transaction&);
-/*
+
+static uint64_t processPendingMessages(SingleTaskPool&, SRSWQueue<ReceivedMessage>&);
 static uint64_t processPendingTransactions(SingleTaskPool&);
 static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid);
-static uint64_t processPendingMessages(SingleTaskPool&);
-*/
-template<class T> using SRSWQueue = BoundedQueue<T>;
+
 
 
 ///--------------------------------------------------------------------------
@@ -364,7 +364,7 @@ static void processTransaction(vector<char>& data) {
     gPendingTransactions.push_back(data.data());
 }
 */
-
+/*
 static void processTransaction(const Transaction& t) {
 //static void processTransaction(char* t) {
     processSingleTransaction(t);
@@ -373,6 +373,7 @@ static void processTransaction(const Transaction& t) {
     //gPendingTransactions.push_back(reinterpret_cast<const Transaction*>((char*)t.operations-sizeof(uint64_t)-2*sizeof(uint32_t)));
     //gPendingTransactions.push_back(t);
 }
+*/
 
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
@@ -522,7 +523,9 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    SRSWQueue<ReceivedMessage> msgQ(10);
+    uint64_t MessageQSize  =50;
+    uint64_t PendingMessages = MessageQSize-5;
+    SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
     
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
@@ -533,14 +536,13 @@ try {
     while (true) {
        
         // make sure the producer-ReaderTask- can write a new message
-        /*if (msgQ.isFull()) {
-            cerr << "it is empty: " << endl;
+        if (gPendingTransactions.size() >= PendingMessages) {
+            cerr << "it is all reserved: " << endl;
             // check if we have pending transactions to be processed
-            uint64_t trsz = processPendingMessages(workerThreads);
+            processPendingMessages(workerThreads, msgQ);
             // release the space in msgQ
-            for (;trsz>0;--trsz) msgQ.registerDeq();
-            cerr << "processed messaegss" << endl;
-        }*/
+            cerr << "processed messagess" << endl;
+        }
         
         // Retrieve the message
         //cerr << "try for incoming" << endl;
@@ -558,14 +560,14 @@ try {
                 break;
             case MessageHead::Transaction: 
                 Globals.state = GlobalState::TRANSACTION;
-                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
-                msgQ.registerDeq(res.refId);
-                //cerr << "T" << endl;
-                //gPendingTransactions.push_back(&msg);
+                //processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
+                //msgQ.registerDeq(res.refId);
+                gPendingTransactions.push_back(res);
                 // TODO - IMPORTANT DO NOT REGISTER THE DEQUEUE
                 break;
             case MessageHead::Flush: { 
                 // check if we have pending transactions to be processed
+                processPendingMessages(workerThreads, msgQ);
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
@@ -574,6 +576,7 @@ try {
                                      }
             case MessageHead::Forget: {
                 // check if we have pending transactions to be processed
+                processPendingMessages(workerThreads, msgQ);
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FORGET;
                 processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
@@ -604,10 +607,14 @@ try {
 }
 //---------------------------------------------------------------------------
 
-/*
-static uint64_t processPendingMessages(SingleTaskPool& pool) {
+
+static uint64_t processPendingMessages(SingleTaskPool& pool, SRSWQueue<ReceivedMessage>& msgQ) {
     uint64_t msgs = 0;
-    if (!gPendingTransactions.empty()) msgs += processPendingTransactions(pool);
+    if (!gPendingTransactions.empty()) {
+        msgs += processPendingTransactions(pool);
+        for (auto& res : gPendingTransactions) msgQ.registerDeq(res.refId);
+        gPendingTransactions.clear();
+    }
     return msgs;
 }
 
@@ -622,7 +629,7 @@ static uint64_t processPendingTransactions(SingleTaskPool& pool) {
     gNextTrans.store(0);
     pool.startAll(processPendingTransactionsTask);
     pool.waitAll();
-    gPendingTransactions.clear();
+    //gPendingTransactions.clear();
 
     return ptrsz;
 }
@@ -634,10 +641,13 @@ static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid) {
         uint64_t nextPos=gNextTrans++; 
         if (nextPos>=ptrsz) return;
         cerr << nextPos << ":" << ptrsz << endl;
-        processSingleTransaction(*reinterpret_cast<const Transaction*>(gPendingTransactions[nextPos]->data.data()));
+        auto& res = gPendingTransactions[nextPos];
+        
+        processSingleTransaction(*reinterpret_cast<const Transaction*>(res.value->data.data()));
+        //processSingleTransaction(*reinterpret_cast<const Transaction*>(gPendingTransactions[nextPos]->data.data()));
     }
 }
-*/
+
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
