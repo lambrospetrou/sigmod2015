@@ -479,7 +479,8 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
 #endif
     while (true) {
         // request place from the message queue - it blocks if full
-        ReceivedMessage& msg = msgQ.reqNextEnq();
+        auto res = msgQ.reqNextEnq();
+        ReceivedMessage& msg = *res.value;
         auto& head = msg.head;
         auto& buffer = msg.data;
         // read the head of the message - type and len
@@ -491,7 +492,7 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
         if (head.type == MessageHead::Done) {
-            msgQ.registerEnq(); 
+            msgQ.registerEnq(res.refId); 
             // exit the loop since the reader has finished its job
             break;        
         }
@@ -499,10 +500,11 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
         // read the actual message content
         if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
         cin.read(buffer.data(), head.messageLen);
+
 #ifdef LPDEBUG
         LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
-        msgQ.registerEnq();
+        msgQ.registerEnq(res.refId);
     }
 #ifdef LPDEBUG
     LPTimer.readingTotal += LPTimer.getChrono(start);
@@ -520,14 +522,14 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    SRSWQueue<ReceivedMessage> msgQ(100);
+    SRSWQueue<ReceivedMessage> msgQ(2);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
     
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
 
 try {
-    uint64_t msgs = 0;
+    //uint64_t msgs = 0;
     while (true) {
        
         // make sure the producer-ReaderTask- can write a new message
@@ -542,20 +544,22 @@ try {
         
         // Retrieve the message
         //cerr << "try for incoming" << endl;
-        ReceivedMessage& msg = msgQ.reqNextDeq();
+        auto res = msgQ.reqNextDeq();
+        cerr << "deq id: " << res.refId << endl;
+        ReceivedMessage& msg = *res.value;
         auto& head = msg.head;
-        cerr << "incoming: " << head.type << " =" << msgs++ << endl;
+        //cerr << "incoming: " << head.type << " =" << msgs++ << endl;
         // And interpret it
         switch (head.type) {
             case MessageHead::ValidationQueries: 
                 Globals.state = GlobalState::VALIDATION;
                 processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data())); 
-                msgQ.registerDeq();
+                msgQ.registerDeq(res.refId);
                 break;
             case MessageHead::Transaction: 
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
-                msgQ.registerDeq();
+                msgQ.registerDeq(res.refId);
                 //cerr << "T" << endl;
                 //gPendingTransactions.push_back(&msg);
                 // TODO - IMPORTANT DO NOT REGISTER THE DEQUEUE
@@ -565,7 +569,7 @@ try {
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
-                msgQ.registerDeq();
+                msgQ.registerDeq(res.refId);
                 break;
                                      }
             case MessageHead::Forget: {
@@ -573,14 +577,14 @@ try {
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FORGET;
                 processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
-                msgQ.registerDeq();
+                msgQ.registerDeq(res.refId);
                 break;
                                       }
             case MessageHead::DefineSchema: 
                 Globals.state = GlobalState::SCHEMA;
                 processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
                 gRelTransMutex = new std::mutex[gSchema.size()]();
-                msgQ.registerDeq();
+                msgQ.registerDeq(res.refId);
                 break;
             case MessageHead::Done: 
                 {
@@ -640,7 +644,7 @@ static void processSingleTransaction(const Transaction& t) {
 #endif
     const char* reader=t.operations;
 
-    cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
+    //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
