@@ -33,8 +33,10 @@ public:
         BQResult(uint64_t id, T* v) : refId(id), value(v){}
     };
 
-    BoundedQueue(uint64_t sz) : mMaxSize(sz), InvalidPtr(sz+1), mlUnused(InvalidPtr), mlAvailable(InvalidPtr), 
-        mlReqEnq(InvalidPtr), mlReqDeq(InvalidPtr), mNodes(std::vector<Node>(mMaxSize)) {
+    BoundedQueue(uint64_t sz) : mMaxSize(sz), InvalidPtr(sz+1), 
+    mlUnused(InvalidPtr), mlAvailable(InvalidPtr), mlReqEnq(InvalidPtr), mlReqDeq(InvalidPtr), 
+    mlUnusedTail(InvalidPtr), mlAvailableTail(InvalidPtr), mlReqEnqTail(InvalidPtr), mlReqDeqTail(InvalidPtr), 
+    mNodes(std::vector<Node>(mMaxSize)) {
             if (sz == 0) return;
             mNodes[0].prev = InvalidPtr;
             mNodes[0].refId = 0;
@@ -45,6 +47,7 @@ public:
             }
             mNodes[sz-1].next = InvalidPtr;
             mlUnused = 0;
+            mlUnused = sz-1;
     }
 
     BQResult reqNextEnq() { 
@@ -52,9 +55,9 @@ public:
         debugInfo("req-enq");
         mCondFull.wait(lk, [this]{return mlUnused != InvalidPtr;});
         // transfer the node from Unused list to ReqEnq list
-        NodePtr cN = disconnectHead(mlUnused);
+        NodePtr cN = disconnectHead(mlUnused, mlUnusedTail);
         // connect node to mReqEnq
-        setHead(cN, mlReqEnq);
+        append(cN, mlReqEnq, mlReqEnqTail);
         lk.unlock();
         return BQResult(cN, &mNodes[cN].value); 
     }
@@ -66,9 +69,9 @@ public:
         // transfer node from mReqEnq to Available
         NodePtr nN = mNodes[id].refId;
         // remove it from ReqEnq
-        disconnectNode(nN, mlReqEnq);
+        disconnectNode(nN, mlReqEnq, mlReqEnqTail);
         // connect it to Available
-        setHead(nN, mlAvailable);
+        append(nN, mlAvailable, mlAvailableTail);
         mCondEmpty.notify_one();
     }
     
@@ -77,9 +80,9 @@ public:
         debugInfo("req-deq");
         mCondEmpty.wait(lk, [this]{return mlAvailable != InvalidPtr;});
         // transfer the node from Available list to ReqDeq list
-        NodePtr cN = disconnectHead(mlAvailable);
+        NodePtr cN = disconnectHead(mlAvailable, mlAvailableTail);
         // connect node to mReqDeq
-        setHead(cN, mlReqDeq);
+        append(cN, mlReqDeq, mlReqDeqTail);
         lk.unlock();
         return BQResult(cN, &mNodes[cN].value);
     }
@@ -89,9 +92,9 @@ public:
         // transfer node from mReqDeq to Unused
         NodePtr cN = mNodes[id].refId;
         // remove it from ReqEnq
-        disconnectNode(cN, mlReqDeq);
+        disconnectNode(cN, mlReqDeq, mlReqDeqTail);
         // connect it to Available
-        setHead(cN, mlUnused);
+        append(cN, mlUnused, mlUnusedTail);
         mCondFull.notify_one();    
     }
    
@@ -113,6 +116,11 @@ private:
     NodePtr mlReqEnq;
     NodePtr mlReqDeq;
     
+    NodePtr mlUnusedTail;
+    NodePtr mlAvailableTail;
+    NodePtr mlReqEnqTail;
+    NodePtr mlReqDeqTail;
+    
     std::vector<Node> mNodes;
     std::mutex mMutex;
     std::condition_variable mCondFull;
@@ -126,30 +134,63 @@ private:
         std::cerr << std::endl;
     }
 
-    void disconnectNode(NodePtr cN, NodePtr& l) {
-        if (cN == l) {
-            // we are removing the head
-            l = mNodes[cN].next;
-            if (l != InvalidPtr) mNodes[l].prev = InvalidPtr;
+    void disconnectNode(NodePtr cN, NodePtr& lH, NodePtr& lT) {
+        if (cN == InvalidPtr) return;
+        if (cN == lH) {
+            disconnectHead(lH, lT);
+        } else if (cN == lT) {
+            disconnectTail(lH, lT);  
         } else { 
             if (mNodes[cN].next != InvalidPtr) mNodes[mNodes[cN].next].prev = mNodes[cN].prev;
             if (mNodes[cN].prev != InvalidPtr) mNodes[mNodes[cN].prev].next = mNodes[cN].next;
         }
     }
 
-    NodePtr disconnectHead(NodePtr &l) {
-        if (l == InvalidPtr) return InvalidPtr;
-        NodePtr t = l;
-        l = mNodes[l].next;
+    NodePtr disconnectHead(NodePtr &lH, NodePtr& lT) {
+        if (lH == InvalidPtr) return InvalidPtr;
+        NodePtr t = lH;
+        lH = mNodes[lH].next;
+        if (lH == InvalidPtr) lT = InvalidPtr;
+        else mNodes[lH].prev = InvalidPtr;
+        return t;
+    }
+    NodePtr disconnectTail(NodePtr &lH, NodePtr& lT) {
+        if (lT == InvalidPtr) return InvalidPtr;
+        NodePtr t = lT;
+        lT = mNodes[lT].prev;
+        if (lT == InvalidPtr) lH = InvalidPtr;
+        else mNodes[lT].next = InvalidPtr;
         return t;
     }
 
-    void setHead(NodePtr nN, NodePtr& l) { 
-        mNodes[nN].next = l;
-        mNodes[nN].prev = InvalidPtr;
-        if (l != InvalidPtr) mNodes[l].prev = nN;
-        l = nN;
+    void prepend(NodePtr nN, NodePtr& lH, NodePtr& lT) { 
+        if (lH == InvalidPtr) {
+            // empty list
+            mNodes[nN].prev = InvalidPtr;
+            mNodes[nN].next = InvalidPtr;
+            lH = nN; lT = nN;
+        } else {
+            // there is a head already
+            mNodes[nN].next = lH;
+            mNodes[nN].prev = InvalidPtr;
+            mNodes[lH].prev = nN;
+            lH = nN;
+        }
     }  
+    void append(NodePtr nN, NodePtr& lH, NodePtr& lT) { 
+        if (lH == InvalidPtr) {
+            // empty list so set both to this node
+            lH = nN; lT = nN;
+            mNodes[nN].prev = InvalidPtr;
+            mNodes[nN].next = InvalidPtr;
+        } else {
+            // the list is not empty
+            mNodes[nN].prev = lT;
+            mNodes[nN].next = InvalidPtr;
+            mNodes[lT].next = nN;
+            lT = nN;
+        }
+    }
 };
 
 #endif
