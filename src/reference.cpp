@@ -364,7 +364,7 @@ static void processTransaction(vector<char>& data) {
     gPendingTransactions.push_back(data.data());
 }
 */
-/*
+
 static void processTransaction(const Transaction& t) {
 //static void processTransaction(char* t) {
     processSingleTransaction(t);
@@ -373,7 +373,7 @@ static void processTransaction(const Transaction& t) {
     //gPendingTransactions.push_back(reinterpret_cast<const Transaction*>((char*)t.operations-sizeof(uint64_t)-2*sizeof(uint32_t)));
     //gPendingTransactions.push_back(t);
 }
-*/
+
 
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v) {
@@ -560,9 +560,9 @@ try {
                 break;
             case MessageHead::Transaction: 
                 Globals.state = GlobalState::TRANSACTION;
-                //processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
-                //msgQ.registerDeq(res.refId);
-                gPendingTransactions.push_back(res);
+                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
+                msgQ.registerDeq(res.refId);
+                //gPendingTransactions.push_back(res);
                 // TODO - IMPORTANT DO NOT REGISTER THE DEQUEUE
                 break;
             case MessageHead::Flush: { 
