@@ -195,6 +195,9 @@ struct LPQuery {
         else return left.value < right.value;    
     }
     static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
+        //if (left.satisfiable && !right.satisfiable) return true;
+        //else if (right.satisfiable < !left.satisfiable) return false;
+        //else return (left.columnCount < right.columnCount);
         return (left.columnCount < right.columnCount);
     }
 };
@@ -210,7 +213,7 @@ bool operator== (const LPQuery& left, const LPQuery& right)  {
     return left.predicates == right.predicates;
 }
 ostream& operator<< (ostream& os, const LPQuery& o) {
-    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "}";
+    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
     return os;
 }
 bool operator< (const Query::Column& left, const Query::Column& right) {
@@ -774,7 +777,21 @@ namespace lp {
                     q.satisfiable = false; ++unsatisfied; 
                 }
             }
-            return v.queries.size() == unsatisfied;
+            if (v.queries.size() == unsatisfied) return true;
+            // since we have some queries that are candidates for confliction
+            // we will sort them to be in front of the queries and be able to break
+            /*uint64_t left=0, right=v.queries.size()-1, lastSwapPos=v.queries.size()-1;
+            for (; left < right; ) {
+                for(; v.queries[left].satisfiable && left<right; ) ++left;
+                for(; !v.queries[right].satisfiable && left<right; ) --right;
+                if (left < right) {
+                    std::swap(v.queries[left], v.queries[right]);
+                    lastSwapPos = right;
+                    ++left; --right;
+                }
+            }
+            (void)lastSwapPos;*/
+            return false;
         }
     }
 
@@ -816,6 +833,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
+        
+        //cerr << v.queries << endl;
+
 
         //cerr << "range: " << v.from << "-" << v.to << endl;
         // TODO -  VERY NAIVE HERE - validate each query separately
