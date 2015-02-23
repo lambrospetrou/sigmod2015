@@ -339,11 +339,6 @@ static void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 static void processSingleTransaction(const Transaction&);
 
-static uint64_t processPendingMessages(SingleTaskPool&, SRSWQueue<ReceivedMessage>&);
-static uint64_t processPendingTransactions(SingleTaskPool&);
-static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid);
-
-
 
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
@@ -359,14 +354,8 @@ static void processDefineSchema(const DefineSchema& d) {
     }
 }
 //---------------------------------------------------------------------------
-/*
-static void processTransaction(vector<char>& data) {
-    gPendingTransactions.push_back(data.data());
-}
-*/
 
 static void processTransaction(const Transaction& t) {
-//static void processTransaction(char* t) {
     processSingleTransaction(t);
     // hack to get the pointer to the beginning of the Transactiob structure!!!
     //cerr << "tr:" << t.transactionId << endl;
@@ -524,7 +513,7 @@ int main(int argc, char**argv) {
     cerr << "Number of threads: " << numOfThreads << endl;
 
     uint64_t MessageQSize = 100;
-    uint64_t PendingMessages = MessageQSize-5;
+    //uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
     
@@ -534,15 +523,6 @@ int main(int argc, char**argv) {
 try {
     //uint64_t msgs = 0;
     while (true) {
-       
-        // make sure the producer-ReaderTask- can write a new message
-        if (gPendingTransactions.size() >= PendingMessages) {
-            cerr << "it is all reserved: " << endl;
-            // check if we have pending transactions to be processed
-            processPendingMessages(workerThreads, msgQ);
-            // release the space in msgQ
-            cerr << "processed messagess" << endl;
-        }
         
         // Retrieve the message
         //cerr << "try for incoming" << endl;
@@ -606,47 +586,6 @@ try {
 } catch (const std::exception& e) { cerr <<  "exception " <<  e.what() << endl; }
 }
 //---------------------------------------------------------------------------
-
-
-static uint64_t processPendingMessages(SingleTaskPool& pool, SRSWQueue<ReceivedMessage>& msgQ) {
-    uint64_t msgs = 0;
-    if (!gPendingTransactions.empty()) {
-        msgs += processPendingTransactions(pool);
-        for (auto& res : gPendingTransactions) msgQ.registerDeq(res.refId);
-        gPendingTransactions.clear();
-    }
-    return msgs;
-}
-
-static std::atomic<uint64_t> gNextTrans;
-
-static uint64_t processPendingTransactions(SingleTaskPool& pool) {
-    if (gPendingTransactions.empty()) return 0;
-
-    cerr << "ptrz: " << gPendingTransactions.size() << endl; 
-
-    uint64_t ptrsz = gPendingTransactions.size();
-    gNextTrans.store(0);
-    pool.startAll(processPendingTransactionsTask);
-    pool.waitAll();
-    //gPendingTransactions.clear();
-
-    return ptrsz;
-}
-static void processPendingTransactionsTask(uint32_t nThreads, uint32_t tid) {
-    (void)nThreads; (void)tid;
-    uint64_t ptrsz = gPendingTransactions.size();
-    
-    for (;true;) {
-        uint64_t nextPos=gNextTrans++; 
-        if (nextPos>=ptrsz) return;
-        cerr << nextPos << ":" << ptrsz << endl;
-        auto& res = gPendingTransactions[nextPos];
-        
-        processSingleTransaction(*reinterpret_cast<const Transaction*>(res.value->data.data()));
-        //processSingleTransaction(*reinterpret_cast<const Transaction*>(gPendingTransactions[nextPos]->data.data()));
-    }
-}
 
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
