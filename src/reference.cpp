@@ -353,7 +353,8 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 
-static void processTransaction(const Transaction& t) {
+static void processTransaction(const Transaction& t, const vector<char>& tdata) {
+    (void)tdata;
     processSingleTransaction(t);
     // hack to get the pointer to the beginning of the Transactiob structure!!!
     //cerr << "tr:" << t.transactionId << endl;
@@ -363,11 +364,12 @@ static void processTransaction(const Transaction& t) {
 
 
 //---------------------------------------------------------------------------
-static void processValidationQueries(const ValidationQueries& v) {
+static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
 
+    (void)vdata;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
@@ -382,7 +384,7 @@ static void processValidationQueries(const ValidationQueries& v) {
     uint64_t batchPos = v.from; 
     
     uint64_t trRange = v.to - v.from + 1;
-    uint64_t bSize = 1000;
+    static uint64_t bSize = 5000;
     while (trRange > bSize) {
         //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
@@ -525,12 +527,12 @@ try {
         switch (head.type) {
             case MessageHead::ValidationQueries: 
                 Globals.state = GlobalState::VALIDATION;
-                processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data())); 
+                processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
                 msgQ.registerDeq(res.refId);
                 break;
             case MessageHead::Transaction: 
                 Globals.state = GlobalState::TRANSACTION;
-                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
+                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
                 msgQ.registerDeq(res.refId);
                 break;
             case MessageHead::Flush: { 
