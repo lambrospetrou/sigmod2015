@@ -177,10 +177,9 @@ struct LPQuery {
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
-        // sort them in order to have the equality checks first
-        std::sort(predicates.begin(), predicates.end(), LPQuery::QCSortCol);
         columnCount = predicates.size();
     }
+    // this is the default - operator< of Column
     static bool QCSortCol (const Query::Column& left, const Query::Column& right) {
         if (left.column < right.column) return true;
         else if (right.column < left.column) return false;
@@ -825,6 +824,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
             auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
 
+            // sort them in order to have the equality checks first
+            std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
+            
             for(auto iter=transFrom; iter!=transTo; ++iter) {
                 if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
                 auto& tuple = iter->tuple;
