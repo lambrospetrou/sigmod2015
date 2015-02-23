@@ -170,7 +170,7 @@ struct LPQuery {
     vector<Query::Column> predicates;
     /// States whether this query can ever be true - will be set to false later by our filtering
     bool satisfiable;
-    
+
     LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()), satisfiable(true) {}
     LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(vector<Query::Column>(q.columnCount)), satisfiable(true) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
@@ -392,7 +392,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
     uint64_t batchPos = v.from; 
-    
+
     uint64_t trRange = v.to - v.from + 1;
     static uint64_t bSize = 5000;
     while (trRange > bSize) {
@@ -400,7 +400,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
         trRange -= bSize; batchPos += bSize;
     }
-    
+
     gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
     //cerr << batchPos << "-" << v.to << endl;
 
@@ -518,71 +518,71 @@ int main(int argc, char**argv) {
     //uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
-    
+
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     workerThreads.initThreads();
 
-try {
-    //uint64_t msgs = 0;
-    while (true) {
-        
-        // Retrieve the message
-        //cerr << "try for incoming" << endl;
-        auto res = msgQ.reqNextDeq();
-        //cerr << "deq id: " << res.refId << endl;
-        ReceivedMessage& msg = *res.value;
-        auto& head = msg.head;
-        //cerr << "incoming: " << head.type << " =" << msgs++ << endl;
-        // And interpret it
-        switch (head.type) {
-            case MessageHead::ValidationQueries: 
-                Globals.state = GlobalState::VALIDATION;
-                processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                msgQ.registerDeq(res.refId);
-                break;
-            case MessageHead::Transaction: 
-                Globals.state = GlobalState::TRANSACTION;
-                processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                msgQ.registerDeq(res.refId);
-                break;
-            case MessageHead::Flush: { 
-                // check if we have pending transactions to be processed
-                checkPendingValidations(workerThreads);
-                Globals.state = GlobalState::FLUSH;
-                processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
-                msgQ.registerDeq(res.refId);
-                break;
-                                     }
-            case MessageHead::Forget: {
-                // check if we have pending transactions to be processed
-                //processPendingMessages(workerThreads, msgQ);
-                checkPendingValidations(workerThreads);
-                Globals.state = GlobalState::FORGET;
-                processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
-                msgQ.registerDeq(res.refId);
-                break;
-                                      }
-            case MessageHead::DefineSchema: 
-                Globals.state = GlobalState::SCHEMA;
-                processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
-                gRelTransMutex = new std::mutex[gSchema.size()]();
-                msgQ.registerDeq(res.refId);
-                break;
-            case MessageHead::Done: 
-                {
-#ifdef LPDEBUG
-                    cerr << "  :::: " << LPTimer << endl; 
-#endif              
-                    delete[] gRelTransMutex;
-                    readerTask.join();
-                    workerThreads.destroy();
-                    return 0;
-                }
-            default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
-        }
+    try {
+        //uint64_t msgs = 0;
+        while (true) {
 
-    }
-} catch (const std::exception& e) { cerr <<  "exception " <<  e.what() << endl; }
+            // Retrieve the message
+            //cerr << "try for incoming" << endl;
+            auto res = msgQ.reqNextDeq();
+            //cerr << "deq id: " << res.refId << endl;
+            ReceivedMessage& msg = *res.value;
+            auto& head = msg.head;
+            //cerr << "incoming: " << head.type << " =" << msgs++ << endl;
+            // And interpret it
+            switch (head.type) {
+                case MessageHead::ValidationQueries: 
+                    Globals.state = GlobalState::VALIDATION;
+                    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                    msgQ.registerDeq(res.refId);
+                    break;
+                case MessageHead::Transaction: 
+                    Globals.state = GlobalState::TRANSACTION;
+                    processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                    msgQ.registerDeq(res.refId);
+                    break;
+                case MessageHead::Flush: { 
+                                             // check if we have pending transactions to be processed
+                                             checkPendingValidations(workerThreads);
+                                             Globals.state = GlobalState::FLUSH;
+                                             processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
+                                             msgQ.registerDeq(res.refId);
+                                             break;
+                                         }
+                case MessageHead::Forget: {
+                                              // check if we have pending transactions to be processed
+                                              //processPendingMessages(workerThreads, msgQ);
+                                              checkPendingValidations(workerThreads);
+                                              Globals.state = GlobalState::FORGET;
+                                              processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
+                                              msgQ.registerDeq(res.refId);
+                                              break;
+                                          }
+                case MessageHead::DefineSchema: 
+                                          Globals.state = GlobalState::SCHEMA;
+                                          processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
+                                          gRelTransMutex = new std::mutex[gSchema.size()]();
+                                          msgQ.registerDeq(res.refId);
+                                          break;
+                case MessageHead::Done: 
+                                          {
+#ifdef LPDEBUG
+                                              cerr << "  :::: " << LPTimer << endl; 
+#endif              
+                                              delete[] gRelTransMutex;
+                                              readerTask.join();
+                                              workerThreads.destroy();
+                                              return 0;
+                                          }
+                default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
+            }
+
+        }
+    } catch (const std::exception& e) { cerr <<  "exception " <<  e.what() << endl; }
 }
 //---------------------------------------------------------------------------
 
@@ -601,17 +601,17 @@ static void processSingleTransaction(const Transaction& t) {
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-        std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-        for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
-            auto& rows = relation.insertedRows;
-            auto lb = relation.insertedRows.find(*key);
-            if (lb != rows.end()) {
-                // update the relation transactions
-                relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
-                // remove the row from the relations table
-                rows.erase(lb);
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
+                auto& rows = relation.insertedRows;
+                auto lb = relation.insertedRows.find(*key);
+                if (lb != rows.end()) {
+                    // update the relation transactions
+                    relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
+                    // remove the row from the relations table
+                    rows.erase(lb);
+                }
             }
-        }
         }// end of lock_guard
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
@@ -625,12 +625,12 @@ static void processSingleTransaction(const Transaction& t) {
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-        std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-        for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-            vector<uint64_t> tuple(values, values+relCols);
-            relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
-            relation.insertedRows[values[0]]=move(tuple);
-        }
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
+                vector<uint64_t> tuple(values, values+relCols);
+                relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
+                relation.insertedRows[values[0]]=move(tuple);
+            }
         }// end of lock_guard
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
@@ -687,26 +687,25 @@ namespace lp {
 
     namespace validation {
 
-        struct Satisfiability {
-                bool pastOps[6];
-                uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
-                vector<uint64_t> neq; 
-                Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
-                    memset(pastOps, 0, 6);
-                }
-                void reset() {
-                    eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
-                    memset(pastOps, 0, 6);
-                    neq.clear();
-                }
-        };
-        
         typedef Query::Column::Op Op;
         typedef Query::Column Column;
-        
+
+        struct Satisfiability {
+            bool pastOps[6];
+            uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
+            vector<uint64_t> neq; 
+            Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
+                memset(pastOps, 0, 6);
+            }
+            void reset() {
+                eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
+                memset(pastOps, 0, 6);
+                neq.clear();
+            }
+        };
+
         bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
-            
-                switch (p.op) {
+            switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
                     if (sat.pastOps[Op::Equal]) return true;
@@ -739,7 +738,12 @@ namespace lp {
                     sat.pastOps[Op::GreaterOrEqual] = true;
                     sat.geq = std::max(sat.geq, p.value);
                     break;
-                }
+            }
+
+            // check non-overlapping range interval
+            if (sat.pastOps[Op::Equal] && (sat.eq < sat.gt || sat.eq > sat.lt))
+                return true;
+
             return false;
         }
 
@@ -756,11 +760,10 @@ namespace lp {
 
         bool unsolvable(LPValidation& v) {
             // NOTE:: I ASSUME THAT THE PREDICATES ARE UNIQUE IN EACH LPQuery
+            // NOTE:: I ASSUME THAT PREDICATES ARE SORTED ON THEIR COLUMNS FIRST
             uint32_t unsatisfied = 0;
             for (auto& q : v.queries) {
-                //cerr << q << endl;
                 if (isQueryUnsolvable(q)) { 
-                    //cerr << q << endl;
                     q.satisfiable = false; ++unsatisfied; 
                 }
             }
@@ -793,7 +796,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
         // check if the query is by default false - NON-CONFLICT
         if (lp::validation::unsolvable(v)) {
-            cerr << "unsolvable" << endl;
+            //cerr << "unsolvable" << endl;
             atoRes = false;
             continue;
         }
@@ -859,12 +862,5 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // if it has other parts
         if (conflict && !otherFinishedThis) atoRes = true;
     }
-    /*
-       {
-       std::lock_guard<std::mutex> lk(gQueryResultsMutex);
-       for (auto& p : localResults) gQueryResults[p.first]=p.second;
-    //cerr << "global results: " << tid << endl;
-    }
-     */
 }
 
