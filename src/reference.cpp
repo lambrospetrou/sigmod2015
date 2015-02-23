@@ -51,9 +51,9 @@
 #include <exception>
 
 #include "LPTimer.hpp"
-//#include "BoundedSRSWQueue.hpp"
 #include "BoundedQueue.hpp"
 #include "SingleTaskPool.hpp"
+#include "MultiTaskPool.hpp"
 
 //---------------------------------------------------------------------------
 using namespace std;

@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include "BoundedQueue.hpp"
+#include "MultiTaskPool.hpp"
 
 using namespace std;
 
@@ -56,14 +57,45 @@ void consumer(BoundedQueue<uint64_t>* Q) {
     }
 }   
 
-int main() {
+void workerFunc(uint32_t nThreads, uint32_t tid, void *args) {
+    int* iptr = static_cast<int*>(args);
+    cerr << "worker " << tid << "/" << nThreads << " args: " << *iptr << endl;
+    delete iptr;
+}
 
+int main() {
+/*
     BoundedQueue<uint64_t> Q(100);
 
     thread t1(producer2, &Q);
     thread t2(consumer, &Q);
-
     t1.join();
     t2.join();
+*/
+
+    MultiTaskPool pool(4);
+    pool.initThreads();
+    pool.startAll();
+    for(int i=0; i<100; i++) {
+        cerr << "job added" << pool.addTask(workerFunc, static_cast<void*>(new int(i))) << endl;
+    }
+    pool.waitAllAndStop();
+    cerr << "SHOULD SYNC" << endl;
+    for(int i=0; i<100; i++) {
+        cerr << "job added" << pool.addTask(workerFunc, static_cast<void*>(new int(i))) << endl;
+    }
+    pool.startAll();
+    pool.waitAll();
+    pool.destroy();
+
     return 0;
 }
+
+
+
+
+
+
+
+
+
