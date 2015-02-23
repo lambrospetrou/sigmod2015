@@ -797,6 +797,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
         // check if the query is by default false - NON-CONFLICT
         if (lp::validation::unsolvable(v)) {
+            cerr << "unsolvable" << endl;
             atoRes = false;
             continue;
         }
