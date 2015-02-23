@@ -514,7 +514,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 5000;
+    uint64_t MessageQSize = 1000;
     //uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -716,33 +716,36 @@ namespace lp {
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
                     sat.pastOps[Op::NotEqual] = true;
-                    sat.neq.push_back(p.value);
+                    //sat.neq.push_back(p.value);
                     break;
                 case Op::Less:
                     if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
                     sat.pastOps[Op::Less] = true;
-                    sat.lt = std::min(sat.lt, p.value);
+                    if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
                     break;
                 case Op::LessOrEqual:
                     if (sat.pastOps[Op::Equal] && sat.eq > p.value) return true;
                     sat.pastOps[Op::LessOrEqual] = true;
-                    sat.leq = std::min(sat.leq, p.value);
+                    if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
                     break;
                 case Op::Greater:
                     if (sat.pastOps[Op::Equal] && sat.eq <= p.value) return true;
                     sat.pastOps[Op::Greater] = true;
-                    sat.gt = std::max(sat.gt, p.value);
+                    if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
                     break;
                 case Op::GreaterOrEqual:
                     if (sat.pastOps[Op::Equal] && sat.eq < p.value) return true;
                     sat.pastOps[Op::GreaterOrEqual] = true;
-                    sat.geq = std::max(sat.geq, p.value);
+                    if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
                     break;
             }
 
             // check for equality and constrasting ranges
             if (sat.pastOps[Op::Equal] && (sat.eq < sat.gt || sat.eq > sat.lt))
                 return true;
+
+            // check non-overlapping ranges
+            if (sat.lt - sat.gt <= 0) return true;
 
             return false;
         }
