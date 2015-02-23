@@ -373,10 +373,15 @@ static void processTransaction(const Transaction& t, const vector<char>& tdata) 
 }
 
 //---------------------------------------------------------------------------
+
+static uint64_t gTotalValidations = 0;
+
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
+
+    ++gTotalValidations;
 
     (void)vdata;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
@@ -393,7 +398,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     uint64_t batchPos = v.from; 
 
     uint64_t trRange = v.to - v.from + 1;
-    static uint64_t bSize = 5000;
+    static uint64_t bSize = 10000;
     while (trRange > bSize) {
         //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
@@ -513,7 +518,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 1000;
+    uint64_t MessageQSize = 100;
     //uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -570,7 +575,7 @@ int main(int argc, char**argv) {
                 case MessageHead::Done: 
                                           {
 #ifdef LPDEBUG
-                                              cerr << "  :::: " << LPTimer << endl; 
+                                              cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << endl; 
 #endif              
                                               delete[] gRelTransMutex;
                                               readerTask.join();
@@ -816,6 +821,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
+            if (!q.satisfiable) { /*cerr << "uns" << endl;*/ continue; }
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
