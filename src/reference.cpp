@@ -514,7 +514,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 100;
+    uint64_t MessageQSize = 5000;
     //uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -601,7 +601,7 @@ static void processSingleTransaction(const Transaction& t) {
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
                 auto& rows = relation.insertedRows;
                 auto lb = relation.insertedRows.find(*key);
@@ -625,7 +625,7 @@ static void processSingleTransaction(const Transaction& t) {
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 vector<uint64_t> tuple(values, values+relCols);
                 relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
@@ -740,7 +740,7 @@ namespace lp {
                     break;
             }
 
-            // check non-overlapping range interval
+            // check for equality and constrasting ranges
             if (sat.pastOps[Op::Equal] && (sat.eq < sat.gt || sat.eq > sat.lt))
                 return true;
 
