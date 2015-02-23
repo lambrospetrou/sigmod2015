@@ -701,14 +701,11 @@ namespace lp {
                 }
         };
         
-        bool isQueryColumnUnsolvable(LPQuery& q, uint64_t b, uint64_t e) {
-            typedef Query::Column::Op Op;
+        typedef Query::Column::Op Op;
+        typedef Query::Column Column;
+        
+        bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
             
-            Satisfiability sat;
-            
-            // check if Query q is unsatisfiable based on its predicates
-            for (; b<e; ++b) {
-                auto& p = q.predicates[b];
                 switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
@@ -743,17 +740,16 @@ namespace lp {
                     sat.geq = std::max(sat.geq, p.value);
                     break;
                 }
-            }
             return false;
         }
 
-        inline bool isQueryUnsolvable(LPQuery& q) {
+        bool isQueryUnsolvable(LPQuery& q) {
             if (q.predicates.empty()) return false;
-            uint64_t b,e,sz;
-            for (b=0,sz=q.predicates.size(); b<sz; ++b) {
-                for(e=b; e<sz && q.predicates[b].column == q.predicates[e].column; ++e);
-                if (isQueryColumnUnsolvable(q, b, e)) return true;
-                b = e;
+            Satisfiability sat;
+            uint64_t lastCol = UINT64_MAX;
+            for (auto& p : q.predicates) {
+                if (p.column != lastCol) { sat.reset(); lastCol=p.column; }
+                if (isQueryColumnUnsolvable(p, sat)) return true;
             }
             return false;
         }
