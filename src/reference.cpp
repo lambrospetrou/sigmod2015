@@ -813,16 +813,14 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
 
         //cerr << "range: " << v.from << "-" << v.to << endl;
-        TransStruct fromTRS(v.from);
-        TransStruct toTRS(v.to);
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
-            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), fromTRS, TRSLessThan);
-            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), toTRS, TRSLessThan);
+            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLessThan);
+            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, TRSLessThan);
 
             // sort them in order to have the equality checks first
             std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
