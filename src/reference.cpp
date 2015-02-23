@@ -426,8 +426,8 @@ static void processFlush(const Flush& f) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    char zero = 48;
-    char one = 49;
+    static char zero = '0';
+    static char one = '1';
     if (!gQueryResults.empty()) {
         uint64_t removed = 0;
         for (auto& vp : gQueryResults) {
