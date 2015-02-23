@@ -687,46 +687,60 @@ namespace lp {
 
     namespace validation {
 
+        struct Satisfiability {
+                bool pastOps[6];
+                uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
+                vector<uint64_t> neq; 
+                Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
+                    memset(pastOps, 0, 6);
+                }
+                void reset() {
+                    eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
+                    memset(pastOps, 0, 6);
+                    neq.clear();
+                }
+        };
+        
         bool isQueryColumnUnsolvable(LPQuery& q, uint64_t b, uint64_t e) {
             typedef Query::Column::Op Op;
+            
+            Satisfiability sat;
+            
             // check if Query q is unsatisfiable based on its predicates
-            bool pastOps[6]{};
-            uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
-            vector<uint64_t> neq;
             for (; b<e; ++b) {
                 auto& p = q.predicates[b];
                 switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
-                    if (pastOps[Op::Equal]) return true;
-                    pastOps[Op::Equal] = true; 
-                    eq = p.value;
+                    if (sat.pastOps[Op::Equal]) return true;
+                    sat.pastOps[Op::Equal] = true; 
+                    sat.eq = p.value;
                     break;
                 case Op::NotEqual:
                     // both equality and inequality with same value
-                    if (pastOps[Op::Equal] && eq == p.value) return true;
-                    pastOps[Op::NotEqual] = true;
-                    neq.push_back(p.value);
+                    if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
+                    sat.pastOps[Op::NotEqual] = true;
+                    sat.neq.push_back(p.value);
                     break;
                 case Op::Less:
-                    if (pastOps[Op::Equal] && eq >= p.value) return true;
-                    pastOps[Op::Less] = true;
-                    lt = std::min(lt, p.value);
+                    if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
+                    sat.pastOps[Op::Less] = true;
+                    sat.lt = std::min(sat.lt, p.value);
                     break;
                 case Op::LessOrEqual:
-                    if (pastOps[Op::Equal] && eq > p.value) return true;
-                    pastOps[Op::LessOrEqual] = true;
-                    leq = std::min(leq, p.value);
+                    if (sat.pastOps[Op::Equal] && sat.eq > p.value) return true;
+                    sat.pastOps[Op::LessOrEqual] = true;
+                    sat.leq = std::min(sat.leq, p.value);
                     break;
                 case Op::Greater:
-                    if (pastOps[Op::Equal] && eq <= p.value) return true;
-                    pastOps[Op::Greater] = true;
-                    gt = std::max(gt, p.value);
+                    if (sat.pastOps[Op::Equal] && sat.eq <= p.value) return true;
+                    sat.pastOps[Op::Greater] = true;
+                    sat.gt = std::max(sat.gt, p.value);
                     break;
                 case Op::GreaterOrEqual:
-                    if (pastOps[Op::Equal] && eq < p.value) return true;
-                    pastOps[Op::GreaterOrEqual] = true;
-                    geq = std::max(geq, p.value);
+                    if (sat.pastOps[Op::Equal] && sat.eq < p.value) return true;
+                    sat.pastOps[Op::GreaterOrEqual] = true;
+                    sat.geq = std::max(sat.geq, p.value);
                     break;
                 }
             }
