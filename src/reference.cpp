@@ -523,7 +523,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize  =50;
+    uint64_t MessageQSize = 100;
     uint64_t PendingMessages = MessageQSize-5;
     SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -567,7 +567,7 @@ try {
                 break;
             case MessageHead::Flush: { 
                 // check if we have pending transactions to be processed
-                processPendingMessages(workerThreads, msgQ);
+                //processPendingMessages(workerThreads, msgQ);
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
@@ -576,7 +576,7 @@ try {
                                      }
             case MessageHead::Forget: {
                 // check if we have pending transactions to be processed
-                processPendingMessages(workerThreads, msgQ);
+                //processPendingMessages(workerThreads, msgQ);
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FORGET;
                 processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 

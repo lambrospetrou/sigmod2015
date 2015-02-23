@@ -49,6 +49,7 @@ public:
             mlUnused = 0;
             mlUnusedTail = sz-1;
             mReservedDeq = 0;
+            mCurEnqueued = 0;
     }
 
     BQResult reqNextEnq() { 
@@ -73,6 +74,7 @@ public:
         disconnectNode(nN, mlReqEnq, mlReqEnqTail);
         // connect it to Available
         append(nN, mlAvailable, mlAvailableTail);
+        ++mCurEnqueued;
         mCondEmpty.notify_one();
     }
     
@@ -98,7 +100,7 @@ public:
         disconnectNode(cN, mlReqDeq, mlReqDeqTail);
         // connect it to Available
         append(cN, mlUnused, mlUnusedTail);
-        mCondFull.notify_one();    
+        if (--mCurEnqueued <= (mMaxSize>>1)) mCondFull.notify_one();    
     }
   
     void debugInfo(const std::string& s) {
@@ -125,6 +127,7 @@ private:
     NodePtr mlReqDeqTail;
    
     uint64_t mReservedDeq;
+    uint64_t mCurEnqueued;
 
     std::vector<Node> mNodes;
     std::mutex mMutex;
