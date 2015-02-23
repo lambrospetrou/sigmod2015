@@ -185,9 +185,7 @@ struct LPQuery {
         else return left.value < right.value;    
     }
     static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
-        if (left.columnCount < right.columnCount) return true;
-        else if (right.columnCount < left.columnCount) return false;
-        else return left.relationId < right.relationId;
+        return (left.columnCount < right.columnCount);
     }
 };
 bool operator< (const LPQuery& left, const LPQuery& right) {
@@ -380,14 +378,6 @@ static void processValidationQueries(const ValidationQueries& v) {
         queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
-    // sort the queries based on everything to remove duplicates
-    //sort(queries.begin(), queries.end());
-    //cerr << "size before: " << queries.size() << endl;
-    //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
-    //cerr << "size after: " << queries.size() << endl;
-    // sort the queries based on the number of the columns needed to check
-    // small queries first in order to try finding a solution faster
-    sort(queries.begin(), queries.end(), LPQuery::LPQuerySizeLessThan);
     //cerr << "====" << v.from << ":" << v.to << endl;
     uint64_t batchPos = v.from; 
     
@@ -542,12 +532,9 @@ try {
                 Globals.state = GlobalState::TRANSACTION;
                 processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data())); 
                 msgQ.registerDeq(res.refId);
-                //gPendingTransactions.push_back(res);
-                // TODO - IMPORTANT DO NOT REGISTER THE DEQUEUE
                 break;
             case MessageHead::Flush: { 
                 // check if we have pending transactions to be processed
-                //processPendingMessages(workerThreads, msgQ);
                 checkPendingValidations(workerThreads);
                 Globals.state = GlobalState::FLUSH;
                 processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
@@ -705,6 +692,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         auto& atoRes = gPendingResults[resPos];
         // check if someone else found a conflict already for this validation ID
         if (atoRes) continue;
+
+
+        // sort the queries based on everything to remove duplicates
+        //sort(queries.begin(), queries.end());
+        //cerr << "size before: " << queries.size() << endl;
+        //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
+        //cerr << "size after: " << queries.size() << endl;
+        // sort the queries based on the number of the columns needed to check
+        // small queries first in order to try finding a solution faster
+        sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
 
         //cerr << "range: " << v.from << "-" << v.to << endl;
         TransStruct fromTRS(v.from);
