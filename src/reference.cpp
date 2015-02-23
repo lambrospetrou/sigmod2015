@@ -646,7 +646,6 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
     resIndexOffset = gPendingValidations[0].validationId;   
-    //auto gPVsz = gPendingValidations.size();
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
@@ -695,9 +694,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
 
         // sort the queries based on everything to remove duplicates
-        //sort(queries.begin(), queries.end());
+        //sort(v.queries.begin(), v.queries.end());
         //cerr << "size before: " << queries.size() << endl;
-        //queries.resize(std::distance(queries.begin(), unique(queries.begin(), queries.end())));
+        //v.queries.resize(std::distance(v.queries.begin(), unique(v.queries.begin(), v.queries.end())));
         //cerr << "size after: " << queries.size() << endl;
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
