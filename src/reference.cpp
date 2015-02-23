@@ -29,6 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <unordered_map>
 #include <set>
@@ -167,15 +168,25 @@ struct LPQuery {
     uint32_t columnCount;
     /// The bindings
     vector<Query::Column> predicates;
-    LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()) {}
-    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(vector<Query::Column>(q.columnCount)) {
+    /// States whether this query can ever be true - will be set to false later by our filtering
+    bool satisfiable;
+    
+    LPQuery() : relationId(-1), columnCount(0), predicates(vector<Query::Column>()), satisfiable(true) {}
+    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(vector<Query::Column>(q.columnCount)), satisfiable(true) {
         memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
         std::sort(predicates.begin(), predicates.end());
         predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
         //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
         // sort them in order to have the equality checks first
-        std::sort(predicates.begin(), predicates.end(), LPQuery::QCSortOp);
+        std::sort(predicates.begin(), predicates.end(), LPQuery::QCSortCol);
         columnCount = predicates.size();
+    }
+    static bool QCSortCol (const Query::Column& left, const Query::Column& right) {
+        if (left.column < right.column) return true;
+        else if (right.column < left.column) return false;
+        else if (left.op < right.op) return true;
+        else if (right.op < left.op) return false;
+        else return left.value < right.value;    
     }
     static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
         if (left.op < right.op) return true;
@@ -361,7 +372,6 @@ static void processTransaction(const Transaction& t, const vector<char>& tdata) 
     //gPendingTransactions.push_back(reinterpret_cast<const Transaction*>((char*)t.operations-sizeof(uint64_t)-2*sizeof(uint32_t)));
     //gPendingTransactions.push_back(t);
 }
-
 
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata) {
@@ -673,6 +683,83 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #endif
 }
 
+namespace lp {
+
+    namespace validation {
+
+        bool isQueryColumnUnsolvable(LPQuery& q, uint64_t b, uint64_t e) {
+            typedef Query::Column::Op Op;
+            // check if Query q is unsatisfiable based on its predicates
+            bool pastOps[6]{};
+            uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
+            vector<uint64_t> neq;
+            for (; b<e; ++b) {
+                auto& p = q.predicates[b];
+                switch (p.op) {
+                case Op::Equal:
+                    // already found an equality check
+                    if (pastOps[Op::Equal]) return true;
+                    pastOps[Op::Equal] = true; 
+                    eq = p.value;
+                    break;
+                case Op::NotEqual:
+                    // both equality and inequality with same value
+                    if (pastOps[Op::Equal] && eq == p.value) return true;
+                    pastOps[Op::NotEqual] = true;
+                    neq.push_back(p.value);
+                    break;
+                case Op::Less:
+                    if (pastOps[Op::Equal] && eq >= p.value) return true;
+                    pastOps[Op::Less] = true;
+                    lt = std::min(lt, p.value);
+                    break;
+                case Op::LessOrEqual:
+                    if (pastOps[Op::Equal] && eq > p.value) return true;
+                    pastOps[Op::LessOrEqual] = true;
+                    leq = std::min(leq, p.value);
+                    break;
+                case Op::Greater:
+                    if (pastOps[Op::Equal] && eq <= p.value) return true;
+                    pastOps[Op::Greater] = true;
+                    gt = std::max(gt, p.value);
+                    break;
+                case Op::GreaterOrEqual:
+                    if (pastOps[Op::Equal] && eq < p.value) return true;
+                    pastOps[Op::GreaterOrEqual] = true;
+                    geq = std::max(geq, p.value);
+                    break;
+                }
+            }
+            return false;
+        }
+
+        inline bool isQueryUnsolvable(LPQuery& q) {
+            if (q.predicates.empty()) return false;
+            uint64_t b,e,sz;
+            for (b=0,sz=q.predicates.size(); b<sz; ++b) {
+                for(e=b; e<sz && q.predicates[b].column == q.predicates[e].column; ++e);
+                if (isQueryColumnUnsolvable(q, b, e)) return true;
+                b = e;
+            }
+            return false;
+        }
+
+        bool unsolvable(LPValidation& v) {
+            // NOTE:: I ASSUME THAT THE PREDICATES ARE UNIQUE IN EACH LPQuery
+            uint32_t unsatisfied = 0;
+            for (auto& q : v.queries) {
+                //cerr << q << endl;
+                if (isQueryUnsolvable(q)) { 
+                    //cerr << q << endl;
+                    q.satisfiable = false; ++unsatisfied; 
+                }
+            }
+            return v.queries.size() == unsatisfied;
+        }
+    }
+
+}
+
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << gPendingValidations.size() << " " << endl;
@@ -694,6 +781,11 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // check if someone else found a conflict already for this validation ID
         if (atoRes) continue;
 
+        // check if the query is by default false - NON-CONFLICT
+        if (lp::validation::unsolvable(v)) {
+            atoRes = false;
+            continue;
+        }
 
         // sort the queries based on everything to remove duplicates
         //sort(v.queries.begin(), v.queries.end());
