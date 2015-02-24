@@ -56,35 +56,6 @@ namespace lp {
         }
     };
 
-    bool operator< (const LPQuery& left, const LPQuery& right) {
-        if (left.relationId < right.relationId) return true;
-        else if (right.relationId < left.relationId) return false;
-        else if (left.columnCount < right.columnCount) return true;
-        else return left.predicates < right.predicates;
-    }
-
-    bool operator== (const LPQuery& left, const LPQuery& right)  {
-        if (left.relationId != right.relationId) return false;
-        if (left.columnCount != right.columnCount) return false;
-        return left.predicates == right.predicates;
-    }
-    
-
-    
-    bool operator< (const Query::Column& left, const Query::Column& right) {
-        if (left.column < right.column) return true;
-        else if (right.column < left.column) return false;
-        else if (left.op < right.op) return true;
-        else if (right.op < left.op) return false;
-        else return left.value < right.value;    
-    }
-    
-    bool operator== (const Query::Column& left, const Query::Column& right) {
-        if (left.column != right.column) return false;
-        else if (left.op != right.op) return false;
-        else return left.value == right.value;    
-    }
-    
     struct LPValidation {
         uint64_t validationId;
         uint64_t from,to;
