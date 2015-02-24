@@ -331,7 +331,11 @@ static void processForget(const Forget& f) {
                 upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
     }
     // then delete the transactions from the transaction history
-    //gTransactionHistory.erase(gTransactionHistory.begin(), gTransactionHistory.upper_bound(f.transactionId));
+    gTransactionHistory.erase(gTransactionHistory.begin(), 
+            upper_bound(gTransactionHistory.begin(), 
+                gTransactionHistory.end(), 
+                f.transactionId,
+                [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; }));
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -631,8 +635,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         }
          */
         if (v.queries.empty()) continue;
-
-
+        
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
