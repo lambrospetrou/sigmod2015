@@ -123,10 +123,13 @@ std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
 ///////////////////////////////////////////////////////////////////////////////////
 
 // Custom data structures to hold data
+struct CTransStruct {
+    uint64_t trans_id;
+    uint64_t value;
+};
+
 struct ColumnStruct {
-    //vector<CTransStruct> transactions;
-    uint64_t minVal;
-    uint64_t maxVal;
+    vector<CTransStruct> transactions;
 };
 struct TransStruct {
     uint64_t trans_id;
@@ -161,7 +164,7 @@ struct TransOperation {
         rel_id(relid), row_id(rowid) {}
 };
 struct TransactionStruct {
-    //    uint64_t trans_id; // we will use direct indexing
+    uint64_t trans_id;
     vector<TransOperation> operations;
     TransactionStruct(vector<TransOperation> ops) : operations(ops) {}
 };
@@ -382,6 +385,8 @@ void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     //delete pvs;
 }
 
+static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
+
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -468,7 +473,7 @@ int main(int argc, char**argv) {
                 case MessageHead::Done: 
                     {
 #ifdef LPDEBUG
-                        cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << endl; 
+                        cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
                         delete[] gRelTransMutex;
                         readerTask.join();
@@ -489,7 +494,7 @@ static void processSingleTransaction(const Transaction& t) {
     auto start = LPTimer.getChrono();
 #endif
     const char* reader=t.operations;
-
+    ++gTotalTransactions; 
     //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
     // Delete all indicated tuples
@@ -508,6 +513,7 @@ static void processSingleTransaction(const Transaction& t) {
                     relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                     // remove the row from the relations table
                     rows.erase(lb);
+                    ++gTotalTuples;
                 }
             }
         }// end of lock_guard
@@ -528,6 +534,7 @@ static void processSingleTransaction(const Transaction& t) {
                 vector<uint64_t> tuple(values, values+relCols);
                 relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
                 relation.insertedRows[values[0]]=move(tuple);
+                ++gTotalTuples;
             }
         }// end of lock_guard
         // advance to next Relation insertions
