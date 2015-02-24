@@ -426,7 +426,7 @@ int main(int argc, char**argv) {
                     ++gTotalValidations; // this is just to count the total validations....not really needed!
                     
                     //ParseValidationStruct *pvs = new ParseValidationStruct();
-                    BoundedAlloc<ParseValidationStruct>::BAResult mem = memQ.malloc();
+                    BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
                     ParseValidationStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
                     pvs->refId = res.refId;
