@@ -251,6 +251,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
         if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
+        //queries.push_back(move(nQ));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
@@ -591,16 +592,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // check if someone else found a conflict already for this validation ID
         if (atoRes) continue;
 
-        /*
+        
         // check if the query is by default false - NON-CONFLICT
         if (lp::validation::unsolvable(v)) {
             //cerr << "unsolvable" << endl;
             atoRes = false;
             continue;
         }
-        */
+        
 
-        if (v.queries.empty()) { continue; }
+        //if (v.queries.empty()) { continue; }
 
         // sort the queries based on everything to remove duplicates
         //sort(v.queries.begin(), v.queries.end());
