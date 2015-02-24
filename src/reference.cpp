@@ -51,6 +51,7 @@
 #include <exception>
 
 #include "ReferenceTypes.hpp"
+#include "LPQueryTypes.hpp"
 
 #include "LPTimer.hpp"
 #include "BoundedQueue.hpp"
@@ -59,6 +60,7 @@
 
 //---------------------------------------------------------------------------
 using namespace std;
+using namespace lp;
 
 #define LPDEBUG  
 
@@ -75,7 +77,47 @@ ostream& operator<< (ostream& os, const vector<T> v) {
     }
     return os;
 }
+    
 
+std::ostream& operator<< (std::ostream& os, const LPQuery& o) {
+    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
+    return os;
+}
+std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
+    os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
+    return os;
+}
+
+
+    bool operator< (const LPQuery& left, const LPQuery& right) {
+        if (left.relationId < right.relationId) return true;
+        else if (right.relationId < left.relationId) return false;
+        else if (left.columnCount < right.columnCount) return true;
+        else return left.predicates < right.predicates;
+    }
+
+    bool operator== (const LPQuery& left, const LPQuery& right)  {
+        if (left.relationId != right.relationId) return false;
+        if (left.columnCount != right.columnCount) return false;
+        return left.predicates == right.predicates;
+    }
+    
+    bool operator< (const Query::Column& left, const Query::Column& right) {
+        if (left.column < right.column) return true;
+        else if (right.column < left.column) return false;
+        else if (left.op < right.op) return true;
+        else if (right.op < left.op) return false;
+        else return left.value < right.value;    
+    }
+    
+    bool operator== (const Query::Column& left, const Query::Column& right) {
+        if (left.column != right.column) return false;
+        else if (left.op != right.op) return false;
+        else return left.value == right.value;    
+    }
+    
+
+/*
 struct LPQuery {
     /// The relation
     uint32_t relationId;
@@ -147,7 +189,7 @@ ostream& operator<< (ostream& os, const Query::Column& o) {
     os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
     return os;
 }
-
+*/
 // Custom data structures to hold data
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
@@ -225,6 +267,7 @@ class atomic_wrapper {
 
         operator bool() const { return _a.load(); }
 };
+/*
 struct LPValidation {
     uint64_t validationId;
     uint64_t from,to;
@@ -234,6 +277,7 @@ struct LPValidation {
     LPValidation(uint64_t vid, uint64_t fr, uint64_t t, vector<LPQuery> q)
         : validationId(vid), from(fr), to(t), queries(q) {}
 };
+*/
 static vector<LPValidation> gPendingValidations;
 //typedef atomic_wrapper<bool> PendingResultType;
 typedef char PendingResultType;
@@ -255,7 +299,7 @@ struct ParseValidationStruct {
 
 static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
 static std::mutex *gRelTransMutex;
-
+/*
 namespace lp {
 
     namespace validation {
@@ -346,22 +390,22 @@ namespace lp {
             if (v.queries.size() == unsatisfied) return true;
             // since we have some queries that are candidates for confliction
             // we will sort them to be in front of the queries and be able to break
-            /*uint64_t left=0, right=v.queries.size()-1, lastSwapPos=v.queries.size()-1;
-              for (; left < right; ) {
-              for(; v.queries[left].satisfiable && left<right; ) ++left;
-              for(; !v.queries[right].satisfiable && left<right; ) --right;
-              if (left < right) {
-              std::swap(v.queries[left], v.queries[right]);
-              lastSwapPos = right;
-              ++left; --right;
-              }
-              }
-              (void)lastSwapPos;*/
+            //uint64_t left=0, right=v.queries.size()-1, lastSwapPos=v.queries.size()-1;
+              //for (; left < right; ) {
+              //for(; v.queries[left].satisfiable && left<right; ) ++left;
+              //for(; !v.queries[right].satisfiable && left<right; ) --right;
+              //if (left < right) {
+              //std::swap(v.queries[left], v.queries[right]);
+              //lastSwapPos = right;
+              //++left; --right;
+              //}
+              //}
+              //(void)lastSwapPos;
             return false;
         }
     }
 }
-
+*/
 LPTimer_t LPTimer;
 
 struct GlobalState {

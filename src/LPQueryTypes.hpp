@@ -8,91 +8,94 @@
 #include <cstdlib>
 #include <ostream>
 #include <iostream>
+#include <utility>
+#include <algorithm>
 
 namespace lp {
 
-    
-struct LPQuery {
-    /// The relation
-    uint32_t relationId;
-    /// The number of bound columns
-    uint32_t columnCount;
-    /// The bindings
-    std::vector<Query::Column> predicates;
-    /// States whether this query can ever be true - will be set to false later by our filtering
-    bool satisfiable;
+    using namespace std;
 
-    LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true) {}
-    LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true) {
-        memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
-        std::sort(predicates.begin(), predicates.end());
-        predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
-        //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
-        columnCount = predicates.size();
+    struct LPQuery {
+        /// The relation
+        uint32_t relationId;
+        /// The number of bound columns
+        uint32_t columnCount;
+        /// The bindings
+        std::vector<Query::Column> predicates;
+        /// States whether this query can ever be true - will be set to false later by our filtering
+        bool satisfiable;
+
+        LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true) {}
+        LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true) {
+            memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
+            std::sort(predicates.begin(), predicates.end());
+            predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
+            //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
+            columnCount = predicates.size();
+        }
+        // this is the default - operator< of Column
+        static bool QCSortCol (const Query::Column& left, const Query::Column& right) {
+            if (left.column < right.column) return true;
+            else if (right.column < left.column) return false;
+            else if (left.op < right.op) return true;
+            else if (right.op < left.op) return false;
+            else return left.value < right.value;    
+        }
+        static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
+            if (left.op < right.op) return true;
+            else if (right.op < left.op) return false;
+            else if (left.column < right.column) return true;
+            else if (right.column < left.column) return false;
+            else return left.value < right.value;    
+        }
+        static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
+            //if (left.satisfiable && !right.satisfiable) return true;
+            //else if (right.satisfiable < !left.satisfiable) return false;
+            //else return (left.columnCount < right.columnCount);
+            return (left.columnCount < right.columnCount);
+        }
+    };
+
+    bool operator< (const LPQuery& left, const LPQuery& right) {
+        if (left.relationId < right.relationId) return true;
+        else if (right.relationId < left.relationId) return false;
+        else if (left.columnCount < right.columnCount) return true;
+        else return left.predicates < right.predicates;
     }
-    // this is the default - operator< of Column
-    static bool QCSortCol (const Query::Column& left, const Query::Column& right) {
+
+    bool operator== (const LPQuery& left, const LPQuery& right)  {
+        if (left.relationId != right.relationId) return false;
+        if (left.columnCount != right.columnCount) return false;
+        return left.predicates == right.predicates;
+    }
+    
+
+    
+    bool operator< (const Query::Column& left, const Query::Column& right) {
         if (left.column < right.column) return true;
         else if (right.column < left.column) return false;
         else if (left.op < right.op) return true;
         else if (right.op < left.op) return false;
         else return left.value < right.value;    
     }
-    static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
-        if (left.op < right.op) return true;
-        else if (right.op < left.op) return false;
-        else if (left.column < right.column) return true;
-        else if (right.column < left.column) return false;
-        else return left.value < right.value;    
+    
+    bool operator== (const Query::Column& left, const Query::Column& right) {
+        if (left.column != right.column) return false;
+        else if (left.op != right.op) return false;
+        else return left.value == right.value;    
     }
-    static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
-        //if (left.satisfiable && !right.satisfiable) return true;
-        //else if (right.satisfiable < !left.satisfiable) return false;
-        //else return (left.columnCount < right.columnCount);
-        return (left.columnCount < right.columnCount);
-    }
-};
-bool operator< (const LPQuery& left, const LPQuery& right) {
-    if (left.relationId < right.relationId) return true;
-    else if (right.relationId < left.relationId) return false;
-    else if (left.columnCount < right.columnCount) return true;
-    else return left.predicates < right.predicates;
-}
-bool operator== (const LPQuery& left, const LPQuery& right)  {
-    if (left.relationId != right.relationId) return false;
-    if (left.columnCount != right.columnCount) return false;
-    return left.predicates == right.predicates;
-}
-std::ostream& operator<< (std::ostream& os, const LPQuery& o) {
-    os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
-    return os;
-}
-bool operator< (const Query::Column& left, const Query::Column& right) {
-    if (left.column < right.column) return true;
-    else if (right.column < left.column) return false;
-    else if (left.op < right.op) return true;
-    else if (right.op < left.op) return false;
-    else return left.value < right.value;    
-}
-bool operator== (const Query::Column& left, const Query::Column& right) {
-    if (left.column != right.column) return false;
-    else if (left.op != right.op) return false;
-    else return left.value == right.value;    
-}
-std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
-    os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
-    return os;
-}
-
-struct LPValidation {
-    uint64_t validationId;
-    uint64_t from,to;
-    std::vector<LPQuery> queries;
-    LPValidation(const ValidationQueries& v, std::vector<LPQuery> q)
-        : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
-    LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
-        : validationId(vid), from(fr), to(t), queries(q) {}
-};
+    
+    struct LPValidation {
+        uint64_t validationId;
+        uint64_t from,to;
+        std::vector<LPQuery> queries;
+        LPValidation(const ValidationQueries& v, std::vector<LPQuery> q)
+            : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
+        LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
+            : validationId(vid), from(fr), to(t), queries(q) {}
+    };
+    
+    // the following will be used for the query filtering and quick rejection
     namespace validation {
 
         typedef Query::Column::Op Op;
