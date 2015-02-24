@@ -56,8 +56,10 @@
 #include "atomicwrapper.hpp"
 #include "LPTimer.hpp"
 #include "BoundedQueue.hpp"
+#include "BoundedAlloc.hpp"
 #include "SingleTaskPool.hpp"
 #include "MultiTaskPool.hpp"
+
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -185,6 +187,8 @@ struct ParseValidationStruct {
     ReceivedMessage *msg;
     uint64_t refId;
     BoundedQueue<ReceivedMessage> *msgQ;
+    uint64_t memRefId;
+    BoundedAlloc<ParseValidationStruct> *memQ;
 };
 
 static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
@@ -248,8 +252,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
-        if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
-        //queries.push_back(move(nQ));
+        //if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
+        queries.push_back(move(nQ));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
@@ -389,6 +393,8 @@ int main(int argc, char**argv) {
     uint64_t MessageQSize = 500;
     //uint64_t PendingMessages = MessageQSize-5;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
+    BoundedAlloc<ParseValidationStruct> memQ(MessageQSize<<1);
+
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
