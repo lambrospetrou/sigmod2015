@@ -252,8 +252,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
-        //if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
-        queries.push_back(move(nQ));
+        if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
+        //queries.push_back(move(nQ));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
@@ -378,7 +378,8 @@ void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
     processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
     pvs->msgQ->registerDeq(pvs->refId);
-    delete pvs;
+    pvs->memQ->free(pvs->memRefId);
+    //delete pvs;
 }
 
 int main(int argc, char**argv) {
@@ -393,7 +394,7 @@ int main(int argc, char**argv) {
     uint64_t MessageQSize = 500;
     //uint64_t PendingMessages = MessageQSize-5;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
-    BoundedAlloc<ParseValidationStruct> memQ(MessageQSize<<1);
+    BoundedAlloc<ParseValidationStruct> memQ(MessageQSize);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
@@ -424,9 +425,13 @@ int main(int argc, char**argv) {
                     //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
                     ++gTotalValidations; // this is just to count the total validations....not really needed!
                     
-                    ParseValidationStruct *pvs = new ParseValidationStruct();
+                    //ParseValidationStruct *pvs = new ParseValidationStruct();
+                    BoundedAlloc<ParseValidationStruct>::BAResult mem = memQ.malloc();
+                    ParseValidationStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
                     pvs->refId = res.refId;
+                    pvs->memRefId = mem.refId;
+                    pvs->memQ = &memQ;
                     pvs->msg = &msg;
                     multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
                     break;

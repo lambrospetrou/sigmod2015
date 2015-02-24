@@ -12,6 +12,7 @@
 #include <iostream>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 template<class T>
 class BoundedAlloc {
@@ -58,7 +59,7 @@ public:
         // connect node to mReqDeq
         append(cN, mlReserved, mlReservedTail);
         lk.unlock();
-        return BAResult(cN, &mNodes[cN].value);
+        return std::move(BAResult(cN, &mNodes[cN].value));
     }
     void free(uint64_t id) {
         std::lock_guard<std::mutex> lk(mMutex);
