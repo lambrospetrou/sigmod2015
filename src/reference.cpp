@@ -80,7 +80,6 @@ ostream& operator<< (ostream& os, const vector<T> v) {
     }
     return os;
 }
-    
 
 std::ostream& operator<< (std::ostream& os, const LPQuery& o) {
     os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
@@ -92,40 +91,43 @@ std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
 }
 
 
-    bool operator< (const LPQuery& left, const LPQuery& right) {
-        if (left.relationId < right.relationId) return true;
-        else if (right.relationId < left.relationId) return false;
-        else if (left.columnCount < right.columnCount) return true;
-        else return left.predicates < right.predicates;
-    }
+bool operator< (const LPQuery& left, const LPQuery& right) {
+    if (left.relationId < right.relationId) return true;
+    else if (right.relationId < left.relationId) return false;
+    else if (left.columnCount < right.columnCount) return true;
+    else return left.predicates < right.predicates;
+}
 
-    bool operator== (const LPQuery& left, const LPQuery& right)  {
-        if (left.relationId != right.relationId) return false;
-        if (left.columnCount != right.columnCount) return false;
-        return left.predicates == right.predicates;
-    }
-    
-    bool operator< (const Query::Column& left, const Query::Column& right) {
-        if (left.column < right.column) return true;
-        else if (right.column < left.column) return false;
-        else if (left.op < right.op) return true;
-        else if (right.op < left.op) return false;
-        else return left.value < right.value;    
-    }
-    
-    bool operator== (const Query::Column& left, const Query::Column& right) {
-        if (left.column != right.column) return false;
-        else if (left.op != right.op) return false;
-        else return left.value == right.value;    
-    }
-    
+bool operator== (const LPQuery& left, const LPQuery& right)  {
+    if (left.relationId != right.relationId) return false;
+    if (left.columnCount != right.columnCount) return false;
+    return left.predicates == right.predicates;
+}
+
+bool operator< (const Query::Column& left, const Query::Column& right) {
+    if (left.column < right.column) return true;
+    else if (right.column < left.column) return false;
+    else if (left.op < right.op) return true;
+    else if (right.op < left.op) return false;
+    else return left.value < right.value;    
+}
+
+bool operator== (const Query::Column& left, const Query::Column& right) {
+    if (left.column != right.column) return false;
+    else if (left.op != right.op) return false;
+    else return left.value == right.value;    
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////
+
+typedef vector<uint64_t> tuple_t;
 
 // Custom data structures to hold data
 struct CTransStruct {
     uint64_t trans_id;
     uint64_t value;
+
 };
 
 struct ColumnStruct {
@@ -133,11 +135,11 @@ struct ColumnStruct {
 };
 struct TransStruct {
     uint64_t trans_id;
-    vector<uint64_t> tuple;
-    TransStruct(uint64_t trid, vector<uint64_t> t):
+    tuple_t *tuple;
+    TransStruct(uint64_t trid, tuple_t *t):
         trans_id(trid), tuple(t) {}
     TransStruct(uint64_t trid):
-        trans_id(trid), tuple(vector<uint64_t>()) {}
+        trans_id(trid), tuple(nullptr) {}
 };
 struct TRSLessThan_t {
     bool operator() (const TransStruct& left, const TransStruct& right) {
@@ -153,25 +155,28 @@ struct TRSLessThan_t {
 struct RelationStruct {
     vector<ColumnStruct> columns;
     vector<TransStruct> transactions;
-    unordered_map<uint32_t, vector<uint64_t>> insertedRows;
+    unordered_map<uint32_t, tuple_t*> insertedRows;
 };
 static vector<RelationStruct> gRelations;
 
 struct TransOperation {
     uint32_t rel_id;
-    uint64_t row_id;
-    TransOperation(uint32_t relid, uint64_t rowid):
-        rel_id(relid), row_id(rowid) {}
+    tuple_t tuple;
+    TransOperation(uint32_t relid, tuple_t t):
+        rel_id(relid), tuple(move(t)) {}
 };
 struct TransactionStruct {
     uint64_t trans_id;
-    vector<TransOperation> operations;
-    TransactionStruct(vector<TransOperation> ops) : operations(ops) {}
+    vector<TransOperation*> operations;
+    TransactionStruct(uint64_t tid, vector<TransOperation*> ops) : trans_id(tid), operations(ops) {}  
+    void free() {
+        for(auto& op : operations) { cerr << trans_id << ":" << op << endl;  delete op; }
+    }
 };
 
+static vector<TransactionStruct> gTransactionHistory;
+
 static vector<uint32_t> gSchema;
-
-
 
 static vector<LPValidation> gPendingValidations;
 //typedef atomic_wrapper<bool> PendingResultType;
@@ -194,7 +199,6 @@ struct ParseValidationStruct {
     BoundedAlloc<ParseValidationStruct> *memQ;
 };
 
-static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
 static std::mutex *gRelTransMutex;
 
 
@@ -260,19 +264,19 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
-    
+
     uint64_t batchPos = v.from; 
     //uint64_t trRange = v.to - v.from + 1;
     //static uint64_t bSize = 5000;
     {
         std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
         /*
-        while (trRange > bSize) {
-            //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
-            gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
-            trRange -= bSize; batchPos += bSize;
+           while (trRange > bSize) {
+        //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
+        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
+        trRange -= bSize; batchPos += bSize;
         }
-        */
+         */
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
         //cerr << batchPos << "-" << v.to << endl;
         // update the global pending validations to reflect this new one
@@ -427,19 +431,19 @@ int main(int argc, char**argv) {
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
-                    //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                    ++gTotalValidations; // this is just to count the total validations....not really needed!
-                    
-                    //ParseValidationStruct *pvs = new ParseValidationStruct();
-                    BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
-                    ParseValidationStruct *pvs = mem.value;
-                    pvs->msgQ = &msgQ;
-                    pvs->refId = res.refId;
-                    pvs->memRefId = mem.refId;
-                    pvs->memQ = &memQ;
-                    pvs->msg = &msg;
-                    multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                    break;
+                        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                        ++gTotalValidations; // this is just to count the total validations....not really needed!
+
+                        //ParseValidationStruct *pvs = new ParseValidationStruct();
+                        BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
+                        ParseValidationStruct *pvs = mem.value;
+                        pvs->msgQ = &msgQ;
+                        pvs->refId = res.refId;
+                        pvs->memRefId = mem.refId;
+                        pvs->memQ = &memQ;
+                        pvs->msg = &msg;
+                        multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
+                        break;
                     }
                 case MessageHead::Transaction: 
                     Globals.state = GlobalState::TRANSACTION;
@@ -497,6 +501,9 @@ static void processSingleTransaction(const Transaction& t) {
     ++gTotalTransactions; 
     //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
+    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation*>())));
+    vector<TransOperation*>& operations = gTransactionHistory.back().operations;
+
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
@@ -509,8 +516,11 @@ static void processSingleTransaction(const Transaction& t) {
                 auto& rows = relation.insertedRows;
                 auto lb = relation.insertedRows.find(*key);
                 if (lb != rows.end()) {
+                    // copy the tuple
+                    tuple_t tuple(*lb->second);
+                    operations.push_back(new TransOperation(o.relationId, move(tuple)));
                     // update the relation transactions
-                    relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
+                    relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
                     // remove the row from the relations table
                     rows.erase(lb);
                     ++gTotalTuples;
@@ -531,9 +541,10 @@ static void processSingleTransaction(const Transaction& t) {
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                vector<uint64_t> tuple(values, values+relCols);
-                relation.transactions.push_back(move(TransStruct(t.transactionId, tuple)));
-                relation.insertedRows[values[0]]=move(tuple);
+                tuple_t tuple(values, values+relCols);
+                operations.push_back(new TransOperation(o.relationId, move(tuple)));
+                relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
+                relation.insertedRows[values[0]]=&operations.back()->tuple;
                 ++gTotalTuples;
             }
         }// end of lock_guard
@@ -615,12 +626,12 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         /*
         // check if the query is by default false - NON-CONFLICT
         if (lp::validation::unsolvable(v)) {
-            //cerr << "unsolvable" << endl;
-            continue;
+        //cerr << "unsolvable" << endl;
+        continue;
         }
-        */
+         */
         if (v.queries.empty()) continue;
-        
+
 
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
@@ -641,7 +652,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             for(auto iter=transFrom; iter!=transTo; ++iter) {
                 if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
-                auto& tuple = iter->tuple;
+                auto& tuple = *iter->tuple;
                 bool match=true;
                 for (auto& c : q.predicates) {
                     // make the actual check
