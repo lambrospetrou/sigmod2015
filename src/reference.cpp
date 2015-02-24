@@ -332,14 +332,13 @@ struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
-
 struct ParseValidationStruct {
     ReceivedMessage *msg;
     uint64_t refId;
     BoundedQueue<ReceivedMessage> *msgQ;
 };
 
+static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
 static std::mutex *gRelTransMutex;
 
 
@@ -536,7 +535,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 1000;
+    uint64_t MessageQSize = 2000;
     //uint64_t PendingMessages = MessageQSize-5;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -544,7 +543,7 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     workerThreads.initThreads();
 
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -690,7 +689,9 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
-    resIndexOffset = gPendingValidations[0].validationId;   
+    //resIndexOffset = gPendingValidations[0].validationId;   
+    resIndexOffset = UINT64_MAX;
+    for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
