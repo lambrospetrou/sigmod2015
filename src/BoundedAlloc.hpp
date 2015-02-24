@@ -61,26 +61,32 @@ class BoundedAlloc {
         }
 
         BAResult& malloc() {
-            std::unique_lock<std::mutex> lk(mMutex);
+            std::unique_lock<std::mutex> lk(mMutexUnused);
             //debugInfo("req-deq");
             mCondEmpty.wait(lk, [this]{return mlUnused != InvalidPtr;});
             // transfer the node from Available list to ReqDeq list
             NodePtr cN = disconnectHead(mlUnused, mlUnusedTail);
+            lk.unlock();
+            
+            std::unique_lock<std::mutex> lk2(mMutexReserved);
             // connect node to mReqDeq
             append(cN, mlReserved, mlReservedTail);
-            lk.unlock();
+            lk2.unlock();
             return cN->result;
         }
         void free(uint64_t id) {
-            std::lock_guard<std::mutex> lk(mMutex);
+            std::unique_lock<std::mutex> lk(mMutexReserved);
             //debugInfo("register-deq");
             // transfer node from mReqDeq to Unused
             NodePtr cN = &mNodes[id];
             // remove it from ReqEnq
             disconnectNode(cN, mlReserved, mlReservedTail);
+            lk.unlock();
+            std::unique_lock<std::mutex> lk2(mMutexUnused);
             // connect it to Available
             append(cN, mlUnused, mlUnusedTail);
             mCondEmpty.notify_one();    
+            lk2.unlock();
         }
 
         void debugInfo(const std::string& s) {
@@ -101,7 +107,9 @@ class BoundedAlloc {
         NodePtr mlReservedTail;
 
         std::vector<Node> mNodes;
-        std::mutex mMutex;
+        std::mutex mMutexUnused;
+        std::mutex mMutexReserved;
+        //std::mutex mMutex;
         std::condition_variable mCondEmpty;
 
         void cerrList(NodePtr n) {
