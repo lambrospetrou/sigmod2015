@@ -404,17 +404,19 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //cerr << "====" << v.from << ":" << v.to << endl;
+    
     uint64_t batchPos = v.from; 
-
-    uint64_t trRange = v.to - v.from + 1;
-    static uint64_t bSize = 10000;
+    //uint64_t trRange = v.to - v.from + 1;
+    //static uint64_t bSize = 5000;
     {
         std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
+        /*
         while (trRange > bSize) {
             //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
             gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
             trRange -= bSize; batchPos += bSize;
         }
+        */
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
         //cerr << batchPos << "-" << v.to << endl;
         // update the global pending validations to reflect this new one
@@ -543,7 +545,7 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     workerThreads.initThreads();
 
-    MultiTaskPool multiPool(numOfThreads);
+    MultiTaskPool multiPool(numOfThreads-2);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -821,7 +823,6 @@ namespace lp {
             return false;
         }
     }
-
 }
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
