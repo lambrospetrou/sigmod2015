@@ -232,14 +232,12 @@ static void processTransaction(const Transaction& t, const vector<char>& tdata) 
 
 //---------------------------------------------------------------------------
 
-static uint64_t gTotalValidations = 0;
 
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
 
-    ++gTotalValidations;
 
     (void)vdata;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
@@ -388,7 +386,7 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 2000;
+    uint64_t MessageQSize = 500;
     //uint64_t PendingMessages = MessageQSize-5;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
@@ -399,6 +397,8 @@ int main(int argc, char**argv) {
     MultiTaskPool multiPool(numOfThreads-2);
     multiPool.initThreads();
     multiPool.startAll();
+
+    uint64_t gTotalValidations = 0;
 
     try {
         //uint64_t msgs = 0;
@@ -416,6 +416,8 @@ int main(int argc, char**argv) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
                     //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                    ++gTotalValidations; // this is just to count the total validations....not really needed!
+                    
                     ParseValidationStruct *pvs = new ParseValidationStruct();
                     pvs->msgQ = &msgQ;
                     pvs->refId = res.refId;
@@ -596,18 +598,13 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // check if the query is by default false - NON-CONFLICT
         if (lp::validation::unsolvable(v)) {
             //cerr << "unsolvable" << endl;
-            atoRes = false;
+            //atoRes = false;
             continue;
         }
         
 
         //if (v.queries.empty()) { continue; }
 
-        // sort the queries based on everything to remove duplicates
-        //sort(v.queries.begin(), v.queries.end());
-        //cerr << "size before: " << queries.size() << endl;
-        //v.queries.resize(std::distance(v.queries.begin(), unique(v.queries.begin(), v.queries.end())));
-        //cerr << "size after: " << queries.size() << endl;
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
