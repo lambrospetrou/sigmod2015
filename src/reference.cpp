@@ -326,12 +326,19 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
-template<class T> using SRSWQueue = BoundedQueue<T>;
+static std::mutex gPendingValidationsMutex;
+
 struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-static vector<SRSWQueue<ReceivedMessage>::BQResult> gPendingTransactions;
+static vector<BoundedQueue<ReceivedMessage>::BQResult> gPendingTransactions;
+
+struct ParseValidationStruct {
+    ReceivedMessage *msg;
+    uint64_t refId;
+    BoundedQueue<ReceivedMessage> *msgQ;
+};
 
 static std::mutex *gRelTransMutex;
 
@@ -402,18 +409,18 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
     uint64_t trRange = v.to - v.from + 1;
     static uint64_t bSize = 10000;
-    while (trRange > bSize) {
-        //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
-        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
-        trRange -= bSize; batchPos += bSize;
+    {
+        std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
+        while (trRange > bSize) {
+            //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
+            gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
+            trRange -= bSize; batchPos += bSize;
+        }
+        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
+        //cerr << batchPos << "-" << v.to << endl;
+        // update the global pending validations to reflect this new one
+        ++gPVunique;
     }
-
-    gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
-    //cerr << batchPos << "-" << v.to << endl;
-
-    // update the global pending validations to reflect this new one
-    ++gPVunique;
-
     //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
 #ifdef LPDEBUG
     LPTimer.validations += LPTimer.getChrono(start);
@@ -472,7 +479,7 @@ static void processForget(const Forget& f) {
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
-void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
+void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
@@ -512,6 +519,14 @@ void ReaderTask(SRSWQueue<ReceivedMessage>& msgQ) {
 }
 
 
+void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads;
+    ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
+    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
+    pvs->msgQ->registerDeq(pvs->refId);
+    delete pvs;
+}
+
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -521,13 +536,17 @@ int main(int argc, char**argv) {
     }
     cerr << "Number of threads: " << numOfThreads << endl;
 
-    uint64_t MessageQSize = 100;
+    uint64_t MessageQSize = 1000;
     //uint64_t PendingMessages = MessageQSize-5;
-    SRSWQueue<ReceivedMessage> msgQ(MessageQSize);
+    BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     workerThreads.initThreads();
+
+    MultiTaskPool multiPool(1);
+    multiPool.initThreads();
+    multiPool.startAll();
 
     try {
         //uint64_t msgs = 0;
@@ -543,48 +562,55 @@ int main(int argc, char**argv) {
             // And interpret it
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
-                    Globals.state = GlobalState::VALIDATION;
-                    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                    msgQ.registerDeq(res.refId);
+                    {    Globals.state = GlobalState::VALIDATION;
+                    //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                    ParseValidationStruct *pvs = new ParseValidationStruct();
+                    pvs->msgQ = &msgQ;
+                    pvs->refId = res.refId;
+                    pvs->msg = &msg;
+                    multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
                     break;
+                    }
                 case MessageHead::Transaction: 
                     Globals.state = GlobalState::TRANSACTION;
                     processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
                     msgQ.registerDeq(res.refId);
                     break;
-                case MessageHead::Flush: { 
-                                             // check if we have pending transactions to be processed
-                                             checkPendingValidations(workerThreads);
-                                             Globals.state = GlobalState::FLUSH;
-                                             processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
-                                             msgQ.registerDeq(res.refId);
-                                             break;
-                                         }
-                case MessageHead::Forget: {
-                                              // check if we have pending transactions to be processed
-                                              //processPendingMessages(workerThreads, msgQ);
-                                              checkPendingValidations(workerThreads);
-                                              Globals.state = GlobalState::FORGET;
-                                              processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
-                                              msgQ.registerDeq(res.refId);
-                                              break;
-                                          }
+                case MessageHead::Flush:  
+                    // check if we have pending transactions to be processed
+                    multiPool.waitAll();
+                    checkPendingValidations(workerThreads);
+                    Globals.state = GlobalState::FLUSH;
+                    processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
+                    msgQ.registerDeq(res.refId);
+                    break;
+
+                case MessageHead::Forget: 
+                    // check if we have pending transactions to be processed
+                    multiPool.waitAll();
+                    checkPendingValidations(workerThreads);
+                    Globals.state = GlobalState::FORGET;
+                    processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
+                    msgQ.registerDeq(res.refId);
+                    break;
+
                 case MessageHead::DefineSchema: 
-                                          Globals.state = GlobalState::SCHEMA;
-                                          processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
-                                          gRelTransMutex = new std::mutex[gSchema.size()]();
-                                          msgQ.registerDeq(res.refId);
-                                          break;
+                    Globals.state = GlobalState::SCHEMA;
+                    processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
+                    gRelTransMutex = new std::mutex[gSchema.size()]();
+                    msgQ.registerDeq(res.refId);
+                    break;
                 case MessageHead::Done: 
-                                          {
+                    {
 #ifdef LPDEBUG
-                                              cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << endl; 
+                        cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << endl; 
 #endif              
-                                              delete[] gRelTransMutex;
-                                              readerTask.join();
-                                              workerThreads.destroy();
-                                              return 0;
-                                          }
+                        delete[] gRelTransMutex;
+                        readerTask.join();
+                        workerThreads.destroy();
+                        multiPool.destroy();
+                        return 0;
+                    }
                 default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
             }
 
@@ -781,16 +807,16 @@ namespace lp {
             // since we have some queries that are candidates for confliction
             // we will sort them to be in front of the queries and be able to break
             /*uint64_t left=0, right=v.queries.size()-1, lastSwapPos=v.queries.size()-1;
-            for (; left < right; ) {
-                for(; v.queries[left].satisfiable && left<right; ) ++left;
-                for(; !v.queries[right].satisfiable && left<right; ) --right;
-                if (left < right) {
-                    std::swap(v.queries[left], v.queries[right]);
-                    lastSwapPos = right;
-                    ++left; --right;
-                }
-            }
-            (void)lastSwapPos;*/
+              for (; left < right; ) {
+              for(; v.queries[left].satisfiable && left<right; ) ++left;
+              for(; !v.queries[right].satisfiable && left<right; ) --right;
+              if (left < right) {
+              std::swap(v.queries[left], v.queries[right]);
+              lastSwapPos = right;
+              ++left; --right;
+              }
+              }
+              (void)lastSwapPos;*/
             return false;
         }
     }
@@ -833,7 +859,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
-        
+
         //cerr << v.queries << endl;
 
 
@@ -850,7 +876,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             // sort them in order to have the equality checks first
             std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
-            
+
             for(auto iter=transFrom; iter!=transTo; ++iter) {
                 if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
                 auto& tuple = iter->tuple;
