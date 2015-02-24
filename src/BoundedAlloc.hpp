@@ -24,20 +24,21 @@ class BoundedAlloc {
             BAResult() : refId(UINT64_MAX), value(nullptr){}
         };
     private: 
-        typedef uint64_t NodePtr;
 
         struct Node {
-            NodePtr next;
-            NodePtr prev;
-            NodePtr refId;
+            Node* next;
+            Node* prev;
+            uint64_t refId;
             T value;
 
             BAResult result;
         };
+        //typedef uint64_t NodePtr;
+        typedef Node* NodePtr;
 
     public:
 
-        BoundedAlloc(uint64_t sz) : mMaxSize(sz), InvalidPtr(sz+1), 
+        BoundedAlloc(uint64_t sz) : mMaxSize(sz), InvalidPtr(nullptr), 
         mlUnused(InvalidPtr), mlReserved(InvalidPtr), mlUnusedTail(InvalidPtr), mlReservedTail(InvalidPtr), 
         mNodes(std::vector<Node>(mMaxSize)) {
             if (sz == 0) return;
@@ -46,8 +47,8 @@ class BoundedAlloc {
             mNodes[0].prev = InvalidPtr;
             mNodes[0].refId = 0;
             for (uint64_t i=1; i<sz; ++i) {
-                mNodes[i].prev = i-1;
-                mNodes[i-1].next = i;
+                mNodes[i].prev = &mNodes[i-1];
+                mNodes[i-1].next = &mNodes[i];
                 mNodes[i].refId = i;
                 mNodes[i].result.refId = i;
                 mNodes[i].result.value = &mNodes[i].value;
@@ -55,8 +56,8 @@ class BoundedAlloc {
             mNodes[sz-1].next = InvalidPtr;
             mNodes[sz-1].result.refId = sz-1;
             mNodes[sz-1].result.value = &mNodes[sz-1].value;
-            mlUnused = 0;
-            mlUnusedTail = sz-1;
+            mlUnused = &mNodes[0];
+            mlUnusedTail = &mNodes[sz-1];
         }
 
         BAResult& malloc() {
@@ -68,13 +69,13 @@ class BoundedAlloc {
             // connect node to mReqDeq
             append(cN, mlReserved, mlReservedTail);
             lk.unlock();
-            return mNodes[cN].result;
+            return cN->result;
         }
         void free(uint64_t id) {
             std::lock_guard<std::mutex> lk(mMutex);
             //debugInfo("register-deq");
             // transfer node from mReqDeq to Unused
-            NodePtr cN = mNodes[id].refId;
+            NodePtr cN = &mNodes[id];
             // remove it from ReqEnq
             disconnectNode(cN, mlReserved, mlReservedTail);
             // connect it to Available
@@ -91,7 +92,7 @@ class BoundedAlloc {
     private:
 
         const uint64_t mMaxSize;
-        const uint64_t InvalidPtr; 
+        const NodePtr InvalidPtr; 
 
         NodePtr mlUnused;
         NodePtr mlReserved;
@@ -118,39 +119,39 @@ class BoundedAlloc {
             } else if (cN == lT) {
                 disconnectTail(lH, lT);  
             } else { 
-                if (mNodes[cN].next != InvalidPtr) mNodes[mNodes[cN].next].prev = mNodes[cN].prev;
-                if (mNodes[cN].prev != InvalidPtr) mNodes[mNodes[cN].prev].next = mNodes[cN].next;
+                if (cN->next != InvalidPtr) cN->next->prev = cN->prev;
+                if (cN->prev != InvalidPtr) cN->prev->next = cN->next;
             }
         }
 
         NodePtr disconnectHead(NodePtr &lH, NodePtr& lT) {
             if (lH == InvalidPtr) return InvalidPtr;
             NodePtr t = lH;
-            lH = mNodes[lH].next;
+            lH = lH->next;
             if (lH == InvalidPtr) lT = InvalidPtr;
-            else mNodes[lH].prev = InvalidPtr;
+            else lH->prev = InvalidPtr;
             return t;
         }
         NodePtr disconnectTail(NodePtr &lH, NodePtr& lT) {
             if (lT == InvalidPtr) return InvalidPtr;
             NodePtr t = lT;
-            lT = mNodes[lT].prev;
+            lT = lT->prev;
             if (lT == InvalidPtr) lH = InvalidPtr;
-            else mNodes[lT].next = InvalidPtr;
+            else lT->next = InvalidPtr;
             return t;
         }
 
         void prepend(NodePtr nN, NodePtr& lH, NodePtr& lT) { 
             if (lH == InvalidPtr) {
                 // empty list
-                mNodes[nN].prev = InvalidPtr;
-                mNodes[nN].next = InvalidPtr;
+                nN->prev = InvalidPtr;
+                nN->next = InvalidPtr;
                 lH = nN; lT = nN;
             } else {
                 // there is a head already
-                mNodes[nN].next = lH;
-                mNodes[nN].prev = InvalidPtr;
-                mNodes[lH].prev = nN;
+                nN->next = lH;
+                nN->prev = InvalidPtr;
+                lH->prev = nN;
                 lH = nN;
             }
         }  
@@ -158,13 +159,13 @@ class BoundedAlloc {
             if (lH == InvalidPtr) {
                 // empty list so set both to this node
                 lH = nN; lT = nN;
-                mNodes[nN].prev = InvalidPtr;
-                mNodes[nN].next = InvalidPtr;
+                nN->prev = InvalidPtr;
+                nN->next = InvalidPtr;
             } else {
                 // the list is not empty
-                mNodes[nN].prev = lT;
-                mNodes[nN].next = InvalidPtr;
-                mNodes[lT].next = nN;
+                nN->prev = lT;
+                nN->next = InvalidPtr;
+                lT->next = nN;
                 lT = nN;
             }
         }
