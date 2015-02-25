@@ -542,7 +542,7 @@ static void processSingleTransaction(const Transaction& t) {
                 auto lb = relation.insertedRows.find(*key);
                 if (lb != rows.end()) {
                     // copy the tuple
-                    operations.push_back(move(TransOperation(o.relationId, lb->second)));
+                   operations.push_back(move(TransOperation(o.relationId, move(lb->second))));
                     
                     // insert the tuple into the columns of the relation
                     /*
