@@ -147,7 +147,8 @@ struct CTransStruct {
 };
 
 struct ColumnStruct {
-    vector<CTransStruct> transactions;
+    //vector<CTransStruct> transactions;
+    std::map<uint64_t, vector<CTransStruct>> transactions;
 };
 struct TransStruct {
     uint64_t trans_id;
@@ -544,13 +545,18 @@ static void processSingleTransaction(const Transaction& t) {
                     operations.push_back(move(TransOperation(o.relationId, lb->second)));
                     
                     // insert the tuple into the columns of the relation
+                    /*
                     auto& tpl = operations.back().tuple;
                     for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
                         relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
                     }
+                    */
+                    // insert the tuples only in column 0 - primary key
+                    auto& op = operations.back();
+                    relation.columns[0].transactions[(*op.tuple)[0]].push_back(move(CTransStruct(t.transactionId, (*op.tuple)[0], op.tuple)));
 
                     // update the relation transactions
-                    relation.transactions.push_back(move(TransStruct(t.transactionId, operations.back().tuple)));
+                    relation.transactions.push_back(move(TransStruct(t.transactionId, op.tuple)));
                     // remove the row from the relations table
                     rows.erase(lb);
                     ++gTotalTuples;
@@ -572,16 +578,20 @@ static void processSingleTransaction(const Transaction& t) {
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 //tuple_t tuple(values, values+relCols);
-                operations.push_back(TransOperation(o.relationId, std::make_shared<tuple_t>(values, values+relCols)));
-                relation.transactions.push_back(move(TransStruct(t.transactionId, operations.back().tuple)));
-                relation.insertedRows[values[0]]=operations.back().tuple;
+                operations.push_back(move(TransOperation(o.relationId, std::make_shared<tuple_t>(values, values+relCols))));
+                auto& op = operations.back();
+                relation.transactions.push_back(move(TransStruct(t.transactionId, op.tuple)));
+                relation.insertedRows[values[0]]=op.tuple;
                 ++gTotalTuples;
-                
+                /*           
                 // insert the tuple into the columns of the relation
                 auto& tpl = operations.back().tuple;
                 for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
                     relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
-                }
+                }*/
+                // insert the tuples only in column 0 - primary key
+                relation.columns[0].transactions[(*op.tuple)[0]].push_back(move(CTransStruct(t.transactionId, (*op.tuple)[0], op.tuple)));
+
             }
         }// end of lock_guard
         // advance to next Relation insertions
