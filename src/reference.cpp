@@ -395,14 +395,12 @@ void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
     return;
 }
 
-
 void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
     ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
     processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
     pvs->msgQ->registerDeq(pvs->refId);
     pvs->memQ->free(pvs->memRefId);
-    //delete pvs;
 }
 
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
@@ -417,7 +415,6 @@ int main(int argc, char**argv) {
     cerr << "Number of threads: " << numOfThreads << endl;
 
     uint64_t MessageQSize = 500;
-    //uint64_t PendingMessages = MessageQSize-5;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
     BoundedAlloc<ParseValidationStruct> memQ(MessageQSize);
 
@@ -515,8 +512,8 @@ static void processSingleTransaction(const Transaction& t) {
     ++gTotalTransactions; 
     //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
-    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
-    vector<TransOperation>& operations = gTransactionHistory.back().operations;
+    //gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
+    //vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -533,9 +530,9 @@ static void processSingleTransaction(const Transaction& t) {
                     // update the relation transactions - transfer ownership of the tuple
                     relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                     
-                    // copy the tuple
-                    tuple_t *tpl = relation.transactions.back().tuple.get();
-                    operations.push_back(move(TransOperation(o.relationId, tpl)));
+                    // insert into transaction history
+                    //tuple_t *tpl = relation.transactions.back().tuple.get();
+                    //operations.push_back(move(TransOperation(o.relationId, tpl)));
                     
                     // insert the tuple into the columns of the relation
                     /*
@@ -573,8 +570,8 @@ static void processSingleTransaction(const Transaction& t) {
                 relation.insertedRows[values[0]]=move(tptr2);
                
                 // history holds RAW pointers to the tuple
-                tuple_t *tpl = relation.transactions.back().tuple.get();
-                operations.push_back(move(TransOperation(o.relationId, tpl)));
+                //tuple_t *tpl = relation.transactions.back().tuple.get();
+                //operations.push_back(move(TransOperation(o.relationId, tpl)));
                 /*           
                 // insert the tuple into the columns of the relation
                 auto& tpl = operations.back().tuple;
