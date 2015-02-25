@@ -354,6 +354,7 @@ static void processForget(const Forget& f) {
                 [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
     //for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) iter->free();
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
+
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -429,7 +430,7 @@ int main(int argc, char**argv) {
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads-3, processPendingValidationsTask);
     workerThreads.initThreads();
 
     MultiTaskPool multiPool(numOfThreads-2);
@@ -686,7 +687,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             for(auto iter=transFrom; iter!=transTo; ++iter) {
                 if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
+                cerr << "bef: " << iter->trans_id << ":" << iter->tuple << endl;
                 auto& tuple = *iter->tuple;
+                cerr << "aft: " << iter->trans_id << ":" << iter->tuple << endl;
                 bool match=true;
                 for (auto& c : q.predicates) {
                     // make the actual check
