@@ -127,8 +127,8 @@ typedef vector<uint64_t> tuple_t;
 struct CTransStruct {
     uint64_t trans_id;
     uint64_t value;
-    tuple_t *tuple;
-    CTransStruct (uint64_t tid, uint64_t v, tuple_t* t) : trans_id(tid), value(v), tuple(t) {}
+    std::shared_ptr<tuple_t> tuple;
+    CTransStruct (uint64_t tid, uint64_t v, std::shared_ptr<tuple_t> t) : trans_id(tid), value(v), tuple(t) {}
     bool operator< (const CTransStruct& o) { 
         if (value < o.value) return true;
         else if (o.value < value) return false;
@@ -151,8 +151,8 @@ struct ColumnStruct {
 };
 struct TransStruct {
     uint64_t trans_id;
-    tuple_t *tuple;
-    TransStruct(uint64_t trid, tuple_t *t):
+    std::shared_ptr<tuple_t> tuple;
+    TransStruct(uint64_t trid, std::shared_ptr<tuple_t> t):
         trans_id(trid), tuple(t) {}
     TransStruct(uint64_t trid):
         trans_id(trid), tuple(nullptr) {}
@@ -171,23 +171,25 @@ struct TRSLessThan_t {
 struct RelationStruct {
     vector<ColumnStruct> columns;
     vector<TransStruct> transactions;
-    unordered_map<uint32_t, tuple_t*> insertedRows;
+    unordered_map<uint32_t, std::shared_ptr<tuple_t>> insertedRows;
 };
 static vector<RelationStruct> gRelations;
 
 struct TransOperation {
     uint32_t rel_id;
-    tuple_t tuple;
-    TransOperation(uint32_t relid, tuple_t t):
-        rel_id(relid), tuple(move(t)) {}
+    std::shared_ptr<tuple_t> tuple;
+    TransOperation(uint32_t relid, std::shared_ptr<tuple_t> t):
+        rel_id(relid), tuple(t) {}
 };
 struct TransactionStruct {
     uint64_t trans_id;
-    vector<TransOperation*> operations;
-    TransactionStruct(uint64_t tid, vector<TransOperation*> ops) : trans_id(tid), operations(ops) {}  
+    vector<TransOperation> operations;
+    TransactionStruct(uint64_t tid, vector<TransOperation> ops) : trans_id(tid), operations(move(ops)) {}  
+    /*
     void free() {
-        for(auto& op : operations) { /*cerr << trans_id << ":" << op << endl;*/  delete op; }
+        for(auto& op : operations) { delete op; }
     }
+    */
 };
 
 static vector<TransactionStruct> gTransactionHistory;
@@ -352,12 +354,6 @@ static void processForget(const Forget& f) {
                 gTransactionHistory.end(), 
                 f.transactionId,
                 [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    /*
-    for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) { 
-        for (auto& t : iter->operations) gRelations[t->rel_id].insertedRows.erase(t->tuple[0]);
-        iter->free();
-    };
-    */
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
 
 #ifdef LPDEBUG
@@ -529,8 +525,8 @@ static void processSingleTransaction(const Transaction& t) {
     ++gTotalTransactions; 
     //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
-    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation*>())));
-    vector<TransOperation*>& operations = gTransactionHistory.back().operations;
+    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
+    vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -545,17 +541,16 @@ static void processSingleTransaction(const Transaction& t) {
                 auto lb = relation.insertedRows.find(*key);
                 if (lb != rows.end()) {
                     // copy the tuple
-                    tuple_t tuple(*lb->second);
-                    operations.push_back(new TransOperation(o.relationId, move(tuple)));
+                    operations.push_back(move(TransOperation(o.relationId, lb->second)));
                     
                     // insert the tuple into the columns of the relation
-                    tuple_t& tpl = operations.back()->tuple;
-                    for (uint32_t c=0,sz=tpl.size(); c<sz; ++c) {
-                        relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, tpl[c], &tpl)));
+                    auto& tpl = operations.back().tuple;
+                    for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
+                        relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
                     }
 
                     // update the relation transactions
-                    relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
+                    relation.transactions.push_back(move(TransStruct(t.transactionId, operations.back().tuple)));
                     // remove the row from the relations table
                     rows.erase(lb);
                     ++gTotalTuples;
@@ -577,15 +572,15 @@ static void processSingleTransaction(const Transaction& t) {
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 //tuple_t tuple(values, values+relCols);
-                operations.push_back(new TransOperation(o.relationId, move(tuple_t(values, values+relCols))));
-                relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
-                relation.insertedRows[values[0]]=&operations.back()->tuple;
+                operations.push_back(TransOperation(o.relationId, std::make_shared<tuple_t>(values, values+relCols)));
+                relation.transactions.push_back(move(TransStruct(t.transactionId, operations.back().tuple)));
+                relation.insertedRows[values[0]]=operations.back().tuple;
                 ++gTotalTuples;
                 
                 // insert the tuple into the columns of the relation
-                tuple_t& tpl = operations.back()->tuple;
-                for (uint32_t c=0,sz=tpl.size(); c<sz; ++c) {
-                    relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, tpl[c], &tpl)));
+                auto& tpl = operations.back().tuple;
+                for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
+                    relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
                 }
             }
         }// end of lock_guard
