@@ -347,11 +347,13 @@ static void processForget(const Forget& f) {
                 upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
     }
     // then delete the transactions from the transaction history
-    gTransactionHistory.erase(gTransactionHistory.begin(), 
-            upper_bound(gTransactionHistory.begin(), 
+    // TODO - delete the transaction operations from each transaction before removing them
+    auto ub = upper_bound(gTransactionHistory.begin(), 
                 gTransactionHistory.end(), 
                 f.transactionId,
-                [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; }));
+                [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
+    //for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) iter->free();
+    gTransactionHistory.erase(gTransactionHistory.begin(), ub);
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
