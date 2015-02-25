@@ -171,7 +171,7 @@ struct TRSLessThan_t {
 struct RelationStruct {
     vector<ColumnStruct> columns;
     vector<TransStruct> transactions;
-    unordered_map<uint32_t, tuple_t> insertedRows;
+    unordered_map<uint32_t, tuple_t*> insertedRows;
 };
 static vector<RelationStruct> gRelations;
 
@@ -352,7 +352,7 @@ static void processForget(const Forget& f) {
                 gTransactionHistory.end(), 
                 f.transactionId,
                 [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) iter->free();
+    //for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) iter->free();
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
 
 #ifdef LPDEBUG
@@ -540,7 +540,7 @@ static void processSingleTransaction(const Transaction& t) {
                 auto lb = relation.insertedRows.find(*key);
                 if (lb != rows.end()) {
                     // copy the tuple
-                    tuple_t tuple(move(lb->second));
+                    tuple_t tuple(*lb->second);
                     operations.push_back(new TransOperation(o.relationId, move(tuple)));
                     
                     // insert the tuple into the columns of the relation
@@ -574,7 +574,7 @@ static void processSingleTransaction(const Transaction& t) {
                 //tuple_t tuple(values, values+relCols);
                 operations.push_back(new TransOperation(o.relationId, move(tuple_t(values, values+relCols))));
                 relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
-                relation.insertedRows[values[0]]=operations.back()->tuple;
+                relation.insertedRows[values[0]]=&operations.back()->tuple;
                 ++gTotalTuples;
                 
                 // insert the tuple into the columns of the relation
