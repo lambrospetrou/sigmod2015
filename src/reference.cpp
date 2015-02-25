@@ -127,7 +127,23 @@ typedef vector<uint64_t> tuple_t;
 struct CTransStruct {
     uint64_t trans_id;
     uint64_t value;
-
+    tuple_t *tuple;
+    CTransStruct (uint64_t tid, uint64_t v, tuple_t* t) : trans_id(tid), value(v), tuple(t) {}
+    bool operator< (const CTransStruct& o) { 
+        if (value < o.value) return true;
+        else if (o.value < value) return false;
+        else return trans_id < o.trans_id;
+    }
+    bool CompValTrans(const CTransStruct& l, const CTransStruct& r) {
+        if (l.value < r.value) return true;
+        else if (r.value < l.value) return false;
+        else return l.trans_id < r.trans_id;
+    }
+    bool CompTransVal(const CTransStruct& l, const CTransStruct& r) {
+        if (l.trans_id < r.trans_id) return true;
+        else if (r.trans_id < l.trans_id) return false;
+        else return l.value < r.value;
+    }
 };
 
 struct ColumnStruct {
@@ -523,6 +539,13 @@ static void processSingleTransaction(const Transaction& t) {
                     // copy the tuple
                     tuple_t tuple(*lb->second);
                     operations.push_back(new TransOperation(o.relationId, move(tuple)));
+                    
+                    // insert the tuple into the columns of the relation
+                    tuple_t& tpl = operations.back()->tuple;
+                    for (uint32_t c=0,sz=tpl.size(); c<sz; ++c) {
+                        relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, tpl[c], &tpl)));
+                    }
+
                     // update the relation transactions
                     relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
                     // remove the row from the relations table
@@ -545,11 +568,17 @@ static void processSingleTransaction(const Transaction& t) {
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                tuple_t tuple(values, values+relCols);
-                operations.push_back(new TransOperation(o.relationId, move(tuple)));
+                //tuple_t tuple(values, values+relCols);
+                operations.push_back(new TransOperation(o.relationId, move(tuple_t(values, values+relCols))));
                 relation.transactions.push_back(move(TransStruct(t.transactionId, &operations.back()->tuple)));
                 relation.insertedRows[values[0]]=&operations.back()->tuple;
                 ++gTotalTuples;
+                
+                // insert the tuple into the columns of the relation
+                tuple_t& tpl = operations.back()->tuple;
+                for (uint32_t c=0,sz=tpl.size(); c<sz; ++c) {
+                    relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, tpl[c], &tpl)));
+                }
             }
         }// end of lock_guard
         // advance to next Relation insertions
