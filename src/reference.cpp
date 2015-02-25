@@ -153,10 +153,9 @@ struct ColumnStruct {
 struct TransStruct {
     uint64_t trans_id;
     std::unique_ptr<tuple_t> tuple;
+    
     TransStruct(uint64_t trid, std::unique_ptr<tuple_t> t):
         trans_id(trid), tuple(move(t)) {}
-    TransStruct(uint64_t trid):
-        trans_id(trid), tuple(nullptr) {}
 };
 struct TRSLessThan_t {
     bool operator() (const TransStruct& left, const TransStruct& right) {
@@ -340,13 +339,12 @@ static void processForget(const Forget& f) {
     auto start = LPTimer.getChrono();
 #endif
 
-    TransStruct fstruct(f.transactionId);
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
         // delete this transaction from the lastRel columns
         auto& transactions = crel->transactions;
         transactions.erase(transactions.begin(), 
-                upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
+                upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
     }
     // then delete the transactions from the transaction history
     /*
@@ -662,7 +660,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         continue;
         }
          */
-        if (v.queries.empty()) continue;
+        if (v.queries.empty()) { continue; }
         
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
@@ -672,6 +670,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
             //if (!q.satisfiable) { /*cerr << "uns" << endl;*/ continue; }
+            if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
+            
             // avoid searching for the range of transactions too many times 
             auto& relation = gRelations[q.relationId];
             auto& transactions = relation.transactions;
@@ -682,8 +682,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
 
             for(auto iter=transFrom; iter!=transTo; ++iter) {
-                if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
-                auto& tuple = *iter->tuple;
+                tuple_t& tuple = *iter->tuple;
                 bool match=true;
                 for (auto& c : q.predicates) {
                     // make the actual check
