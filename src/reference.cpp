@@ -352,7 +352,12 @@ static void processForget(const Forget& f) {
                 gTransactionHistory.end(), 
                 f.transactionId,
                 [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    //for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) iter->free();
+    /*
+    for (auto iter=gTransactionHistory.begin(); iter!=ub; ++iter) { 
+        for (auto& t : iter->operations) gRelations[t->rel_id].insertedRows.erase(t->tuple[0]);
+        iter->free();
+    };
+    */
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
 
 #ifdef LPDEBUG
