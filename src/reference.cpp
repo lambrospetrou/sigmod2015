@@ -147,8 +147,8 @@ struct CTransStruct {
 };
 
 struct ColumnStruct {
-    //vector<CTransStruct> transactions;
-    std::map<uint64_t, vector<CTransStruct>> transactions;
+    vector<CTransStruct> transactions;
+    //std::map<uint64_t, vector<CTransStruct>> transactions;
 };
 struct TransStruct {
     uint64_t trans_id;
@@ -531,18 +531,12 @@ static void processSingleTransaction(const Transaction& t) {
                     relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                     
                     // insert into transaction history
-                    //tuple_t *tpl = relation.transactions.back().tuple.get();
+                    tuple_t *tpl = relation.transactions.back().tuple.get();
                     //operations.push_back(move(TransOperation(o.relationId, tpl)));
                     
-                    // insert the tuple into the columns of the relation
-                    /*
-                    auto& tpl = operations.back().tuple;
-                    for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
-                        relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
-                    }
-                    */
                     // insert the tuples only in column 0 - primary key
                     //relation.columns[0].transactions[(*tpl)[0]].push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                    relation.columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                     // remove the row from the relations table
                     rows.erase(lb);
@@ -570,16 +564,12 @@ static void processSingleTransaction(const Transaction& t) {
                 relation.insertedRows[values[0]]=move(tptr2);
                
                 // history holds RAW pointers to the tuple
-                //tuple_t *tpl = relation.transactions.back().tuple.get();
+                tuple_t *tpl = relation.transactions.back().tuple.get();
                 //operations.push_back(move(TransOperation(o.relationId, tpl)));
-                /*           
-                // insert the tuple into the columns of the relation
-                auto& tpl = operations.back().tuple;
-                for (uint32_t c=0,sz=tpl->size(); c<sz; ++c) {
-                    relation.columns[c].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[c], tpl)));
-                }*/
+                
                 // insert the tuples only in column 0 - primary key
                 //relation.columns[0].transactions[values[0]].push_back(move(CTransStruct(t.transactionId, values[0], tpl)));
+                relation.columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                 ++gTotalTuples;
             }
