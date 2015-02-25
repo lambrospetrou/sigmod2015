@@ -170,11 +170,16 @@ struct TRSLessThan_t {
     }
 } TRSLessThan;
 struct RelationStruct {
-    vector<ColumnStruct> columns;
     vector<TransStruct> transactions;
     unordered_map<uint32_t, std::unique_ptr<tuple_t>> insertedRows;
 };
 static vector<RelationStruct> gRelations;
+
+struct RelationColumns {
+    vector<ColumnStruct> columns;
+};
+static vector<RelationColumns> gRelColumns;
+
 
 struct TransOperation {
     uint32_t rel_id;
@@ -237,8 +242,10 @@ static void processDefineSchema(const DefineSchema& d) {
 
     gRelations.clear();
     gRelations.resize(d.relationCount);
+    gRelColumns.resize(d.relationCount);
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
-        gRelations[ci].columns.resize(gSchema[ci]);
+        //gRelations[ci].columns.resize(gSchema[ci]);
+        gRelColumns[ci].columns.resize(gSchema[ci]);
     }
 }
 //---------------------------------------------------------------------------
@@ -342,12 +349,13 @@ static void processForget(const Forget& f) {
                 upper_bound(transactions.begin(), transactions.end(), fstruct, TRSLessThan));
     }
     // then delete the transactions from the transaction history
+    /*
     auto ub = upper_bound(gTransactionHistory.begin(), 
                 gTransactionHistory.end(), 
                 f.transactionId,
                 [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-
+    */
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -536,7 +544,7 @@ static void processSingleTransaction(const Transaction& t) {
                     
                     // insert the tuples only in column 0 - primary key
                     //relation.columns[0].transactions[(*tpl)[0]].push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
-                    relation.columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                    gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                     // remove the row from the relations table
                     rows.erase(lb);
@@ -569,7 +577,7 @@ static void processSingleTransaction(const Transaction& t) {
                 
                 // insert the tuples only in column 0 - primary key
                 //relation.columns[0].transactions[values[0]].push_back(move(CTransStruct(t.transactionId, values[0], tpl)));
-                relation.columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                 ++gTotalTuples;
             }
@@ -582,8 +590,6 @@ static void processSingleTransaction(const Transaction& t) {
     LPTimer.transactions += LPTimer.getChrono(start);
 #endif
 }
-
-
 
 
 static uint64_t resIndexOffset = 0;
