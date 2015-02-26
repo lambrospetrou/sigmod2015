@@ -817,6 +817,22 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                     tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
                     tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
+                } else if (pFirst.op == Query::Column::Less) {
+                    tupFrom = transValues.begin();                    
+                    tupTo = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    pFrom = 1;
+                } else if (pFirst.op == Query::Column::LessOrEqual) {
+                    tupFrom = transValues.begin();                    
+                    tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    pFrom = 1;
+                } else if (pFirst.op == Query::Column::Greater) {
+                    tupFrom = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
+                    tupTo = transValues.end();                   
+                    pFrom = 1;
+                } else if (pFirst.op == Query::Column::GreaterOrEqual) {
+                    tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
+                    tupTo = transValues.end();                   
+                    pFrom = 1;
                 } else {
                     tupFrom = transValues.begin();
                     tupTo = transValues.end();
