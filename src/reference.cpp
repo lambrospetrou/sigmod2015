@@ -199,7 +199,7 @@ struct TRSLessThan_t {
     }
 } TRSLessThan;
 struct RelationStruct {
-    vector<TransStruct> transactions;
+    //vector<TransStruct> transactions;
     unordered_map<uint32_t, std::unique_ptr<tuple_t>> insertedRows;
 };
 static vector<RelationStruct> gRelations;
@@ -209,12 +209,11 @@ struct RelationColumns {
 };
 static vector<RelationColumns> gRelColumns;
 
-
 struct TransOperation {
     uint32_t rel_id;
-    tuple_t *tuple;
-    TransOperation(uint32_t relid, tuple_t *t):
-        rel_id(relid), tuple(t) {}
+    std::unique_ptr<tuple_t> tuple;
+    TransOperation(uint32_t relid, std::unique_ptr<tuple_t> t):
+        rel_id(relid), tuple(move(t)) {}
 };
 struct TransactionStruct {
     uint64_t trans_id;
@@ -380,14 +379,25 @@ static void processForget(const Forget& f) {
     upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
     }
      */
-    // then delete the transactions from the transaction history
-    /*
-       auto ub = upper_bound(gTransactionHistory.begin(), 
+    
+    // delete the transactions from the columns index
+    for (auto& cRelCol : gRelColumns) {
+        for (auto& cCol : cRelCol.columns) {
+            cCol.transactions.erase(cCol.transactions.begin(),
+                    upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
+                        f.transactionId,
+                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; }
+                        ));
+        }
+    }
+    
+    // then delete the transactions from the transaction history 
+    auto ub = upper_bound(gTransactionHistory.begin(), 
        gTransactionHistory.end(), 
        f.transactionId,
        [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
        gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-     */
+     
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -551,13 +561,14 @@ static void processSingleTransaction(const Transaction& t) {
     const char* reader=t.operations;
     ++gTotalTransactions; 
 
-    //gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
-    //vector<TransOperation>& operations = gTransactionHistory.back().operations;
+    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
+    vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
-        auto& relation = gRelations[o.relationId];
+        //auto& relation = gRelations[o.relationId];
+        auto& rows = gRelations[o.relationId].insertedRows;
         auto& relColumns = gRelColumns[o.relationId].columns;
         uint32_t relCols = gSchema[o.relationId];
 
@@ -573,17 +584,18 @@ static void processSingleTransaction(const Transaction& t) {
             }
 
             for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
-                auto& rows = relation.insertedRows;
-                auto lb = relation.insertedRows.find(*key);
+                auto lb = rows.find(*key);
                 if (lb != rows.end()) {
                     // update the relation transactions - transfer ownership of the tuple
-                    relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
+                    //relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
+                    operations.push_back(move(TransOperation(o.relationId, move(lb->second))));
 
                     // insert into transaction history
-                    tuple_t *tpl = relation.transactions.back().tuple.get();
-                    //operations.push_back(move(TransOperation(o.relationId, tpl)));
+                    tuple_t *tpl = operations.back().tuple.get();
 
                     for (uint32_t col=0; col<relCols; ++col) {
+                        // TODO - TODO - TODO - transaction id is not needed here since the tuples
+                        // are inserted inside the transactions vector anyway
                         relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
                     }
 
@@ -621,16 +633,14 @@ static void processSingleTransaction(const Transaction& t) {
             }
 
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                unique_ptr<tuple_t> tptr(new tuple_t(values, values+relCols));
-                relation.transactions.push_back(move(TransStruct(t.transactionId, move(tptr))));
-                unique_ptr<tuple_t> tptr2(new tuple_t(values, values+relCols));
-                relation.insertedRows[values[0]]=move(tptr2);
+                //unique_ptr<tuple_t> tptr(new tuple_t(values, values+relCols));
+                //relation.transactions.push_back(move(TransStruct(t.transactionId, move(tptr))));
+                operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
+                //unique_ptr<tuple_t> tptr2(new tuple_t(values, values+relCols));
+                relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
 
-                // history holds RAW pointers to the tuple
-                tuple_t *tpl = relation.transactions.back().tuple.get();
-                //operations.push_back(move(TransOperation(o.relationId, tpl)));
-
-                // insert the tuples only in column 0 - primary key
+                // insert the tuples only in columns
+                tuple_t *tpl = operations.back().tuple.get();
                 for (uint32_t col=0; col<relCols; ++col) {
                     relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
                 }
