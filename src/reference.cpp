@@ -148,15 +148,38 @@ struct CTransStruct {
         return l.value < r.value;
     }
 };
+struct CTRSValueLessThan_t {
+    bool operator() (const CTransStruct& o, uint64_t target) {
+        return o.value < target;
+    }
+    bool operator() (uint64_t target, const CTransStruct& o) {
+        return target < o.value;
+    }
+} CTRSValueLessThan;
+
+typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
-    vector<pair<uint64_t, vector<CTransStruct>>> transactions;
+    vector<ColumnTransaction_t> transactions;
     //std::map<uint64_t, vector<CTransStruct>> transactions;
 };
+struct CTRSLessThan_t {
+    bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
+        return left.first < right.first;
+    }
+    bool operator() (const ColumnTransaction_t& o, uint64_t target) {
+        return o.first < target;
+    }
+    bool operator() (uint64_t target, const ColumnTransaction_t& o) {
+        return target < o.first;
+    }
+} CTRSLessThan;
+
+
 struct TransStruct {
     uint64_t trans_id;
     std::unique_ptr<tuple_t> tuple;
-    
+
     TransStruct(uint64_t trid, std::unique_ptr<tuple_t> t):
         trans_id(trid), tuple(move(t)) {}
 };
@@ -341,7 +364,8 @@ static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
     auto start = LPTimer.getChrono();
 #endif
-
+    (void)f.transactionId;
+/*
     // Delete the transactions from inside the columns in the relations
     for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
         // delete this transaction from the lastRel columns
@@ -349,14 +373,15 @@ static void processForget(const Forget& f) {
         transactions.erase(transactions.begin(), 
                 upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
     }
+*/
     // then delete the transactions from the transaction history
     /*
-    auto ub = upper_bound(gTransactionHistory.begin(), 
-                gTransactionHistory.end(), 
-                f.transactionId,
-                [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-    */
+       auto ub = upper_bound(gTransactionHistory.begin(), 
+       gTransactionHistory.end(), 
+       f.transactionId,
+       [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
+       gTransactionHistory.erase(gTransactionHistory.begin(), ub);
+     */
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -538,7 +563,7 @@ static void processSingleTransaction(const Transaction& t) {
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
 
-            
+
             for (uint32_t col=0; col<relCols; ++col) {
                 relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
             }
@@ -549,15 +574,15 @@ static void processSingleTransaction(const Transaction& t) {
                 if (lb != rows.end()) {
                     // update the relation transactions - transfer ownership of the tuple
                     relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
-                    
+
                     // insert into transaction history
                     tuple_t *tpl = relation.transactions.back().tuple.get();
                     //operations.push_back(move(TransOperation(o.relationId, tpl)));
-                    
+
                     for (uint32_t col=0; col<relCols; ++col) {
                         relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
                     }
-                    
+
                     // insert the tuples only in column 0 - primary key
                     //relation.columns[0].transactions[(*tpl)[0]].push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
                     //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
@@ -568,13 +593,13 @@ static void processSingleTransaction(const Transaction& t) {
                 }
             }
         }// end of lock_guard
-            
+
         // SORT THE VALUES
         for (uint32_t col=0; col<relCols; ++col) {
             auto& vec = relColumns[col].transactions.back().second;
             std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
         }
-        
+
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
     }
@@ -591,21 +616,22 @@ static void processSingleTransaction(const Transaction& t) {
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-            
+
+            // TODO change this in order to use the same vectors for DELETES & INSERTS
             for (uint32_t col=0; col<relCols; ++col) {
                 relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
             }
-            
+
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 unique_ptr<tuple_t> tptr(new tuple_t(values, values+relCols));
                 relation.transactions.push_back(move(TransStruct(t.transactionId, move(tptr))));
                 unique_ptr<tuple_t> tptr2(new tuple_t(values, values+relCols));
                 relation.insertedRows[values[0]]=move(tptr2);
-               
+
                 // history holds RAW pointers to the tuple
                 tuple_t *tpl = relation.transactions.back().tuple.get();
                 //operations.push_back(move(TransOperation(o.relationId, tpl)));
-                
+
                 // insert the tuples only in column 0 - primary key
                 //relation.columns[0].transactions[values[0]].push_back(move(CTransStruct(t.transactionId, values[0], tpl)));
                 //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
@@ -704,7 +730,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         }
          */
         if (v.queries.empty()) { continue; }
-        
+
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
@@ -713,54 +739,79 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
             if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
+
+            // protect from the case where there is no single predicate
+            if (q.predicates.empty()) { conflict = true; break; }
             
             // avoid searching for the range of transactions too many times 
-            auto& relation = gRelations[q.relationId];
-            auto& transactions = relation.transactions;
-            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLessThan);
-            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, TRSLessThan);
+            //auto& relation = gRelations[q.relationId];
+            //auto& transactions = relation.transactions;
+            //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLessThan);
+            //auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, TRSLessThan);
+            auto& relColumns = gRelColumns[q.relationId].columns;
 
-            // sort them in order to have the equality checks first
+            // IMPORTANT!!! - sort them in order to have the equality checks first
             std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
 
-            for(auto iter=transFrom; iter!=transTo; ++iter) {
-                tuple_t& tuple = *iter->tuple;
-                bool match=true;
-                for (auto& c : q.predicates) {
-                    // make the actual check
-                    uint64_t tupleValue = tuple[c.column];
-                    uint64_t queryValue=c.value;
-                    bool result=false;
-                    switch (c.op) {
-                        case Query::Column::Equal: 
-                            result=(tupleValue==queryValue); 
-                            break;
-                        case Query::Column::NotEqual: 
-                            result=(tupleValue!=queryValue); 
-                            break;
-                        case Query::Column::Less: 
-                            result=(tupleValue<queryValue); 
-                            break;
-                        case Query::Column::LessOrEqual: 
-                            result=(tupleValue<=queryValue); 
-                            break;
-                        case Query::Column::Greater: 
-                            result=(tupleValue>queryValue); 
-                            break;
-                        case Query::Column::GreaterOrEqual: 
-                            result=(tupleValue>=queryValue); 
-                            break;
-                    } 
-                    // there is one predicate not true so this whole query on this relation is false
-                    if (!result) { match=false; break; }
-                } // end of single query predicates
-                if (match) { conflict=true; break; }    
-            } // end of all transactions for this relation query
+            auto& pFirst = q.predicates[0];
+            auto& transactions = relColumns[pFirst.column].transactions;
+            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, CTRSLessThan);
+
+            for(auto iter=transFrom; iter!=transTo; ++iter) {   
+                auto& transValues = iter->second;
+                uint32_t pFrom = 0;
+                decltype(transValues.begin()) tupFrom, tupTo;
+                // find the valid tuples using range binary searches based on the first predicate
+                if (pFirst.op == Query::Column::Equal) {
+                    tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
+                    tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    pFrom = 1;
+                } else {
+                    tupFrom = transValues.begin();
+                    tupTo = transValues.end();
+                }
+                for(auto it=tupFrom; it!=tupTo; ++it) {  
+                    bool match=true;
+                    for (uint32_t sz=q.predicates.size(); pFrom<sz; ++pFrom) {
+                        auto& c = q.predicates[pFrom];
+                        // make the actual check
+                        tuple_t& tuple = *it->tuple;
+                        uint64_t tupleValue = tuple[c.column];
+                        uint64_t queryValue=c.value;
+                        bool result=false;
+                        switch (c.op) {
+                            case Query::Column::Equal: 
+                                result=(tupleValue==queryValue); 
+                                break;
+                            case Query::Column::NotEqual: 
+                                result=(tupleValue!=queryValue); 
+                                break;
+                            case Query::Column::Less: 
+                                result=(tupleValue<queryValue); 
+                                break;
+                            case Query::Column::LessOrEqual: 
+                                result=(tupleValue<=queryValue); 
+                                break;
+                            case Query::Column::Greater: 
+                                result=(tupleValue>queryValue); 
+                                break;
+                            case Query::Column::GreaterOrEqual: 
+                                result=(tupleValue>=queryValue); 
+                                break;
+                        } 
+                        // there is one predicate not true so this whole query on this relation is false
+                        if (!result) { match=false; break; }
+                    } // end of single query predicates
+                    if (match) { conflict=true; break; }    
+                } // end of all tuples for this transaction
+                if (conflict) { break; }
+            } // end of all the transactions for this relation for this specific query
             if (conflict || otherFinishedThis) break;
-        }
+        }// end for all queries
         // update the pending results to help other threads skip this validation 
         // if it has other parts
         if (conflict && !otherFinishedThis) atoRes = true;
-    }
+    } // while true take more validations 
 }
 
