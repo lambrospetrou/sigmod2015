@@ -550,7 +550,6 @@ static void processSingleTransaction(const Transaction& t) {
 #endif
     const char* reader=t.operations;
     ++gTotalTransactions; 
-    //cerr << t.transactionId << ":" << t.deleteCount << ":" << t.insertCount << endl;
 
     //gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, vector<TransOperation>())));
     //vector<TransOperation>& operations = gTransactionHistory.back().operations;
@@ -569,7 +568,6 @@ static void processSingleTransaction(const Transaction& t) {
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
 
-
             for (uint32_t col=0; col<relCols; ++col) {
                 relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
             }
@@ -584,17 +582,10 @@ static void processSingleTransaction(const Transaction& t) {
                     // insert into transaction history
                     tuple_t *tpl = relation.transactions.back().tuple.get();
                     //operations.push_back(move(TransOperation(o.relationId, tpl)));
-                    
-//                   cerr << *tpl << endl;
-
 
                     for (uint32_t col=0; col<relCols; ++col) {
                         relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
                     }
-
-                    // insert the tuples only in column 0 - primary key
-                    //relation.columns[0].transactions[(*tpl)[0]].push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
-                    //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                     // remove the row from the relations table
                     rows.erase(lb);
@@ -607,19 +598,11 @@ static void processSingleTransaction(const Transaction& t) {
                 auto& vec = relColumns[col].transactions.back().second;
                 std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
             }
-/*
-            for (auto& ctr : relColumns[2].transactions.back().second) {
-                cerr << *ctr.tuple << endl;
-            }
-            cerr << endl << endl;
-*/
         }// end of lock_guard
 
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
     }
-
-    //cerr << endl;
 
     // Insert new tuples
     for (uint32_t index=0;index!=t.insertCount;++index) {
@@ -648,8 +631,6 @@ static void processSingleTransaction(const Transaction& t) {
                 //operations.push_back(move(TransOperation(o.relationId, tpl)));
 
                 // insert the tuples only in column 0 - primary key
-                //relation.columns[0].transactions[values[0]].push_back(move(CTransStruct(t.transactionId, values[0], tpl)));
-                //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
                 for (uint32_t col=0; col<relCols; ++col) {
                     relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
                 }
@@ -718,18 +699,14 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
-    //cerr << gPendingValidations.size() << " " << endl;
-    //cerr << nThreads << ":" << tid << endl;
 
     uint64_t totalPending = gPendingValidations.size();
-    //cerr << "start: " << rStart << " end: " << rEnd << endl;
     uint64_t resPos, vi;
     for (;true;) {
 
         // get a validation ID - atomic operation
         vi = gNextPending++;
         if (vi >= totalPending) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
-        //cerr << "got: " << vi << endl;
 
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
@@ -750,26 +727,14 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
 
-        //if (v.validationId == 19631)  cerr << v.queries << endl;
-        //if (v.validationId == 6673)  cerr << v.queries << endl;
-        //if (v.validationId == 4)  cerr << v.queries << endl;
-
-        // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
+        // for each query in this validation         
         for (auto& q : v.queries) {
             if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
 
             auto& relColumns = gRelColumns[q.relationId].columns;
             
-            // avoid searching for the range of transactions too many times 
-            //auto& relation = gRelations[q.relationId];
-            //auto& transactions = relation.transactions;
-            //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLessThan);
-            //auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, TRSLessThan);
-            
-            //cerr << ":: validation: " << v.validationId << " query: " << q << endl;
             // protect from the case where there is no single predicate
-            //if (q.predicates.empty()) { cerr << "empty: " << v.validationId << endl; conflict = true; break; }
             if (q.predicates.empty()) { 
                 //cerr << "empty: " << v.validationId << endl; 
                 auto& transactionsCheck = relColumns[0].transactions;
@@ -790,27 +755,12 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             auto& transactions = relColumns[pFirst.column].transactions;
             auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
             auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, CTRSLessThan);
-            //auto transFrom = transactions.begin();
-            //auto transTo = transactions.end();
 
-            //cerr << "before: " << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
-
-            // take only the transactions that we are interested in
-            /*
-            while (transFrom != transactions.end() && transFrom->first < v.from) ++transFrom;
-            transTo = transFrom;
-            while (transTo != transactions.end() && transTo->first <= v.to) ++transTo;
-            */
-
-            //if (v.validationId == 4)
             //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
 
+            uint32_t pFrom = 0;
             for(auto iter=transFrom; iter!=transTo; ++iter) {  
-                // TODO - check for transactions
-                //if (transFrom->first < v.from || transFrom->first > v.to) { cerr << "wrong trans" << endl; continue;}
-
                 auto& transValues = iter->second;
-                uint32_t pFrom = 0;
                 decltype(transValues.begin()) tupFrom, tupTo;
                 // find the valid tuples using range binary searches based on the first predicate
                 if (pFirst.op == Query::Column::Equal) {
@@ -836,14 +786,10 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 } else {
                     tupFrom = transValues.begin();
                     tupTo = transValues.end();
+                    pFrom = 0;
                 }
                 
                 //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-
-                //cerr << "first tuple " << *tupFrom->tuple << endl;
-
-                //if (v.validationId == 4)
-                //cerr << "trans " << iter->first << endl;
 
                 for(; tupFrom!=tupTo; ++tupFrom) {  
                     tuple_t& tuple = *tupFrom->tuple;
