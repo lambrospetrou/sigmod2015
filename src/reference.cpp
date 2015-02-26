@@ -134,20 +134,23 @@ struct CTransStruct {
         else if (o.value < value) return false;
         else return trans_id < o.trans_id;
     }
-    bool CompValTrans(const CTransStruct& l, const CTransStruct& r) {
+    static bool CompValTrans(const CTransStruct& l, const CTransStruct& r) {
         if (l.value < r.value) return true;
         else if (r.value < l.value) return false;
         else return l.trans_id < r.trans_id;
     }
-    bool CompTransVal(const CTransStruct& l, const CTransStruct& r) {
+    static bool CompTransVal(const CTransStruct& l, const CTransStruct& r) {
         if (l.trans_id < r.trans_id) return true;
         else if (r.trans_id < l.trans_id) return false;
         else return l.value < r.value;
     }
+    static bool CompValOnly(const CTransStruct& l, const CTransStruct& r) {
+        return l.value < r.value;
+    }
 };
-
 struct ColumnStruct {
-    vector<CTransStruct> transactions;
+    //vector<CTransStruct> transactions;
+    vector<pair<uint64_t, vector<CTransStruct>>> transactions;
     //std::map<uint64_t, vector<CTransStruct>> transactions;
 };
 struct TransStruct {
@@ -525,10 +528,21 @@ static void processSingleTransaction(const Transaction& t) {
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
         auto& relation = gRelations[o.relationId];
+        auto& relColumns = gRelColumns[o.relationId].columns;
+        uint32_t relCols = gSchema[o.relationId];
+
+        //cerr << " " << o.relationId;
+
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+
+            
+            for (uint32_t col=0; col<relCols; ++col) {
+                relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
+            }
+
             for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
                 auto& rows = relation.insertedRows;
                 auto lb = relation.insertedRows.find(*key);
@@ -540,9 +554,13 @@ static void processSingleTransaction(const Transaction& t) {
                     tuple_t *tpl = relation.transactions.back().tuple.get();
                     //operations.push_back(move(TransOperation(o.relationId, tpl)));
                     
+                    for (uint32_t col=0; col<relCols; ++col) {
+                        relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
+                    }
+                    
                     // insert the tuples only in column 0 - primary key
                     //relation.columns[0].transactions[(*tpl)[0]].push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
-                    gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                    //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
 
                     // remove the row from the relations table
                     rows.erase(lb);
@@ -550,19 +568,34 @@ static void processSingleTransaction(const Transaction& t) {
                 }
             }
         }// end of lock_guard
+            
+        // SORT THE VALUES
+        for (uint32_t col=0; col<relCols; ++col) {
+            auto& vec = relColumns[col].transactions.back().second;
+            std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
+        }
+        
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
     }
+
+    //cerr << endl;
 
     // Insert new tuples
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         auto& relation = gRelations[o.relationId];
-        uint64_t relCols = gSchema[o.relationId];
+        auto& relColumns = gRelColumns[o.relationId].columns;
+        uint32_t relCols = gSchema[o.relationId];
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            
+            for (uint32_t col=0; col<relCols; ++col) {
+                relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
+            }
+            
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 unique_ptr<tuple_t> tptr(new tuple_t(values, values+relCols));
                 relation.transactions.push_back(move(TransStruct(t.transactionId, move(tptr))));
@@ -575,10 +608,20 @@ static void processSingleTransaction(const Transaction& t) {
                 
                 // insert the tuples only in column 0 - primary key
                 //relation.columns[0].transactions[values[0]].push_back(move(CTransStruct(t.transactionId, values[0], tpl)));
-                gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                //gRelColumns[o.relationId].columns[0].transactions.push_back(move(CTransStruct(t.transactionId, (*tpl)[0], tpl)));
+                for (uint32_t col=0; col<relCols; ++col) {
+                    relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
+                }
 
                 ++gTotalTuples;
             }
+
+            // SORT THE VALUES
+            for (uint32_t col=0; col<relCols; ++col) {
+                auto& vec = relColumns[col].transactions.back().second;
+                std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
+            }
+
         }// end of lock_guard
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
