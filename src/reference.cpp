@@ -669,7 +669,6 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
-            //if (!q.satisfiable) { /*cerr << "uns" << endl;*/ continue; }
             if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
             
             // avoid searching for the range of transactions too many times 
