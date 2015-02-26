@@ -148,6 +148,10 @@ struct CTransStruct {
         return l.value < r.value;
     }
 };
+std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
+    os << "{" << o.trans_id << "-" << o.value << "}";
+    return os;
+}
 struct CTRSValueLessThan_t {
     bool operator() (const CTransStruct& o, uint64_t target) {
         return o.value < target;
@@ -592,13 +596,13 @@ static void processSingleTransaction(const Transaction& t) {
                     ++gTotalTuples;
                 }
             }
+            
+            // SORT THE VALUES
+            for (uint32_t col=0; col<relCols; ++col) {
+                auto& vec = relColumns[col].transactions.back().second;
+                std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
+            }
         }// end of lock_guard
-
-        // SORT THE VALUES
-        for (uint32_t col=0; col<relCols; ++col) {
-            auto& vec = relColumns[col].transactions.back().second;
-            std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
-        }
 
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
@@ -735,14 +739,18 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
 
+        //if (v.validationId == 19631)  cerr << v.queries << endl;
+        //if (v.validationId == 6673)  cerr << v.queries << endl;
+
         // TODO -  VERY NAIVE HERE - validate each query separately
         bool conflict = false, otherFinishedThis = false;
         for (auto& q : v.queries) {
             if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
 
+            if (v.validationId == 19631)  cerr << "19631" << endl;
             // protect from the case where there is no single predicate
-            if (q.predicates.empty()) { conflict = true; break; }
-            
+            //if (q.predicates.empty()) { cerr << "empty: " << v.validationId << endl; conflict = true; break; }
+            if (q.predicates.empty()) { cerr << "empty: " << v.validationId << endl; continue; }
             // avoid searching for the range of transactions too many times 
             //auto& relation = gRelations[q.relationId];
             //auto& transactions = relation.transactions;
@@ -755,30 +763,45 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             auto& pFirst = q.predicates[0];
             auto& transactions = relColumns[pFirst.column].transactions;
-            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, CTRSLessThan);
+            //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+            //auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, CTRSLessThan);
+            auto transFrom = transactions.begin();
+            auto transTo = transactions.end();
+            
+            if (v.validationId == 19631)  cerr << "19631: " << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
 
-            for(auto iter=transFrom; iter!=transTo; ++iter) {   
+            // take only the transactions that we are interested in
+            while (transFrom != transactions.end() && transFrom->first < v.from) ++transFrom;
+            transTo = transFrom;
+            while (transTo != transactions.end() && transTo->first <= v.to) ++transTo;
+            
+            if (v.validationId == 19631)  cerr << "19631: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
+
+            for(auto iter=transFrom; iter!=transTo; ++iter) {  
+                // TODO - check for transactions
+                //if (transFrom->first < v.from || transFrom->first > v.to) { cerr << "wrong trans" << endl; continue;}
+                
                 auto& transValues = iter->second;
                 uint32_t pFrom = 0;
                 decltype(transValues.begin()) tupFrom, tupTo;
                 // find the valid tuples using range binary searches based on the first predicate
-                if (pFirst.op == Query::Column::Equal) {
-                    tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
-                    tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
-                    pFrom = 1;
-                } else {
+                //if (pFirst.op == Query::Column::Equal) {
+                  //  tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
+                   // tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    //pFrom = 1;
+                //} else {
                     tupFrom = transValues.begin();
                     tupTo = transValues.end();
-                }
-                for(auto it=tupFrom; it!=tupTo; ++it) {  
+                //}
+                for(; tupFrom!=tupTo; ++tupFrom) {  
+                    tuple_t& tuple = *tupFrom->tuple;
                     bool match=true;
-                    for (uint32_t sz=q.predicates.size(); pFrom<sz; ++pFrom) {
-                        auto& c = q.predicates[pFrom];
+                    for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
+                        auto& c = q.predicates[cp];
                         // make the actual check
-                        tuple_t& tuple = *it->tuple;
-                        uint64_t tupleValue = tuple[c.column];
-                        uint64_t queryValue=c.value;
+                        uint64_t tupleValue = tuple[c.column]; 
+                        if (v.validationId == 19631) cerr << "tpl value: " << tupleValue << endl;
+                        uint64_t queryValue = c.value;
                         bool result=false;
                         switch (c.op) {
                             case Query::Column::Equal: 
@@ -807,11 +830,11 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 } // end of all tuples for this transaction
                 if (conflict) { break; }
             } // end of all the transactions for this relation for this specific query
-            if (conflict || otherFinishedThis) break;
+            if (conflict) break;
         }// end for all queries
         // update the pending results to help other threads skip this validation 
         // if it has other parts
-        if (conflict && !otherFinishedThis) atoRes = true;
+        if (conflict && !otherFinishedThis)  { /*cerr<< "c: " << v.validationId << endl;*/  atoRes = true;}
     } // while true take more validations 
 }
 
