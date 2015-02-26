@@ -674,7 +674,6 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
