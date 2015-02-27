@@ -273,7 +273,7 @@ static void processDefineSchema(const DefineSchema& d) {
 }
 //---------------------------------------------------------------------------
 
-static void processTransaction(const Transaction& t, const vector<char>& tdata) {
+static inline void processTransaction(const Transaction& t, const vector<char>& tdata) {
     (void)tdata;
     processSingleTransaction(t);
     // hack to get the pointer to the beginning of the Transactiob structure!!!
@@ -289,7 +289,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
-
 
     (void)vdata;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
@@ -322,6 +321,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
          */
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
         //cerr << batchPos << "-" << v.to << endl;
+        
         // update the global pending validations to reflect this new one
         ++gPVunique;
     }
@@ -374,9 +374,10 @@ static void processForget(const Forget& f) {
     upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
     }
      */
-   /* 
+    
     // delete the transactions from the columns index
-    for (auto& cRelCol : gRelColumns) {
+    for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
+        auto& cRelCol = gRelColumns[i];
         for (auto& cCol : cRelCol.columns) {
             cCol.transactions.erase(cCol.transactions.begin(),
                     upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
@@ -392,7 +393,7 @@ static void processForget(const Forget& f) {
        f.transactionId,
        [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
        gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-     */
+     
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
