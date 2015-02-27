@@ -24,9 +24,11 @@ namespace lp {
         std::vector<Query::Column> predicates;
         /// States whether this query can ever be true - will be set to false later by our filtering
         bool satisfiable;
+        // the weight assigned to this query by the validation processor
+        uint32_t weight;
 
-        LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true) {}
-        LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true) {
+        LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true), weight(0) {}
+        LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true), weight(0) {
             memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
             std::sort(predicates.begin(), predicates.end());
             predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
@@ -49,10 +51,10 @@ namespace lp {
             else return left.value < right.value;    
         }
         static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
-            //if (left.satisfiable && !right.satisfiable) return true;
-            //else if (right.satisfiable < !left.satisfiable) return false;
-            //else return (left.columnCount < right.columnCount);
             return (left.columnCount < right.columnCount);
+        }
+        static bool LPQueryWeightLess(const LPQuery& left, const LPQuery& right) {
+            return (left.weight < right.weight);
         }
     };
 

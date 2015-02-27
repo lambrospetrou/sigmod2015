@@ -785,7 +785,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             uint32_t pFrom = 0;
             for(auto iter=transFrom; iter!=transTo; ++iter) {  
                 auto& transValues = iter->second;
-                decltype(transValues.begin()) tupFrom, tupTo, tBegin = transValues.begin(), tEnd=transValues.end();
+                decltype(transValues.begin()) tupFrom, tupTo, 
+                    tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
                 if (pFirst.op == Query::Column::Equal) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
