@@ -125,28 +125,12 @@ typedef uint64_t* tuple_t;
 
 // Custom data structures to hold data
 struct CTransStruct {
-    //uint64_t trans_id;
     uint64_t value;
     tuple_t tuple;
     CTransStruct (uint64_t v, tuple_t t) : value(v), tuple(t) {}
     bool operator< (const CTransStruct& o) { 
         return value < o.value;
-        //if (value < o.value) return true;
-        //else if (o.value < value) return false;
-        //else return trans_id < o.trans_id;
     }
-    /*
-    static bool CompValTrans(const CTransStruct& l, const CTransStruct& r) {
-        if (l.value < r.value) return true;
-        else if (r.value < l.value) return false;
-        else return l.trans_id < r.trans_id;
-    }
-    static bool CompTransVal(const CTransStruct& l, const CTransStruct& r) {
-        if (l.trans_id < r.trans_id) return true;
-        else if (r.trans_id < l.trans_id) return false;
-        else return l.value < r.value;
-    }
-    */
     static bool CompValOnly(const CTransStruct& l, const CTransStruct& r) {
         return l.value < r.value;
     }
@@ -168,7 +152,6 @@ typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     //vector<CTransStruct> transactions;
     vector<ColumnTransaction_t> transactions;
-    //std::map<uint64_t, vector<CTransStruct>> transactions;
 };
 struct CTRSLessThan_t {
     bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -182,7 +165,7 @@ struct CTRSLessThan_t {
     }
 } CTRSLessThan;
 
-
+// the structure that WAS used inside the RelationStruct to record the transactoins of that relation
 struct TransStruct {
     uint64_t trans_id;
     std::unique_ptr<tuple_t> tuple;
@@ -201,16 +184,23 @@ struct TRSLessThan_t {
         return target < o.trans_id;
     }
 } TRSLessThan;
+
+// The general structure for each relation
 struct RelationStruct {
-    //vector<TransStruct> transactions;
     unordered_map<uint32_t, std::unique_ptr<uint64_t[]>> insertedRows;
 };
-static vector<RelationStruct> gRelations;
 
+// RELATION STRUCTURES
+
+// general relations
+static std::unique_ptr<RelationStruct[]> gRelations;
+// transactions in each relation column - all tuples of same transaction in one vector
 struct RelationColumns {
     vector<ColumnStruct> columns;
 };
-static vector<RelationColumns> gRelColumns;
+static std::unique_ptr<RelationColumns[]> gRelColumns;
+
+// TRANSACTION HISTORY STRUCTURES
 
 struct TransOperation {
     uint32_t rel_id;
@@ -225,7 +215,10 @@ struct TransactionStruct {
 };
 static vector<TransactionStruct> gTransactionHistory;
 
-static vector<uint32_t> gSchema;
+static uint32_t NUM_RELATIONS;
+static std::unique_ptr<uint32_t[]> gSchema;
+
+///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
 static vector<LPValidation> gPendingValidations;
 //typedef atomic_wrapper<bool> PendingResultType;
@@ -268,14 +261,13 @@ static void processSingleTransaction(const Transaction&);
 ///--------------------------------------------------------------------------
 
 static void processDefineSchema(const DefineSchema& d) {
-    gSchema.clear();
-    gSchema.insert(gSchema.begin(),d.columnCounts,d.columnCounts+d.relationCount);
+    gSchema.reset(new uint32_t[d.relationCount]);
+    memcpy(gSchema.get(), d.columnCounts, sizeof(uint32_t)*d.relationCount);
+    NUM_RELATIONS = d.relationCount;
 
-    gRelations.clear();
-    gRelations.resize(d.relationCount);
-    gRelColumns.resize(d.relationCount);
+    gRelations.reset(new RelationStruct[d.relationCount]);
+    gRelColumns.reset(new RelationColumns[d.relationCount]);
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
-        //gRelations[ci].columns.resize(gSchema[ci]);
         gRelColumns[ci].columns.resize(gSchema[ci]);
     }
 }
