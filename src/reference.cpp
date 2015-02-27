@@ -553,6 +553,7 @@ int main(int argc, char**argv) {
 }
 //---------------------------------------------------------------------------
 
+static map<uint32_t, vector<tuple_t>> locals;
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -561,7 +562,7 @@ static void processSingleTransaction(const Transaction& t) {
     const char* reader=t.operations;
 
     vector<TransOperation> operations;
-    map<uint32_t, vector<tuple_t>> locals;
+    locals.clear();
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -697,7 +698,9 @@ static void processSingleTransaction(const Transaction& t) {
         }
         for (uint32_t c=0; c<relCols; ++c) {
             sort(colPtrs[c].begin(), colPtrs[c].end(), CTransStruct::CompValOnly);
+            gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
         }
+        /*
         // INSERT the vectors into the relation columns in the right position to retain transaction ordering
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
@@ -707,6 +710,7 @@ static void processSingleTransaction(const Transaction& t) {
                 gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
             }
         }
+        */
     }
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
