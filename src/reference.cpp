@@ -222,6 +222,7 @@ static std::unique_ptr<uint32_t[]> gSchema;
 
 ///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
+static vector<pair<uint64_t, unique_ptr<map<uint32_t, vector<tuple_t>>>>> gPendingIndex;
 static vector<LPValidation> gPendingValidations;
 //typedef atomic_wrapper<bool> PendingResultType;
 typedef char PendingResultType;
@@ -258,6 +259,8 @@ static void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 static void processSingleTransaction(const Transaction&);
 
+static inline void checkPendingTransactions(SingleTaskPool& pool);
+static void processPendingIndexTask(uint32_t nThreads, uint32_t tid);
 
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
@@ -311,17 +314,17 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
 
     uint64_t batchPos = v.from; 
+
     //uint64_t trRange = v.to - v.from + 1;
-    //static uint64_t bSize = 5000;
+    //static uint64_t bSize = 500;
     {
         std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-        /*
-           while (trRange > bSize) {
+        
+         //  while (trRange > bSize) {
         //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
-        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
-        trRange -= bSize; batchPos += bSize;
-        }
-         */
+        //gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
+        //trRange -= bSize; batchPos += bSize;
+        //}
         gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
         //cerr << batchPos << "-" << v.to << endl;
 
@@ -512,6 +515,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Transaction: 
                     Globals.state = GlobalState::TRANSACTION;
+                    //if (gPendingIndex.size() > 100) checkPendingTransactions(workerThreads);
                     processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
                     msgQ.registerDeq(res.refId);
                     break;
@@ -556,7 +560,6 @@ int main(int argc, char**argv) {
 }
 //---------------------------------------------------------------------------
 
-static vector<pair<uint64_t, unique_ptr<map<uint32_t, vector<tuple_t>>>>> gPendingIndex;
 
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
@@ -716,15 +719,8 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     }
 }
 
-
-static uint64_t resIndexOffset = 0;
-static std::atomic<uint64_t> gNextPending;
-
-static void checkPendingValidations(SingleTaskPool &pool) {
-    if (gPendingValidations.empty()) return;
-#ifdef LPDEBUG
-    auto start = LPTimer.getChrono();
-#endif
+static inline void checkPendingTransactions(SingleTaskPool& pool) {
+    if (gPendingIndex.empty()) return;
 
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
@@ -736,6 +732,18 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif
+}
+
+
+static uint64_t resIndexOffset = 0;
+static std::atomic<uint64_t> gNextPending;
+
+static void checkPendingValidations(SingleTaskPool &pool) {
+    if (gPendingValidations.empty()) return;
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+#endif
+    checkPendingTransactions(pool);
 
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
