@@ -65,7 +65,7 @@
 using namespace std;
 using namespace lp;
 
-//#define LPDEBUG  
+#define LPDEBUG  
 
 //---------------------------------------------------------------------------
 // Begin reference implementation
@@ -441,7 +441,7 @@ void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
     return;
 }
 
-void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
+void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
     ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
     processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
@@ -563,17 +563,13 @@ static void processSingleTransaction(const Transaction& t) {
     gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
     vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
-    static vector<uint64_t> ntpl;
-
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
-        //auto& relation = gRelations[o.relationId];
         auto& rows = gRelations[o.relationId].insertedRows;
         auto& relColumns = gRelColumns[o.relationId].columns;
         const uint32_t relCols = gSchema[o.relationId];
         vector<CTransStruct>* colVecs[relCols];
-        //cerr << " " << o.relationId;
 
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
@@ -596,9 +592,7 @@ static void processSingleTransaction(const Transaction& t) {
                     tuple_t tpl = operations.back().tuple.get();
 
                     for (uint32_t col=0; col<relCols; ++col) {
-                        // TODO - TODO - TODO - transaction id is not needed here since the tuples
                         // are inserted inside the transactions vector anyway
-                        //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
                         colVecs[col]->push_back(move(CTransStruct(tpl[col], tpl)));
                     }
 
@@ -643,12 +637,11 @@ static void processSingleTransaction(const Transaction& t) {
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 //operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
                 //relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
-                ntpl.clear();
-                ntpl.insert(ntpl.begin(), values, values+relCols);
+                //ntpl.insert(ntpl.begin(), values, values+relCols);
                 std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
-                memcpy(tptr.get(), ntpl.data(), sizeof(uint64_t)*relCols);
+                memcpy(tptr.get(), values, sizeof(uint64_t)*relCols);
                 std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
-                memcpy(tptr2.get(), ntpl.data(), sizeof(uint64_t)*relCols);
+                memcpy(tptr2.get(), values, sizeof(uint64_t)*relCols);
 
                 operations.push_back(move(TransOperation(o.relationId, move(tptr))));
                 relation.insertedRows[values[0]]=move(tptr2);
