@@ -644,17 +644,18 @@ static void processSingleTransaction(const Transaction& t) {
             uint64_t* tptr_r;
             const uint64_t *vptr;
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
-                tptr_r = tptr.get(); vptr = values;
-                for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
+                //std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
+                //tptr_r = tptr.get(); vptr = values;
+                //for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
                 std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
                 tptr_r = tptr2.get(); vptr = values;
                 for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
 
-                operations.push_back(move(TransOperation(o.relationId, move(tptr))));
-                relation.insertedRows[values[0]]=move(tptr2);
+                vec.push_back(tptr2.get());
                 
-                vec.push_back(operations.back().tuple.get());
+                //operations.push_back(move(TransOperation(o.relationId, move(tptr))));
+                //operations.push_back(move(TransOperation(o.relationId, std:unique_ptr<uint64_t[]>())));
+                relation.insertedRows[values[0]]=move(tptr2);
                 
                 
                 /*
