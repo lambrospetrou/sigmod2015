@@ -1,7 +1,13 @@
+#Profiling CFLAGS
+# march=core2 - this was before by awfy
+MATH_FLAGS=-ffast-math -funsafe-math-optimizations -fassociative-math -ffinite-math-only -fno-signed-zeros
+CFLAGS=-march=native -msse4.1 -std=c++11 -O3 -W -Wall -Wextra -DDEBUG -DEXPBACKOFF -g -pedantic $(MATH_FLAGS) -funroll-all-loops -fvariable-expansion-in-unroller -fno-omit-frame-pointer -Iinclude
+RELEASE_CFLAGS=-march=native -msse4.1 -std=c++11 -O3 -W -Wall -Wextra -Werror -DNDEBUG -DNDBGPRINT -DEXPBACKOFF $(MATH_FLAGS) -funroll-all-loops -fvariable-expansion-in-unroller -Iinclude
+
 all: reference
 
 reference: reference.cpp BoundedSRSWQueue.hpp
-	g++ -std=c++11 -O3 -march=native -Wall -Wextra -Werror -o$@ reference.cpp -lpthread
+	g++ $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread
 
 clean:
 	rm reference
