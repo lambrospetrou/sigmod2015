@@ -634,14 +634,20 @@ static void processSingleTransaction(const Transaction& t) {
                 colVecs[col] = &relColumns[col].transactions.back().second;
             }
 
+            uint64_t* tptr_r;
+            const uint64_t *vptr;
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 //operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
                 //relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
                 //ntpl.insert(ntpl.begin(), values, values+relCols);
                 std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
-                memcpy(tptr.get(), values, sizeof(uint64_t)*relCols);
+                //memcpy(tptr.get(), values, sizeof(uint64_t)*relCols);
+                tptr_r = tptr.get(); vptr = values;
+                for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
                 std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
-                memcpy(tptr2.get(), values, sizeof(uint64_t)*relCols);
+                //memcpy(tptr2.get(), values, sizeof(uint64_t)*relCols);
+                tptr_r = tptr2.get(); vptr = values;
+                for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
 
                 operations.push_back(move(TransOperation(o.relationId, move(tptr))));
                 relation.insertedRows[values[0]]=move(tptr2);
@@ -658,8 +664,6 @@ static void processSingleTransaction(const Transaction& t) {
 
             // SORT THE VALUES
             for (uint32_t col=0; col<relCols; ++col) {
-                //auto& vec = relColumns[col].transactions.back().second;
-                //std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
                 std::sort(colVecs[col]->begin(), colVecs[col]->end(), CTransStruct::CompValOnly);
             }
 
@@ -679,14 +683,12 @@ static std::atomic<uint64_t> gNextPending;
 
 static void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
-    //if (!gPendingValidations.empty()) processPendingValidations(); 
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
     // assuming that gPendingValidations is sorted on the validation Id
-    //resIndexOffset = gPendingValidations[0].validationId;   
     resIndexOffset = UINT64_MAX;
     for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
     auto gPRsz = gPendingResults.size();
