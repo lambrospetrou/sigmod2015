@@ -560,42 +560,45 @@ static void processSingleTransaction(const Transaction& t) {
 #endif
     const char* reader=t.operations;
 
-    //gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
-    //vector<TransOperation>& operations = gTransactionHistory.back().operations;
     vector<TransOperation> operations;
+    map<uint32_t, vector<tuple_t>> locals;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
         auto& rows = gRelations[o.relationId].insertedRows;
-        auto& relColumns = gRelColumns[o.relationId].columns;
-        const uint32_t relCols = gSchema[o.relationId];
-        vector<CTransStruct>* colVecs[relCols];
+        //auto& relColumns = gRelColumns[o.relationId].columns;
+        //const uint32_t relCols = gSchema[o.relationId];
+        //vector<CTransStruct>* colVecs[relCols];
 
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-             
+            /*/   
             for (uint32_t col=0; col<relCols; ++col) {
                 relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
                 colVecs[col] = &relColumns[col].transactions.back().second;
             }
+            */
 
+            auto& vec = locals[o.relationId];
             for (const uint64_t* key=o.keys,*keyLimit=key+o.rowCount;key!=keyLimit;++key) {
                 auto lb = rows.find(*key);
                 if (lb != rows.end()) {
                     // update the relation transactions - transfer ownership of the tuple
                     //relation.transactions.push_back(move(TransStruct(t.transactionId, move(lb->second))));
                     operations.push_back(move(TransOperation(o.relationId, move(lb->second))));
+                    vec.push_back(operations.back().tuple.get());
 
                     // insert into transaction history
+/*
                     tuple_t tpl = operations.back().tuple.get();
-
                     for (uint32_t col=0; col<relCols; ++col) {
                         // are inserted inside the transactions vector anyway
                         colVecs[col]->push_back(move(CTransStruct(tpl[col], tpl)));
                     }
+*/
 
                     // remove the row from the relations table
                     rows.erase(lb);
@@ -604,13 +607,14 @@ static void processSingleTransaction(const Transaction& t) {
 #endif
                 }
             }
-
+/*
             // SORT THE VALUES
             for (uint32_t col=0; col<relCols; ++col) {
                 //auto& vec = relColumns[col].transactions.back().second;
                 //std::sort(vec.begin(), vec.end(), CTransStruct::CompValOnly);
                 std::sort(colVecs[col]->begin(), colVecs[col]->end(), CTransStruct::CompValOnly);
             }
+*/
         }// end of lock_guard
 
         // advance to the next Relation deletions
@@ -621,54 +625,87 @@ static void processSingleTransaction(const Transaction& t) {
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         auto& relation = gRelations[o.relationId];
-        auto& relColumns = gRelColumns[o.relationId].columns;
+        //auto& relColumns = gRelColumns[o.relationId].columns;
         const uint32_t relCols = gSchema[o.relationId];
-        vector<CTransStruct>* colVecs[relCols];
+        //vector<CTransStruct>* colVecs[relCols];
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-
+/*
             // TODO change this in order to use the same vectors for DELETES & INSERTS
             for (uint32_t col=0; col<relCols; ++col) {
                 relColumns[col].transactions.push_back(move(std::make_pair(t.transactionId, move(vector<CTransStruct>()))));
                 colVecs[col] = &relColumns[col].transactions.back().second;
             }
-
+*/
+            auto& vec = locals[o.relationId];
             uint64_t* tptr_r;
             const uint64_t *vptr;
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                 std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
-                //memcpy(tptr.get(), values, sizeof(uint64_t)*relCols);
                 tptr_r = tptr.get(); vptr = values;
                 for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
                 std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
-                //memcpy(tptr2.get(), values, sizeof(uint64_t)*relCols);
                 tptr_r = tptr2.get(); vptr = values;
                 for (uint32_t c=0; c<relCols; ++c) *tptr_r++ = *vptr++;
 
                 operations.push_back(move(TransOperation(o.relationId, move(tptr))));
                 relation.insertedRows[values[0]]=move(tptr2);
+                
+                vec.push_back(operations.back().tuple.get());
+                
+                
+                /*
                 // insert the tuples only in columns
                 tuple_t tpl = operations.back().tuple.get();
                 for (uint32_t col=0; col<relCols; ++col) {
                     //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
                     colVecs[col]->push_back(move(CTransStruct(values[col], tpl)));
                 }
+                */
+
 #ifdef LPDEBUG
                 ++gTotalTuples;
 #endif
             }
-
+/*
             // SORT THE VALUES
             for (uint32_t col=0; col<relCols; ++col) {
                 std::sort(colVecs[col]->begin(), colVecs[col]->end(), CTransStruct::CompValOnly);
             }
-
+*/
         }// end of lock_guard
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
+
+
+    ///// MOST DIFFICULT PART - NEED TO BE OPTIMIZED - Insert the tuples in the relations
+        // column-wise !!!
+    //vector<CTransStruct> *vptr;
+    for (auto& rtr : locals) {
+        uint32_t relCols = gSchema[rtr.first];
+        std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
+        for (uint32_t ti=0,tsz=rtr.second.size(); ti<tsz; ++ti) {
+            for (uint32_t c=0; c<relCols; ++c) {
+                colPtrs[c].push_back(move(CTransStruct(rtr.second[ti][c], rtr.second[ti])));
+            }
+        }
+        for (uint32_t c=0; c<relCols; ++c) {
+            sort(colPtrs[c].begin(), colPtrs[c].end(), CTransStruct::CompValOnly);
+        }
+        // INSERT the vectors into the relation columns in the right position to retain transaction ordering
+        {// start of lock_guard
+            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            
+            // find the position that we need to get inserted - BINARY SEARCH IF PARALLEL
+            for (uint32_t c=0; c<relCols; ++c) {
+                gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
+            }
+        }
+    }
+
 
     // update the transaction history
     // TODO - HERE WE WILL HAVE TO LOCK THE VECTOR AND ADD THE TRANSACTION IN THE RIGHT PLACE
