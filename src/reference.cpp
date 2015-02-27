@@ -633,11 +633,11 @@ static void processSingleTransaction(const Transaction& t) {
 
     gPendingIndex.push_back(move(make_pair(t.transactionId, move(locals_ptr))));
 
+/*
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
 
-/*
     ///// MOST DIFFICULT PART - NEED TO BE OPTIMIZED - Insert the tuples in the relations
     // column-wise !!!
     //vector<CTransStruct> *vptr;
@@ -654,11 +654,11 @@ static void processSingleTransaction(const Transaction& t) {
             gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
         }
     }
-*/
+
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif
-
+*/
 
     // update the transaction history
     // TODO - HERE WE WILL HAVE TO LOCK THE VECTOR AND ADD THE TRANSACTION IN THE RIGHT PLACE
@@ -725,10 +725,17 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
+
+#ifdef LPDEBUG
+    auto startIndex = LPTimer.getChrono();
+#endif
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
     gPendingIndex.clear();
+#ifdef LPDEBUG
+    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
+#endif
 
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
