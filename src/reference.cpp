@@ -681,6 +681,9 @@ static void processSingleTransaction(const Transaction& t) {
     }
 
 
+#ifdef LPDEBUG
+    auto startIndex = LPTimer.getChrono();
+#endif
     ///// MOST DIFFICULT PART - NEED TO BE OPTIMIZED - Insert the tuples in the relations
         // column-wise !!!
     //vector<CTransStruct> *vptr;
@@ -705,6 +708,9 @@ static void processSingleTransaction(const Transaction& t) {
             }
         }
     }
+#ifdef LPDEBUG
+    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
+#endif
 
 
     // update the transaction history
