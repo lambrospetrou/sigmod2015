@@ -121,14 +121,14 @@ bool operator== (const Query::Column& left, const Query::Column& right) {
 ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////
 
-typedef vector<uint64_t> tuple_t;
+typedef uint64_t* tuple_t;
 
 // Custom data structures to hold data
 struct CTransStruct {
     uint64_t trans_id;
     uint64_t value;
-    tuple_t *tuple;
-    CTransStruct (uint64_t tid, uint64_t v, tuple_t *t) : trans_id(tid), value(v), tuple(t) {}
+    tuple_t tuple;
+    CTransStruct (uint64_t tid, uint64_t v, tuple_t t) : trans_id(tid), value(v), tuple(t) {}
     bool operator< (const CTransStruct& o) { 
         if (value < o.value) return true;
         else if (o.value < value) return false;
@@ -200,7 +200,7 @@ struct TRSLessThan_t {
 } TRSLessThan;
 struct RelationStruct {
     //vector<TransStruct> transactions;
-    unordered_map<uint32_t, std::unique_ptr<tuple_t>> insertedRows;
+    unordered_map<uint32_t, std::unique_ptr<uint64_t[]>> insertedRows;
 };
 static vector<RelationStruct> gRelations;
 
@@ -211,8 +211,8 @@ static vector<RelationColumns> gRelColumns;
 
 struct TransOperation {
     uint32_t rel_id;
-    std::unique_ptr<tuple_t> tuple;
-    TransOperation(uint32_t relid, std::unique_ptr<tuple_t> t):
+    std::unique_ptr<uint64_t[]> tuple;
+    TransOperation(uint32_t relid, std::unique_ptr<uint64_t[]> t):
         rel_id(relid), tuple(move(t)) {}
 };
 struct TransactionStruct {
@@ -565,6 +565,8 @@ static void processSingleTransaction(const Transaction& t) {
     gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
     vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
+    vector<uint64_t> ntpl;
+
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
@@ -593,13 +595,13 @@ static void processSingleTransaction(const Transaction& t) {
                     operations.push_back(move(TransOperation(o.relationId, move(lb->second))));
 
                     // insert into transaction history
-                    tuple_t *tpl = operations.back().tuple.get();
+                    tuple_t tpl = operations.back().tuple.get();
 
                     for (uint32_t col=0; col<relCols; ++col) {
                         // TODO - TODO - TODO - transaction id is not needed here since the tuples
                         // are inserted inside the transactions vector anyway
                         //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
-                        colVecs[col]->push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
+                        colVecs[col]->push_back(move(CTransStruct(t.transactionId, tpl[col], tpl)));
                     }
 
                     // remove the row from the relations table
@@ -625,7 +627,7 @@ static void processSingleTransaction(const Transaction& t) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         auto& relation = gRelations[o.relationId];
         auto& relColumns = gRelColumns[o.relationId].columns;
-        uint32_t relCols = gSchema[o.relationId];
+        const uint32_t relCols = gSchema[o.relationId];
         vector<CTransStruct>* colVecs[relCols];
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
@@ -639,11 +641,19 @@ static void processSingleTransaction(const Transaction& t) {
             }
 
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
-                relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
+                //operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
+                //relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
+                ntpl.clear();
+                ntpl.insert(ntpl.begin(), values, values+relCols);
+                std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
+                memcpy(tptr.get(), ntpl.data(), sizeof(uint64_t)*relCols);
+                std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
+                memcpy(tptr2.get(), ntpl.data(), sizeof(uint64_t)*relCols);
 
+                operations.push_back(move(TransOperation(o.relationId, move(tptr))));
+                relation.insertedRows[values[0]]=move(tptr2);
                 // insert the tuples only in columns
-                tuple_t *tpl = operations.back().tuple.get();
+                tuple_t tpl = operations.back().tuple.get();
                 for (uint32_t col=0; col<relCols; ++col) {
                     //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
                     colVecs[col]->push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
@@ -806,7 +816,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
 
                 for(; tupFrom!=tupTo; ++tupFrom) {  
-                    tuple_t& tuple = *tupFrom->tuple;
+                    tuple_t& tuple = tupFrom->tuple;
                     //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
                     bool match=true;
                     for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
