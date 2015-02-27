@@ -65,7 +65,7 @@
 using namespace std;
 using namespace lp;
 
-#define LPDEBUG  
+//#define LPDEBUG  
 
 //---------------------------------------------------------------------------
 // Begin reference implementation
@@ -125,15 +125,17 @@ typedef uint64_t* tuple_t;
 
 // Custom data structures to hold data
 struct CTransStruct {
-    uint64_t trans_id;
+    //uint64_t trans_id;
     uint64_t value;
     tuple_t tuple;
-    CTransStruct (uint64_t tid, uint64_t v, tuple_t t) : trans_id(tid), value(v), tuple(t) {}
+    CTransStruct (uint64_t v, tuple_t t) : value(v), tuple(t) {}
     bool operator< (const CTransStruct& o) { 
-        if (value < o.value) return true;
-        else if (o.value < value) return false;
-        else return trans_id < o.trans_id;
+        return value < o.value;
+        //if (value < o.value) return true;
+        //else if (o.value < value) return false;
+        //else return trans_id < o.trans_id;
     }
+    /*
     static bool CompValTrans(const CTransStruct& l, const CTransStruct& r) {
         if (l.value < r.value) return true;
         else if (r.value < l.value) return false;
@@ -144,12 +146,13 @@ struct CTransStruct {
         else if (r.trans_id < l.trans_id) return false;
         else return l.value < r.value;
     }
+    */
     static bool CompValOnly(const CTransStruct& l, const CTransStruct& r) {
         return l.value < r.value;
     }
 };
 std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
-    os << "{" << o.trans_id << "-" << o.value << "}";
+    os << "{" /*<< o.trans_id*/ << "-" << o.value << "}";
     return os;
 }
 struct CTRSValueLessThan_t {
@@ -379,7 +382,7 @@ static void processForget(const Forget& f) {
     upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
     }
      */
-    
+   /* 
     // delete the transactions from the columns index
     for (auto& cRelCol : gRelColumns) {
         for (auto& cCol : cRelCol.columns) {
@@ -397,7 +400,7 @@ static void processForget(const Forget& f) {
        f.transactionId,
        [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
        gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-     
+     */
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -453,7 +456,9 @@ void parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     pvs->memQ->free(pvs->memRefId);
 }
 
+#ifdef LPDEBUG
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
+#endif
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -558,14 +563,14 @@ int main(int argc, char**argv) {
 static void processSingleTransaction(const Transaction& t) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
+    ++gTotalTransactions; 
 #endif
     const char* reader=t.operations;
-    ++gTotalTransactions; 
 
     gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
     vector<TransOperation>& operations = gTransactionHistory.back().operations;
 
-    vector<uint64_t> ntpl;
+    static vector<uint64_t> ntpl;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -601,12 +606,14 @@ static void processSingleTransaction(const Transaction& t) {
                         // TODO - TODO - TODO - transaction id is not needed here since the tuples
                         // are inserted inside the transactions vector anyway
                         //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, (*tpl)[col], tpl)));
-                        colVecs[col]->push_back(move(CTransStruct(t.transactionId, tpl[col], tpl)));
+                        colVecs[col]->push_back(move(CTransStruct(tpl[col], tpl)));
                     }
 
                     // remove the row from the relations table
                     rows.erase(lb);
+#ifdef LPDEBUG
                     ++gTotalTuples;
+#endif
                 }
             }
 
@@ -656,10 +663,11 @@ static void processSingleTransaction(const Transaction& t) {
                 tuple_t tpl = operations.back().tuple.get();
                 for (uint32_t col=0; col<relCols; ++col) {
                     //relColumns[col].transactions.back().second.push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
-                    colVecs[col]->push_back(move(CTransStruct(t.transactionId, values[col], tpl)));
+                    colVecs[col]->push_back(move(CTransStruct(values[col], tpl)));
                 }
-
+#ifdef LPDEBUG
                 ++gTotalTuples;
+#endif
             }
 
             // SORT THE VALUES
