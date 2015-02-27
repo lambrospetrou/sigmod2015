@@ -560,8 +560,9 @@ static void processSingleTransaction(const Transaction& t) {
 #endif
     const char* reader=t.operations;
 
-    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
-    vector<TransOperation>& operations = gTransactionHistory.back().operations;
+    //gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(vector<TransOperation>()))));
+    //vector<TransOperation>& operations = gTransactionHistory.back().operations;
+    vector<TransOperation> operations;
 
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -637,9 +638,6 @@ static void processSingleTransaction(const Transaction& t) {
             uint64_t* tptr_r;
             const uint64_t *vptr;
             for (const uint64_t* values=o.values,*valuesLimit=values+(o.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                //operations.push_back(move(TransOperation(o.relationId, move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols))))));
-                //relation.insertedRows[values[0]]=move(std::unique_ptr<tuple_t>(new tuple_t(values, values+relCols)));
-                //ntpl.insert(ntpl.begin(), values, values+relCols);
                 std::unique_ptr<uint64_t[]> tptr(new uint64_t[relCols]);
                 //memcpy(tptr.get(), values, sizeof(uint64_t)*relCols);
                 tptr_r = tptr.get(); vptr = values;
@@ -671,6 +669,11 @@ static void processSingleTransaction(const Transaction& t) {
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
+
+    // update the transaction history
+    // TODO - HERE WE WILL HAVE TO LOCK THE VECTOR AND ADD THE TRANSACTION IN THE RIGHT PLACE
+    gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(operations))));
+
 
 #ifdef LPDEBUG
     LPTimer.transactions += LPTimer.getChrono(start);
