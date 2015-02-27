@@ -785,35 +785,37 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             uint32_t pFrom = 0;
             for(auto iter=transFrom; iter!=transTo; ++iter) {  
                 auto& transValues = iter->second;
-                decltype(transValues.begin()) tupFrom, tupTo;
+                decltype(transValues.begin()) tupFrom, tupTo, tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
                 if (pFirst.op == Query::Column::Equal) {
-                    tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
-                    tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
+                    if (tupFrom == tEnd) continue;
+                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == Query::Column::Less) {
-                    tupFrom = transValues.begin();                    
-                    tupTo = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    tupFrom = tBegin;                    
+                    tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == Query::Column::LessOrEqual) {
-                    tupFrom = transValues.begin();                    
-                    tupTo = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                   
+                    tupFrom = tBegin;                    
+                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == Query::Column::Greater) {
-                    tupFrom = std::upper_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
-                    tupTo = transValues.end();                   
+                    tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);  
+                    tupTo = tEnd;                   
                     pFrom = 1;
                 } else if (pFirst.op == Query::Column::GreaterOrEqual) {
-                    tupFrom = std::lower_bound(transValues.begin(), transValues.end(), pFirst.value, CTRSValueLessThan);                    
-                    tupTo = transValues.end();                   
+                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
+                    tupTo = tEnd;                   
                     pFrom = 1;
                 } else {
-                    tupFrom = transValues.begin();
-                    tupTo = transValues.end();
+                    tupFrom = tBegin;
+                    tupTo = tEnd;
                     pFrom = 0;
                 }
                 
                 //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
+                if (tupTo == tupFrom) continue;
 
                 for(; tupFrom!=tupTo; ++tupFrom) {  
                     tuple_t& tuple = tupFrom->tuple;
