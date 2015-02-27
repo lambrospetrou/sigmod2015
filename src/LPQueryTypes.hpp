@@ -11,6 +11,7 @@
 #include <utility>
 #include <algorithm>
 
+            static uint8_t opw[6] = { 0, 5, 1, 2, 3, 4 }; 
 namespace lp {
 
     using namespace std;
@@ -44,8 +45,9 @@ namespace lp {
             else return left.value < right.value;    
         }
         static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
-            if (left.op < right.op) return true;
-            else if (right.op < left.op) return false;
+            // Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual
+            if (opw[left.op] < opw[right.op]) return true;
+            else if (opw[right.op] < opw[left.op]) return false;
             else if (left.column < right.column) return true;
             else if (right.column < left.column) return false;
             else return left.value < right.value;    
