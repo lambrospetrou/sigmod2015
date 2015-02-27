@@ -11,10 +11,13 @@
 #include <utility>
 #include <algorithm>
 
-            static uint8_t opw[6] = { 0, 5, 1, 2, 3, 4 }; 
 namespace lp {
 
     using namespace std;
+
+    //static uint32_t opw[6] = { 0, 5, 1, 2, 3, 4 }; 
+    //static LPOps lpopw[6] = { LPOps::Equal, LPOps::NotEqual, LPOps::Less, LPOps::LessOrEqual, LPOps::Greater, LPOps::GreaterOrEqual }; 
+    //enum LPOps : uint32_t { Equal, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqual }
 
     struct LPQuery {
         /// The relation
@@ -34,6 +37,9 @@ namespace lp {
             std::sort(predicates.begin(), predicates.end());
             predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
             //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
+            // reorder operators
+            for (auto& p : predicates) if (p.op == LPOps::NotEqual) p.op = LPOps::NotEqualLast ;
+
             columnCount = predicates.size();
         }
         // this is the default - operator< of Column
@@ -45,9 +51,8 @@ namespace lp {
             else return left.value < right.value;    
         }
         static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
-            // Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual
-            if (opw[left.op] < opw[right.op]) return true;
-            else if (opw[right.op] < opw[left.op]) return false;
+            if (left.op < right.op) return true;
+            else if (right.op < left.op) return false;
             else if (left.column < right.column) return true;
             else if (right.column < left.column) return false;
             else return left.value < right.value;    
@@ -73,7 +78,7 @@ namespace lp {
     // the following will be used for the query filtering and quick rejection
     namespace validation {
 
-        typedef Query::Column::Op Op;
+        typedef LPOps Op;
         typedef Query::Column Column;
 
         struct Satisfiability {
@@ -99,6 +104,7 @@ namespace lp {
                     sat.eq = p.value;
                     break;
                 case Op::NotEqual:
+                case Op::NotEqualLast:
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
                     sat.pastOps[Op::NotEqual] = true;

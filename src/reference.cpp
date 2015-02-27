@@ -788,24 +788,24 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 decltype(transValues.begin()) tupFrom, tupTo, 
                     tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
-                if (pFirst.op == Query::Column::Equal) {
+                if (pFirst.op == lp::LPOps::Equal) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     if (tupFrom == tEnd) continue;
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == Query::Column::Less) {
+                } else if (pFirst.op == lp::LPOps::Less) {
                     tupFrom = tBegin;                    
                     tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == Query::Column::LessOrEqual) {
+                } else if (pFirst.op == lp::LPOps::LessOrEqual) {
                     tupFrom = tBegin;                    
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == Query::Column::Greater) {
+                } else if (pFirst.op == lp::LPOps::Greater) {
                     tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);  
                     tupTo = tEnd;                   
                     pFrom = 1;
-                } else if (pFirst.op == Query::Column::GreaterOrEqual) {
+                } else if (pFirst.op == lp::LPOps::GreaterOrEqual) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     tupTo = tEnd;                   
                     pFrom = 1;
@@ -831,23 +831,24 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                         uint64_t queryValue = c.value;
                         bool result=false;
                         switch (c.op) {
-                            case Query::Column::Equal: 
+                            case lp::LPOps::Equal: 
                                 result=(tupleValue==queryValue); 
                                 break;
-                            case Query::Column::NotEqual: 
-                                result=(tupleValue!=queryValue); 
-                                break;
-                            case Query::Column::Less: 
+                            case lp::LPOps::Less: 
                                 result=(tupleValue<queryValue); 
                                 break;
-                            case Query::Column::LessOrEqual: 
+                            case lp::LPOps::LessOrEqual: 
                                 result=(tupleValue<=queryValue); 
                                 break;
-                            case Query::Column::Greater: 
+                            case lp::LPOps::Greater: 
                                 result=(tupleValue>queryValue); 
                                 break;
-                            case Query::Column::GreaterOrEqual: 
+                            case lp::LPOps::GreaterOrEqual: 
                                 result=(tupleValue>=queryValue); 
+                                break;
+                            case lp::LPOps::NotEqual: 
+                            case lp::LPOps::NotEqualLast: 
+                                result=(tupleValue!=queryValue); 
                                 break;
                         } 
                         // there is one predicate not true so this whole query on this relation is false

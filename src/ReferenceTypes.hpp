@@ -26,7 +26,7 @@ struct Transaction {
     /// The operation counts
     uint32_t deleteCount,insertCount;
     /// A sequence of transaction operations. Deletes first, total deleteCount+insertCount operations
-    char operations[];
+    char operations[];    
 };
 //---------------------------------------------------------------------------
 struct TransactionOperationDelete {
@@ -58,6 +58,9 @@ struct ValidationQueries {
     char queries[];
 };
 //---------------------------------------------------------------------------
+namespace lp {
+    enum LPOps : uint32_t { Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqualLast };
+}
 struct Query {
     /// A column description
     struct Column {
@@ -66,7 +69,7 @@ struct Query {
         /// The column id
         uint32_t column;
         /// The operations
-        Op op;
+        lp::LPOps op;
         /// The constant
         uint64_t value;
     };
