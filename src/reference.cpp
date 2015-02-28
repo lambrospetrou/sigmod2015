@@ -722,8 +722,6 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
 }
 
 
-
-
 static std::atomic<uint64_t> gNextIndex;
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
