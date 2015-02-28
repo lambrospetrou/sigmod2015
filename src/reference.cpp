@@ -220,7 +220,6 @@ static std::unique_ptr<uint32_t[]> gSchema;
 
 ///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
-static vector<pair<uint64_t, unique_ptr<map<uint32_t, vector<tuple_t>>>>> gPendingIndex;
 static vector<LPValidation> gPendingValidations;
 //typedef atomic_wrapper<bool> PendingResultType;
 typedef char PendingResultType;
