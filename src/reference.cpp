@@ -200,7 +200,19 @@ struct RelationColumns {
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 
+
+
+struct TRMapPhase {
+    uint64_t trans_id;
+    bool isDelOp;
+    uint32_t rowCount;
+    uint64_t *values; // delete op => row keys to delete | insert => tuples
+
+    TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
+        : trans_id(tid), isDelOp(isdel), rowCount(rows), values(vals) {}
+};
 static unique_ptr<std::mutex[]> gRelTransMutex;
+static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
 
 // TRANSACTION HISTORY STRUCTURES
 
@@ -262,6 +274,7 @@ static void processSingleTransaction(const Transaction&);
 static inline void checkPendingTransactions(SingleTaskPool& pool);
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid);
 
+static void processTransactionMessage(const Transaction& t, vector<char>& data);
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
 
@@ -271,6 +284,8 @@ static void processDefineSchema(const DefineSchema& d) {
     NUM_RELATIONS = d.relationCount;
 
     gRelTransMutex.reset(new std::mutex[d.relationCount]);
+    gTransParseMapPhase.reset(new vector<TRMapPhase>[d.relationCount]);
+
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
@@ -319,8 +334,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     //static uint64_t bSize = 500;
     {
         std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-        
-         //  while (trRange > bSize) {
+
+        //  while (trRange > bSize) {
         //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
         //gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
         //trRange -= bSize; batchPos += bSize;
@@ -445,6 +460,21 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     pvs->msgQ->registerDeq(pvs->refId);
     pvs->memQ->free(pvs->memRefId);
 }
+
+
+void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads;
+    ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
+    processTransactionMessage(*reinterpret_cast<const Transaction*>(pvs->msg->data.data()), pvs->msg->data); 
+    pvs->msgQ->registerDeq(pvs->refId);
+    pvs->memQ->free(pvs->memRefId);
+}
+
+
+
+
+
+
 
 #ifdef LPDEBUG
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
@@ -630,33 +660,6 @@ static void processSingleTransaction(const Transaction& t) {
 
     gPendingIndex.push_back(move(make_pair(t.transactionId, move(locals_ptr))));
 
-/*
-#ifdef LPDEBUG
-    auto startIndex = LPTimer.getChrono();
-#endif
-
-    ///// MOST DIFFICULT PART - NEED TO BE OPTIMIZED - Insert the tuples in the relations
-    // column-wise !!!
-    //vector<CTransStruct> *vptr;
-    for (auto& rtr : locals) {
-        uint32_t relCols = gSchema[rtr.first];
-        std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
-        for (uint32_t ti=0,tsz=rtr.second.size(); ti<tsz; ++ti) {
-            for (uint32_t c=0; c<relCols; ++c) {
-                colPtrs[c].push_back(move(CTransStruct(rtr.second[ti][c], rtr.second[ti])));
-            }
-        }
-        for (uint32_t c=0; c<relCols; ++c) {
-            sort(colPtrs[c].begin(), colPtrs[c].end(), CTransStruct::CompValOnly);
-            gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
-        }
-    }
-
-#ifdef LPDEBUG
-    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
-#endif
-*/
-
     // update the transaction history
     // TODO - HERE WE WILL HAVE TO LOCK THE VECTOR AND ADD THE TRANSACTION IN THE RIGHT PLACE
     gTransactionHistory.push_back(move(TransactionStruct(t.transactionId, move(operations))));
@@ -666,6 +669,59 @@ static void processSingleTransaction(const Transaction& t) {
     LPTimer.transactions += LPTimer.getChrono(start);
 #endif
 }
+
+
+//////////////////////////////////////////////////////////////////////////////////
+//static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
+
+static void processTransactionMessage(const Transaction& t, vector<char>& data) {
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+    ++gTotalTransactions; 
+#endif
+    (void)data;
+
+    const char* reader=t.operations;
+    // Delete all indicated tuples
+    for (uint32_t index=0;index!=t.deleteCount;++index) {
+        auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
+        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
+        // TODO try to lock with try_lock and try again at the end if some relations failed
+        {// start of lock_guard
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            uint64_t *ptr = new uint64_t[o.rowCount];
+            const uint64_t *keys = o.keys;
+            for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
+        }// end of lock_guard
+        // advance to the next Relation deletions
+        reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
+    }
+
+    // Insert new tuples
+    for (uint32_t index=0;index!=t.insertCount;++index) {
+        auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
+        const uint32_t relCols = gSchema[o.relationId];
+        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
+        // TODO try to lock with try_lock and try again at the end if some relations failed
+        {// start of lock_guard
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            uint64_t* tptr = new uint64_t[relCols*o.rowCount];
+            const uint64_t *vptr=o.values;
+            uint32_t sz = relCols*o.rowCount;
+            for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
+        }// end of lock_guard
+        // advance to next Relation insertions
+        reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
+    }
+
+#ifdef LPDEBUG
+    LPTimer.transactions += LPTimer.getChrono(start);
+#endif
+}
+
+
 
 
 static std::atomic<uint64_t> gNextIndex;
@@ -692,7 +748,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 sort(colPtrs[c].begin(), colPtrs[c].end(), CTransStruct::CompValOnly);
                 //gRelColumns[rtr.first].columns[c].transactions.push_back(move(std::make_pair(t.transactionId, move(colPtrs[c]))));
             }
-            
+
             // INSERT the vectors into the relation columns in the right position to retain transaction ordering
             {// start of lock_guard
                 std::lock_guard<std::mutex> lk(gRelTransMutex[rtr.first]);
@@ -708,7 +764,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     tr.insert(tr.begin()+diff, move(std::make_pair(trans_locals.first, move(colPtrs[c]))));
                 }
             }
-             
+
         }
     }
 }
