@@ -11,6 +11,7 @@
 #include <functional>
 #include <queue>
 #include <utility>
+//#include <iostream>
 
 class MultiTaskPool {
     private:
@@ -25,7 +26,7 @@ class MultiTaskPool {
 
     public:
         MultiTaskPool(uint32_t tsz) : mNumOfThreads(tsz), 
-            mWaiting(0), mPoolStopped(false), mPoolRunning(false) {
+            mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz) {
         }
 
         void initThreads() {
@@ -55,6 +56,12 @@ class MultiTaskPool {
                     return (mWaiting == mNumOfThreads && mTasks.empty());
                     });
             lk.unlock();
+        }
+
+        void helpExecution() {
+            uint32_t tid = mHelperId++;
+            workerOutside(tid);
+            --mHelperId;
         }
 
         void destroy() {
@@ -97,6 +104,8 @@ class MultiTaskPool {
 
         std::queue<Task> mTasks;
 
+        std::atomic<uint32_t> mHelperId;
+
         void worker(uint32_t tid) {
             //cerr << tid << endl;
             while(true) {
@@ -119,6 +128,29 @@ class MultiTaskPool {
                 cTask.func(mNumOfThreads, tid, cTask.args);
                 // wait after the execution for the other threads
                 //cerr << "2" << endl;
+            }
+        }
+
+        void workerOutside (uint32_t tid) {
+            //std::cerr << tid << std::endl;
+            while(true) {
+                std::unique_lock<std::mutex> lk(mMutex);
+                //std::cerr << ">" << std::endl;
+                // all threads are waiting and no jobs are pending
+                if (mWaiting == mNumOfThreads ||  mTasks.empty()) {
+                    lk.unlock();
+                    return;
+                }
+                if (mPoolStopped || !mPoolRunning) { lk.unlock(); return; }
+
+                auto cTask = mTasks.front();
+                mTasks.pop();
+                lk.unlock();
+
+                //std::cerr << "got job!" << std::endl;
+
+                // run the function passing the thread ID
+                cTask.func(mNumOfThreads, tid, cTask.args);
             }
         }
 

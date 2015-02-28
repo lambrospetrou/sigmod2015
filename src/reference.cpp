@@ -500,8 +500,9 @@ int main(int argc, char**argv) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
                         //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+#ifndef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
-
+#endif
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
                         BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
                         ParseValidationStruct *pvs = mem.value;
@@ -521,6 +522,7 @@ int main(int argc, char**argv) {
                     break;
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -530,6 +532,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
