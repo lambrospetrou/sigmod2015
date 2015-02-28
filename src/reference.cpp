@@ -370,16 +370,7 @@ static void processForget(const Forget& f) {
     //cerr << "Forget: " << f.transactionId << endl;
     auto start = LPTimer.getChrono();
 #endif
-    (void)f.transactionId;
-    /*
-    // Delete the transactions from inside the columns in the relations
-    for(auto crel=gRelations.begin(), iend=gRelations.end(); crel!=iend; ++crel) {
-    // delete this transaction from the lastRel columns
-    auto& transactions = crel->transactions;
-    transactions.erase(transactions.begin(), 
-    upper_bound(transactions.begin(), transactions.end(), f.transactionId, TRSLessThan));
-    }
-     */
+    //(void)f.transactionId;
 
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
