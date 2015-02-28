@@ -50,16 +50,18 @@
 #include <system_error>
 #include <exception>
 
-#include "ReferenceTypes.hpp"
-#include "LPQueryTypes.hpp"
+#include "include/ReferenceTypes.hpp"
+#include "include/LPQueryTypes.hpp"
 
-#include "atomicwrapper.hpp"
-#include "LPTimer.hpp"
-#include "BoundedQueue.hpp"
-#include "BoundedAlloc.hpp"
-#include "SingleTaskPool.hpp"
-#include "MultiTaskPool.hpp"
-#include "LPSpinLock.hpp"
+#include "include/atomicwrapper.hpp"
+#include "include/LPTimer.hpp"
+#include "include/BoundedQueue.hpp"
+#include "include/BoundedAlloc.hpp"
+#include "include/SingleTaskPool.hpp"
+#include "include/MultiTaskPool.hpp"
+#include "include/LPSpinLock.hpp"
+
+#include "include/cpp_btree/btree_map.h"
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -150,7 +152,6 @@ struct CTRSValueLessThan_t {
 
 typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
-    //vector<CTransStruct> transactions;
     vector<ColumnTransaction_t> transactions;
 };
 struct CTRSLessThan_t {
@@ -165,21 +166,21 @@ struct CTRSLessThan_t {
     }
 } CTRSLessThan;
 
+// transactions in each relation column - all tuples of same transaction in one vector
+
+struct RelationColumns {
+    vector<ColumnStruct> columns;
+};
+static std::unique_ptr<RelationColumns[]> gRelColumns;
+
 
 // The general structure for each relation
 struct RelationStruct {
     unordered_map<uint32_t, std::unique_ptr<uint64_t[]>> insertedRows;
 };
 
-// RELATION STRUCTURES
-
 // general relations
 static std::unique_ptr<RelationStruct[]> gRelations;
-// transactions in each relation column - all tuples of same transaction in one vector
-struct RelationColumns {
-    vector<ColumnStruct> columns;
-};
-static std::unique_ptr<RelationColumns[]> gRelColumns;
 
 
 
@@ -249,6 +250,7 @@ LPTimer_t LPTimer;
 struct GlobalState {
     enum State : uint32_t { SCHEMA, TRANSACTION, VALIDATION, FORGET, FLUSH };
     State state;
+    uint32_t nThreads;
 } Globals;
 
 //---------------------------------------------------------------------------
@@ -269,25 +271,33 @@ static void processDefineSchema(const DefineSchema& d) {
     memcpy(gSchema.get(), d.columnCounts, sizeof(uint32_t)*d.relationCount);
     NUM_RELATIONS = d.relationCount;
 
+    //cerr << "relations: " << NUM_RELATIONS << endl;
+
     gRelTransMutex.reset(new RelTransLock[d.relationCount]);
     gTransParseMapPhase.reset(new vector<TRMapPhase>[d.relationCount]);
 
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
+    //cerr << "columns: " << NUM_RELATIONS << endl;
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
         gRelColumns[ci].columns.resize(gSchema[ci]);
+        //cerr << " " << gSchema[ci];
     }
 }
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
 
+struct StatStruct {
+    // columns info that appear as 1st predicates - bool=True means equality, False anything else
+    vector<pair<bool, uint32_t>> reqCols; 
+};
+static unique_ptr<StatStruct[]> gStats;
 
-static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata) {
+static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
-
     (void)vdata;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
@@ -298,7 +308,16 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-        if (!lp::validation::isQueryUnsolvable(nQ)) queries.push_back(move(nQ));
+        if (!lp::validation::isQueryUnsolvable(nQ)) {
+            // this is a valid query
+            if (!nQ.predicates.empty()) {
+                // gather statistics    
+                auto& p = nQ.predicates[0];
+                uint32_t rc = (nQ.relationId << 16) + p.column;
+                gStats[tid].reqCols.emplace_back((p.op == lp::LPOps::Equal), rc);
+            }
+            queries.push_back(move(nQ));
+        }
         //queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
@@ -420,7 +439,7 @@ void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
 void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
     ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
-    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
+    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
     pvs->msgQ->registerDeq(pvs->refId);
     pvs->memQ->free(pvs->memRefId);
 }
@@ -447,6 +466,7 @@ int main(int argc, char**argv) {
             numOfThreads = 1;
     }
     cerr << "Number of threads: " << numOfThreads << endl;
+    Globals.nThreads = numOfThreads;
 
     uint64_t MessageQSize = 500;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
@@ -461,6 +481,9 @@ int main(int argc, char**argv) {
     MultiTaskPool multiPool(numOfThreads-2);
     multiPool.initThreads();
     multiPool.startAll();
+
+    // allocate global structures based on thread number
+    gStats.reset(new StatStruct[numOfThreads+1]);
 
     uint64_t gTotalValidations = 0;
 
@@ -717,6 +740,22 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
+/*
+    //cerr << "::: session start ::::" << endl;
+    auto& cols1 = gStats[0].reqCols;
+    for (uint32_t tid=1; tid<Globals.nThreads; tid++) {
+        auto& cols = gStats[tid].reqCols;
+        cols1.insert(cols1.begin(), cols.begin(), cols.end());
+        cols.clear();
+    }
+        std::sort(cols1.begin(), cols1.end(), [](const pair<bool, uint32_t>& l,const pair<bool, uint32_t>& r ){ return l.second < r.second; });
+        auto it = std::unique(cols1.begin(), cols1.end(), [](const pair<bool, uint32_t>& l,const pair<bool, uint32_t>& r ){ return l.second < r.second; });
+        cols1.resize(std::distance(cols1.begin(), it));
+        //cerr << "unique reqCols: " << cols1.size() << endl;
+        //for (auto& cp : cols1) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
+        cols1.clear();
+*/  
+
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();

@@ -6,7 +6,7 @@ RELEASE_CFLAGS=-march=native -msse4.1 -std=c++11 -O3 -W -Wall -Wextra -Werror -D
 
 all: reference
 
-reference: reference.cpp BoundedSRSWQueue.hpp
+reference: reference.cpp 
 	g++ $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread
 
 clean:
