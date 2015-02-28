@@ -887,43 +887,23 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                     tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
                 if (pFirst.op == lp::LPOps::Equal) {
-                    if (pFirst.value < tBegin->value || pFirst.value > (tEnd-1)->value) {
-                        //cerr << "skip" << endl;
-                        continue;   
-                    }
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     if (tupFrom == tEnd) continue;
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == lp::LPOps::Less) {
-                    if (pFirst.value <= tBegin->value) {
-                        //cerr << "skip" << endl;
-                        continue;   
-                    }
                     tupFrom = tBegin;                    
                     tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == lp::LPOps::LessOrEqual) {
-                    if (pFirst.value < tBegin->value) {
-                        //cerr << "skip" << endl;
-                        continue;   
-                    }
                     tupFrom = tBegin;                    
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == lp::LPOps::Greater) {
-                    if (pFirst.value >= (tEnd-1)->value) {
-                        //cerr << "skip" << endl;
-                        continue;   
-                    }
                     tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);  
                     tupTo = tEnd;                   
                     pFrom = 1;
                 } else if (pFirst.op == lp::LPOps::GreaterOrEqual) {
-                    if (pFirst.value > (tEnd-1)->value) {
-                        //cerr << "skip" << endl;
-                        continue;   
-                    }
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     tupTo = tEnd;                   
                     pFrom = 1;
