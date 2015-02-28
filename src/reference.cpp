@@ -169,7 +169,7 @@ struct CTRSLessThan_t {
 // transactions in each relation column - all tuples of same transaction in one vector
 
 struct RelationColumns {
-    vector<ColumnStruct> columns;
+    std::unique_ptr<ColumnStruct[]> columns;
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 
@@ -280,7 +280,8 @@ static void processDefineSchema(const DefineSchema& d) {
     gRelColumns.reset(new RelationColumns[d.relationCount]);
     //cerr << "columns: " << NUM_RELATIONS << endl;
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
-        gRelColumns[ci].columns.resize(gSchema[ci]);
+        //gRelColumns[ci].columns.resize(gSchema[ci]);
+        gRelColumns[ci].columns.reset(new ColumnStruct[gSchema[ci]]);
         //cerr << " " << gSchema[ci];
     }
 }
@@ -373,7 +374,8 @@ static void processForget(const Forget& f) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
-        for (auto& cCol : cRelCol.columns) {
+        for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
+            auto& cCol = cRelCol.columns[ci];
             cCol.transactions.erase(cCol.transactions.begin(),
                     upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
                         f.transactionId,
