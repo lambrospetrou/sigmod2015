@@ -399,14 +399,14 @@ static void processForget(const Forget& f) {
                         ));
         }
     }
-/*
+
     // then delete the transactions from the transaction history 
     auto ub = upper_bound(gTransactionHistory.begin(), 
             gTransactionHistory.end(), 
             f.transactionId,
             [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-*/
+
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -538,10 +538,10 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Transaction: 
                     {Globals.state = GlobalState::TRANSACTION;
-                    processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                    msgQ.registerDeq(res.refId);
-                    checkPendingTransactions(workerThreads);
-                    /*
+                    //processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                    //msgQ.registerDeq(res.refId);
+                    //checkPendingTransactions(workerThreads);
+                    
                     BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
                     ParseValidationStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
@@ -549,8 +549,12 @@ int main(int argc, char**argv) {
                     pvs->memRefId = mem.refId;
                     pvs->memQ = &memQ;
                     pvs->msg = &msg;
-                    multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
-                    */
+                    
+                    parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
+                    checkPendingTransactions(workerThreads);
+                    
+                    //multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
+                    
                     break;
                     }
                 case MessageHead::Flush:  
