@@ -550,16 +550,18 @@ int main(int argc, char**argv) {
                     pvs->memQ = &memQ;
                     pvs->msg = &msg;
                     
-                    parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
-                    checkPendingTransactions(workerThreads);
+                    //parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
+                    //checkPendingTransactions(workerThreads);
                     
-                    //multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
+                    multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
+                    //multiPool.waitAll();
+                    //checkPendingTransactions(workerThreads);
                     
                     break;
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -569,7 +571,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
@@ -712,10 +714,10 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
             uint64_t *ptr = new uint64_t[o.rowCount];
             const uint64_t *keys = o.keys;
             for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
         }// end of lock_guard
         // advance to the next Relation deletions
@@ -729,11 +731,11 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             uint64_t* tptr = new uint64_t[relCols*o.rowCount];
             const uint64_t *vptr=o.values;
             uint32_t sz = relCols*o.rowCount;
             for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
         }// end of lock_guard
         // advance to next Relation insertions
@@ -758,11 +760,17 @@ struct TRMapPhase {
 static std::atomic<uint64_t> gNextIndex;
 
 bool TRMapPhaseByTrans(const TRMapPhase& l, const TRMapPhase& r) {
-    return l.trans_id < r.trans_id;
+    //return l.trans_id < r.trans_id;
+    if (l.trans_id < r.trans_id) return true;
+    else if (r.trans_id < l.trans_id) return false;
+    else return l.isDelOp && !r.isDelOp;
 }
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
+
+    //cerr << "::: tid " << tid << "new" << endl;
+
     for (;true;) {
         uint64_t ri = gNextIndex++;
         if (ri >= NUM_RELATIONS) return;
@@ -773,7 +781,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
 
-        std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
+        std::stable_sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         //cerr << ":::: after sort" <<endl;
         //for (auto& ct : relTrans) cerr << ct.trans_id << endl;
@@ -906,7 +914,7 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    if (false) checkPendingTransactions(pool);
+    checkPendingTransactions(pool);
 
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
