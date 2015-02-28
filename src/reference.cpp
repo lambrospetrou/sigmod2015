@@ -250,16 +250,18 @@ static uint64_t gPVunique;
 
 static std::mutex gPendingValidationsMutex;
 
+
+
 struct ReceivedMessage {
     MessageHead head;
     vector<char> data;
 };
-struct ParseValidationStruct {
+struct ParseMessageStruct {
     ReceivedMessage *msg;
     uint64_t refId;
     BoundedQueue<ReceivedMessage> *msgQ;
     uint64_t memRefId;
-    BoundedAlloc<ParseValidationStruct> *memQ;
+    BoundedAlloc<ParseMessageStruct> *memQ;
 };
 
 
@@ -321,28 +323,15 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         //queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
-    //if (v.validationId == 19631)
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
-
-    uint64_t batchPos = v.from; 
-
-    //uint64_t trRange = v.to - v.from + 1;
-    //static uint64_t bSize = 500;
     {
-        std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-
-        //  while (trRange > bSize) {
-        //cerr << batchPos << "-" << batchPos+bSize-1 << endl;
-        //gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, batchPos+bSize-1, queries)));    
-        //trRange -= bSize; batchPos += bSize;
-        //}
-        gPendingValidations.push_back(move(LPValidation(v.validationId, batchPos, v.to, move(queries))));    
-        //cerr << batchPos << "-" << v.to << endl;
-
+        //std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
+        gPendingValidationsMutex.lock();;
+        gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
         // update the global pending validations to reflect this new one
         ++gPVunique;
+        gPendingValidationsMutex.unlock();;
     }
-    //cerr << "Success Validate: " << v.validationId << " ::" << v.from << ":" << v.to << " result: " << conflict << endl;
 #ifdef LPDEBUG
     LPTimer.validations += LPTimer.getChrono(start);
 #endif
@@ -451,7 +440,7 @@ void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
 
 void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
-    ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
+    ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
     processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data); 
     pvs->msgQ->registerDeq(pvs->refId);
     pvs->memQ->free(pvs->memRefId);
@@ -460,7 +449,7 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
 
 void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
-    ParseValidationStruct *pvs = static_cast<ParseValidationStruct*>(args);
+    ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
     processTransactionMessage(*reinterpret_cast<const Transaction*>(pvs->msg->data.data()), pvs->msg->data); 
     pvs->msgQ->registerDeq(pvs->refId);
     pvs->memQ->free(pvs->memRefId);
@@ -482,7 +471,7 @@ int main(int argc, char**argv) {
 
     uint64_t MessageQSize = 500;
     BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
-    BoundedAlloc<ParseValidationStruct> memQ(MessageQSize);
+    BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
@@ -516,8 +505,8 @@ int main(int argc, char**argv) {
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
-                        BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
-                        ParseValidationStruct *pvs = mem.value;
+                        BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
+                        ParseMessageStruct *pvs = mem.value;
                         pvs->msgQ = &msgQ;
                         pvs->refId = res.refId;
                         pvs->memRefId = mem.refId;
@@ -535,8 +524,8 @@ int main(int argc, char**argv) {
                     //msgQ.registerDeq(res.refId);
                     //checkPendingTransactions(workerThreads);
                     
-                    BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
-                    ParseValidationStruct *pvs = mem.value;
+                    BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
+                    ParseMessageStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
                     pvs->refId = res.refId;
                     pvs->memRefId = mem.refId;
@@ -615,8 +604,6 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
             uint64_t *ptr = new uint64_t[o.rowCount];
             const uint64_t *keys = o.keys;
             for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
-            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
-            //LPSpinLockGuard lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
             gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
             gRelTransMutex[o.relationId].unlock(); 
@@ -639,8 +626,6 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
             const uint64_t *vptr=o.values;
             uint32_t sz = relCols*o.rowCount;
             for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
-            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-            //LPSpinLockGuard lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
             gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
             gRelTransMutex[o.relationId].unlock(); 
@@ -674,7 +659,6 @@ bool TRMapPhaseByTrans(const TRMapPhase& l, const TRMapPhase& r) {
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
-
     //cerr << "::: tid " << tid << "new" << endl;
 
     for (;true;) {
@@ -689,29 +673,19 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
         std::stable_sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
-        //cerr << ":::: after sort" <<endl;
-        //for (auto& ct : relTrans) cerr << ct.trans_id << endl;
-
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
         uint32_t relCols = gSchema[ri];
         uint64_t lastTransId = relTrans[0].trans_id;
-        //std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
         for (uint32_t c=0; c<relCols; ++c) {
             relColumns[c].transactions.emplace_back(relTrans[0].trans_id, move(vector<CTransStruct>()));
-            //relColumns[c].transactions.push_back(move(make_pair(relTrans[0].trans_id, move(vector<CTransStruct>()))));
         }
         // for each transaction regarding this relation
         for (auto& trans : relTrans) {
-            //if (trans.trans_id == 4076) cerr << "4076 " << trans.rowCount << endl;
-            //if (trans.trans_id == 1067) cerr << "1067 " << trans.rowCount << endl;
-            
             if (trans.trans_id != lastTransId) {
                 // TODO - store the last transactions data
                 for (uint32_t c=0; c<relCols; ++c) {
                     sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
-                    //for (auto& tr : relColumns[c].transactions.back().second) cerr << tr.value << " "; cerr << endl;
-                     
                     // allocate vectors for the current new transaction to put its data
                     relColumns[c].transactions.emplace_back(trans.trans_id, move(vector<CTransStruct>()));
                 }
@@ -724,7 +698,6 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
                         // update the relation transactions - transfer ownership of the tuple
-                        //operations.push_back(move(TransOperation(ri, move(lb->second))));
                         operations.emplace_back(ri, move(lb->second));
                         // remove the row from the relations table
                         relation.insertedRows.erase(lb);
@@ -734,7 +707,6 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     }
                 }
                 {
-                    //std::lock_guard<std::mutex> lk(gTransactionHistoryMutex);
                     gTransactionHistoryMutex.lock();
                     gTransactionHistory.push_back(move(TransactionStruct(trans.trans_id, move(operations))));
                     gTransactionHistoryMutex.unlock();
@@ -748,7 +720,6 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     for (uint32_t c=0; c<relCols; ++c) {
                         *tptr_r++ = *vptr++;
                         relColumns[c].transactions.back().second.emplace_back(values[c], tptr2.get());
-                        //cerr << values[c] << "-" << tptr2[c] << ":" << relColumns.columns[c].transactions.back().second.back().value << endl;
                     }
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(tptr2);
@@ -760,7 +731,6 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         for (uint32_t c=0; c<relCols; ++c) {
             sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
-
     } // end of while true
 }
 
@@ -788,9 +758,6 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #endif
     checkPendingTransactions(pool);
 
-    //cerr << gPendingValidations.size() << " " << endl;
-    // find the min & max validation id
-    // assuming that gPendingValidations is sorted on the validation Id
     resIndexOffset = UINT64_MAX;
     for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
     auto gPRsz = gPendingResults.size();
@@ -799,16 +766,11 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     gNextPending.store(0);
 
-    //cerr << "before start!" << endl;
     pool.startAll(processPendingValidationsTask);
-    //processPendingValidations();
-    //cerr << "before wait!" << endl;
     pool.waitAll();
-    //cerr << "after wait!" << endl;
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
-        //cerr << valId << ":" << gPendingResults[valId-resIndexOffset].load() << " ";
         gQueryResults.push_back(move(make_pair(valId, gPendingResults[i])));
     }
     gPendingValidations.clear();
@@ -836,13 +798,6 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // check if someone else found a conflict already for this validation ID
         if (atoRes) continue;
 
-        /*
-        // check if the query is by default false - NON-CONFLICT
-        if (lp::validation::unsolvable(v)) {
-        //cerr << "unsolvable" << endl;
-        continue;
-        }
-         */
         if (v.queries.empty()) { continue; }
 
         // sort the queries based on the number of the columns needed to check
