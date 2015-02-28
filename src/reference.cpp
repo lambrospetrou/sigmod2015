@@ -552,7 +552,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -562,7 +562,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
@@ -705,11 +705,11 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
             uint64_t *ptr = new uint64_t[o.rowCount];
             const uint64_t *keys = o.keys;
             for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
         }// end of lock_guard
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
@@ -764,27 +764,37 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         auto& relTrans = gTransParseMapPhase[ri];
         if (relTrans.empty()) continue;
 
-        cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
+        //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
 
         std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
+        //cerr << ":::: after sort" <<endl;
+        //for (auto& ct : relTrans) cerr << ct.trans_id << endl;
+
         auto& relation = gRelations[ri];
-        auto& relColumns = gRelColumns[ri];
+        auto& relColumns = gRelColumns[ri].columns;
         uint32_t relCols = gSchema[ri];
         uint64_t lastTransId = relTrans[0].trans_id;
-        std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
+        //std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
         for (uint32_t c=0; c<relCols; ++c) {
-            relColumns.columns[c].transactions.emplace_back(move(make_pair(relTrans[0].trans_id, move(vector<CTransStruct>()))));
+            relColumns[c].transactions.emplace_back(relTrans[0].trans_id, move(vector<CTransStruct>()));
+            //relColumns[c].transactions.push_back(move(make_pair(relTrans[0].trans_id, move(vector<CTransStruct>()))));
         }
         // for each transaction regarding this relation
         for (auto& trans : relTrans) {
+            if (trans.trans_id == 4076) cerr << "4076 " << trans.rowCount << endl;
+            if (trans.trans_id == 1067) cerr << "1067 " << trans.rowCount << endl;
+            
             if (trans.trans_id != lastTransId) {
                 // TODO - store the last transactions data
                 for (uint32_t c=0; c<relCols; ++c) {
-                    sort(relColumns.columns[c].transactions.back().second.begin(), relColumns.columns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
+                    sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
+                    //for (auto& tr : relColumns[c].transactions.back().second) cerr << tr.value << " "; cerr << endl;
+                     
                     // allocate vectors for the current new transaction to put its data
-                    relColumns.columns[c].transactions.emplace_back(move(make_pair(trans.trans_id, move(vector<CTransStruct>()))));
+                    relColumns[c].transactions.emplace_back(trans.trans_id, move(vector<CTransStruct>()));
                 }
+                lastTransId = trans.trans_id;
             }
             if (trans.isDelOp) {
                 // this is a delete operation
@@ -793,11 +803,12 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
                         // update the relation transactions - transfer ownership of the tuple
-                        operations.push_back(move(TransOperation(ri, move(lb->second))));
+                        //operations.push_back(move(TransOperation(ri, move(lb->second))));
+                        operations.emplace_back(ri, move(lb->second));
                         // remove the row from the relations table
                         relation.insertedRows.erase(lb);
                         for (uint32_t c=0; c<relCols; ++c) {
-                            relColumns.columns[c].transactions.back().second.emplace_back(operations.back().tuple[c], operations.back().tuple.get());
+                            relColumns[c].transactions.back().second.emplace_back(operations.back().tuple[c], operations.back().tuple.get());
                         }
                     }
                 }
@@ -813,8 +824,8 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     tptr_r = tptr2.get(); vptr = values;
                     for (uint32_t c=0; c<relCols; ++c) {
                         *tptr_r++ = *vptr++;
-                        relColumns.columns[c].transactions.back().second.emplace_back(values[c], tptr2.get());
-                        cerr << values[c] << "-" << tptr2[c] << ":" << relColumns.columns[c].transactions.back().second.back().value << endl;
+                        relColumns[c].transactions.back().second.emplace_back(values[c], tptr2.get());
+                        //cerr << values[c] << "-" << tptr2[c] << ":" << relColumns.columns[c].transactions.back().second.back().value << endl;
                     }
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(tptr2);
@@ -824,7 +835,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         }
         // TODO - store the last transaction data
         for (uint32_t c=0; c<relCols; ++c) {
-            sort(relColumns.columns[c].transactions.back().second.begin(), relColumns.columns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
+            sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
 
 
