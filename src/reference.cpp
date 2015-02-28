@@ -500,7 +500,7 @@ int main(int argc, char**argv) {
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads-2);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -538,8 +538,10 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Transaction: 
                     {Globals.state = GlobalState::TRANSACTION;
-                    //processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                    //msgQ.registerDeq(res.refId);
+                    processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                    msgQ.registerDeq(res.refId);
+                    checkPendingTransactions(workerThreads);
+                    /*
                     BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
                     ParseValidationStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
@@ -548,6 +550,7 @@ int main(int argc, char**argv) {
                     pvs->memQ = &memQ;
                     pvs->msg = &msg;
                     multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
+                    */
                     break;
                     }
                 case MessageHead::Flush:  
@@ -782,8 +785,8 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         }
         // for each transaction regarding this relation
         for (auto& trans : relTrans) {
-            if (trans.trans_id == 4076) cerr << "4076 " << trans.rowCount << endl;
-            if (trans.trans_id == 1067) cerr << "1067 " << trans.rowCount << endl;
+            //if (trans.trans_id == 4076) cerr << "4076 " << trans.rowCount << endl;
+            //if (trans.trans_id == 1067) cerr << "1067 " << trans.rowCount << endl;
             
             if (trans.trans_id != lastTransId) {
                 // TODO - store the last transactions data
@@ -899,7 +902,7 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    checkPendingTransactions(pool);
+    if (false) checkPendingTransactions(pool);
 
     //cerr << gPendingValidations.size() << " " << endl;
     // find the min & max validation id
