@@ -228,6 +228,7 @@ struct TransactionStruct {
     TransactionStruct(uint64_t tid, vector<TransOperation> ops) : trans_id(tid), operations(move(ops)) {}  
 };
 static vector<TransactionStruct> gTransactionHistory;
+static std::mutex gTransactionHistoryMutex;
 
 static uint32_t NUM_RELATIONS;
 static std::unique_ptr<uint32_t[]> gSchema;
@@ -398,14 +399,14 @@ static void processForget(const Forget& f) {
                         ));
         }
     }
-
+/*
     // then delete the transactions from the transaction history 
     auto ub = upper_bound(gTransactionHistory.begin(), 
             gTransactionHistory.end(), 
             f.transactionId,
             [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-
+*/
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -499,7 +500,7 @@ int main(int argc, char**argv) {
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -536,11 +537,19 @@ int main(int argc, char**argv) {
                         break;
                     }
                 case MessageHead::Transaction: 
-                    Globals.state = GlobalState::TRANSACTION;
-                    //if (gPendingIndex.size() > 100) checkPendingTransactions(workerThreads);
-                    processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                    msgQ.registerDeq(res.refId);
+                    {Globals.state = GlobalState::TRANSACTION;
+                    //processTransaction(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                    //msgQ.registerDeq(res.refId);
+                    BoundedAlloc<ParseValidationStruct>::BAResult& mem = memQ.malloc();
+                    ParseValidationStruct *pvs = mem.value;
+                    pvs->msgQ = &msgQ;
+                    pvs->refId = res.refId;
+                    pvs->memRefId = mem.refId;
+                    pvs->memQ = &memQ;
+                    pvs->msg = &msg;
+                    multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
                     break;
+                    }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
                     multiPool.helpExecution();
@@ -672,7 +681,15 @@ static void processSingleTransaction(const Transaction& t) {
 
 
 //////////////////////////////////////////////////////////////////////////////////
+/*
+struct TRMapPhase {
+    uint64_t trans_id;
+    bool isDelOp;
+    uint32_t rowCount;
+    uint64_t *values; // delete op => row keys to delete | insert => tuples
+}
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
+*/
 
 static void processTransactionMessage(const Transaction& t, vector<char>& data) {
 #ifdef LPDEBUG
@@ -722,15 +739,96 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
 }
 
 
+/*
+struct TRMapPhase {
+    uint64_t trans_id;
+    bool isDelOp;
+    uint32_t rowCount;
+    uint64_t *values; // delete op => row keys to delete | insert => tuples
+}
+//static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
+*/
 static std::atomic<uint64_t> gNextIndex;
+
+bool TRMapPhaseByTrans(const TRMapPhase& l, const TRMapPhase& r) {
+    return l.trans_id < r.trans_id;
+}
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
-    uint64_t totalPending = gPendingIndex.size();
     for (;true;) {
-        uint64_t ii = gNextIndex++;
-        if (ii >= totalPending) return;
+        uint64_t ri = gNextIndex++;
+        if (ri >= NUM_RELATIONS) return;
 
+        // take the vector with the transactions and sort it by transaction id in order to apply them in order
+        auto& relTrans = gTransParseMapPhase[ri];
+        if (relTrans.empty()) continue;
+
+        cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
+
+        std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
+
+        auto& relation = gRelations[ri];
+        auto& relColumns = gRelColumns[ri];
+        uint32_t relCols = gSchema[ri];
+        uint64_t lastTransId = relTrans[0].trans_id;
+        std::unique_ptr<vector<CTransStruct>[]> colPtrs(new vector<CTransStruct>[relCols]);
+        for (uint32_t c=0; c<relCols; ++c) {
+            relColumns.columns[c].transactions.emplace_back(move(make_pair(relTrans[0].trans_id, move(vector<CTransStruct>()))));
+        }
+        // for each transaction regarding this relation
+        for (auto& trans : relTrans) {
+            if (trans.trans_id != lastTransId) {
+                // TODO - store the last transactions data
+                for (uint32_t c=0; c<relCols; ++c) {
+                    sort(relColumns.columns[c].transactions.back().second.begin(), relColumns.columns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
+                    // allocate vectors for the current new transaction to put its data
+                    relColumns.columns[c].transactions.emplace_back(move(make_pair(trans.trans_id, move(vector<CTransStruct>()))));
+                }
+            }
+            if (trans.isDelOp) {
+                // this is a delete operation
+                vector<TransOperation> operations;
+                for (const uint64_t* key=trans.values,*keyLimit=key+trans.rowCount;key!=keyLimit;++key) {
+                    auto lb = relation.insertedRows.find(*key);
+                    if (lb != relation.insertedRows.end()) {
+                        // update the relation transactions - transfer ownership of the tuple
+                        operations.push_back(move(TransOperation(ri, move(lb->second))));
+                        // remove the row from the relations table
+                        relation.insertedRows.erase(lb);
+                        for (uint32_t c=0; c<relCols; ++c) {
+                            relColumns.columns[c].transactions.back().second.emplace_back(operations.back().tuple[c], operations.back().tuple.get());
+                        }
+                    }
+                }
+                {
+                    std::lock_guard<std::mutex> lk(gTransactionHistoryMutex);
+                    gTransactionHistory.push_back(move(TransactionStruct(trans.trans_id, move(operations))));
+                }
+            } else {
+                // this is an insert operation
+                uint64_t *tptr_r; const uint64_t *vptr;
+                for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
+                    std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
+                    tptr_r = tptr2.get(); vptr = values;
+                    for (uint32_t c=0; c<relCols; ++c) {
+                        *tptr_r++ = *vptr++;
+                        relColumns.columns[c].transactions.back().second.emplace_back(values[c], tptr2.get());
+                        cerr << values[c] << "-" << tptr2[c] << ":" << relColumns.columns[c].transactions.back().second.back().value << endl;
+                    }
+                    // finally add the new tuple to the inserted rows of the relation
+                    relation.insertedRows[values[0]]=move(tptr2);
+                } 
+            }
+            delete[] trans.values;
+        }
+        // TODO - store the last transaction data
+        for (uint32_t c=0; c<relCols; ++c) {
+            sort(relColumns.columns[c].transactions.back().second.begin(), relColumns.columns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
+        }
+
+
+/*
         ///// MOST DIFFICULT PART - NEED TO BE OPTIMIZED - Insert the tuples in the relations
         // column-wise !!!
         auto& trans_locals = gPendingIndex[ii];
@@ -764,19 +862,18 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             }
 
         }
-    }
+*/
+    } // end of while true
 }
 
 static inline void checkPendingTransactions(SingleTaskPool& pool) {
-    if (gPendingIndex.empty()) return;
-
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
-    gPendingIndex.clear();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif
