@@ -213,9 +213,8 @@ struct TRMapPhase {
 };
 
 typedef std::mutex RelTransLock;
+//typedef LPSpinLock RelTransLock;
 static unique_ptr<RelTransLock[]> gRelTransMutex;
-//static unique_ptr<std::mutex[]> gRelTransMutex;
-//static unique_ptr<LPSpinLock[]> gRelTransMutex;
 static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
 
 // TRANSACTION HISTORY STRUCTURES
