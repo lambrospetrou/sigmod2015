@@ -136,7 +136,7 @@ struct CTransStruct {
     }
 };
 std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
-    os << "{" /*<< o.trans_id*/ << "-" << o.value << "}";
+    os << "{" << "-" << o.value << "}";
     return os;
 }
 struct CTRSValueLessThan_t {
@@ -165,25 +165,6 @@ struct CTRSLessThan_t {
     }
 } CTRSLessThan;
 
-// the structure that WAS used inside the RelationStruct to record the transactoins of that relation
-struct TransStruct {
-    uint64_t trans_id;
-    std::unique_ptr<tuple_t> tuple;
-
-    TransStruct(uint64_t trid, std::unique_ptr<tuple_t> t):
-        trans_id(trid), tuple(move(t)) {}
-};
-struct TRSLessThan_t {
-    bool operator() (const TransStruct& left, const TransStruct& right) {
-        return left.trans_id < right.trans_id;
-    }
-    bool operator() (const TransStruct& o, uint64_t target) {
-        return o.trans_id < target;
-    }
-    bool operator() (uint64_t target, const TransStruct& o) {
-        return target < o.trans_id;
-    }
-} TRSLessThan;
 
 // The general structure for each relation
 struct RelationStruct {
