@@ -59,7 +59,7 @@
 #include "BoundedAlloc.hpp"
 #include "SingleTaskPool.hpp"
 #include "MultiTaskPool.hpp"
-
+#include "LPSpinLock.hpp"
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -211,7 +211,11 @@ struct TRMapPhase {
     TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
         : trans_id(tid), isDelOp(isdel), rowCount(rows), values(vals) {}
 };
-static unique_ptr<std::mutex[]> gRelTransMutex;
+
+typedef std::mutex RelTransLock;
+static unique_ptr<RelTransLock[]> gRelTransMutex;
+//static unique_ptr<std::mutex[]> gRelTransMutex;
+//static unique_ptr<LPSpinLock[]> gRelTransMutex;
 static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
 
 // TRANSACTION HISTORY STRUCTURES
@@ -229,6 +233,7 @@ struct TransactionStruct {
 };
 static vector<TransactionStruct> gTransactionHistory;
 static std::mutex gTransactionHistoryMutex;
+//static LPSpinLock gTransactionHistoryMutex;
 
 static uint32_t NUM_RELATIONS;
 static std::unique_ptr<uint32_t[]> gSchema;
@@ -283,7 +288,7 @@ static void processDefineSchema(const DefineSchema& d) {
     memcpy(gSchema.get(), d.columnCounts, sizeof(uint32_t)*d.relationCount);
     NUM_RELATIONS = d.relationCount;
 
-    gRelTransMutex.reset(new std::mutex[d.relationCount]);
+    gRelTransMutex.reset(new RelTransLock[d.relationCount]);
     gTransParseMapPhase.reset(new vector<TRMapPhase>[d.relationCount]);
 
     gRelations.reset(new RelationStruct[d.relationCount]);
@@ -462,11 +467,6 @@ void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
 }
 
 
-
-
-
-
-
 #ifdef LPDEBUG
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
 #endif
@@ -542,13 +542,9 @@ int main(int argc, char**argv) {
                     pvs->memRefId = mem.refId;
                     pvs->memQ = &memQ;
                     pvs->msg = &msg;
-                    
                     //parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
                     //checkPendingTransactions(workerThreads);
-                    
                     multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
-                    //multiPool.waitAll();
-                    //checkPendingTransactions(workerThreads);
                     
                     break;
                     }
@@ -619,11 +615,14 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
             uint64_t *ptr = new uint64_t[o.rowCount];
             const uint64_t *keys = o.keys;
             for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
+            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
+            //LPSpinLockGuard lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
+            gRelTransMutex[o.relationId].lock(); 
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
+            gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
                 gTotalTuples += o.rowCount; // contains more than the true
 #endif
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
         }// end of lock_guard
         // advance to the next Relation deletions
         reader+=sizeof(TransactionOperationDelete)+(sizeof(uint64_t)*o.rowCount);
@@ -640,11 +639,14 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
             const uint64_t *vptr=o.values;
             uint32_t sz = relCols*o.rowCount;
             for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
-            std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
-#ifdef LPDEBUG
-                ++gTotalTuples; // contains more than the true
-#endif
+            //std::lock_guard<std::mutex> lk(gRelTransMutex[o.relationId]);
+            //LPSpinLockGuard lk(gRelTransMutex[o.relationId]); // cam be moved after the copy 
+            gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
+            gRelTransMutex[o.relationId].unlock(); 
+#ifdef LPDEBUG
+                ++gTotalTuples;
+#endif
         }// end of lock_guard
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
@@ -732,8 +734,10 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     }
                 }
                 {
-                    std::lock_guard<std::mutex> lk(gTransactionHistoryMutex);
+                    //std::lock_guard<std::mutex> lk(gTransactionHistoryMutex);
+                    gTransactionHistoryMutex.lock();
                     gTransactionHistory.push_back(move(TransactionStruct(trans.trans_id, move(operations))));
+                    gTransactionHistoryMutex.unlock();
                 }
             } else {
                 // this is an insert operation
