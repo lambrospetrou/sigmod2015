@@ -79,6 +79,17 @@ namespace lp {
     // the following will be used for the query filtering and quick rejection
     namespace validation {
 
+        const static uint32_t MSK32_L16 = 0x0000ffff;
+        const static uint32_t MSK32_H16 = 0xffff0000;
+
+        uint32_t inline __attribute__((always_inline)) packRelCol(uint32_t rel, uint32_t col) {
+            return ((rel & MSK32_L16) << 16) | (col & MSK32_L16);
+        }
+        void inline __attribute__((always_inline)) unpackRelCol(uint32_t pck, uint32_t& rel, uint32_t& col) {
+            rel = ((pck & MSK32_H16) >> 16);
+            col = (pck & MSK32_L16);
+        }
+
         typedef LPOps Op;
         typedef Query::Column Column;
 

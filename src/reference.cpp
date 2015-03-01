@@ -361,8 +361,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #endif
     (void)vdata; (void)tid;
 
-    const static uint32_t MSK_L16 = 0x0000ffff;
-    //static uint32_t MSK_H16 = 0xffff0000;
 
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
@@ -378,7 +376,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             if (!nQ.predicates.empty()) {
                 // gather statistics    
                 auto& p = nQ.predicates[0];
-                uint32_t rc = ((nQ.relationId & MSK_L16) << 16) | (p.column & MSK_L16);
+                //uint32_t rc = ((nQ.relationId & MSK_L16) << 16) | (p.column & MSK_L16);
+                uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
                 //cerr << " " << rc;
                 gStats[tid].reqCols.push_back(move(make_pair((p.op == lp::LPOps::Equal), rc)));
                 //cerr << " " << gStats[tid].reqCols.back().second;
@@ -816,6 +815,18 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         for (uint32_t c=0; c<relCols; ++c) {
             sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
+
+
+        // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
+        // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
+        // FOLOWING VALIDATION SESSION - 1st predicates only for now
+
+        // will be used in binary search to find the first column index we need for this relation
+        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
+        uint32_t rel,col; lp::validation::unpackRelCol(rcStart, rel, col);
+        if (rel != ri || col != 0) { cerr << "our pack/unpack is wrong" << endl; }
+
+
     } // end of while true
 }
 
