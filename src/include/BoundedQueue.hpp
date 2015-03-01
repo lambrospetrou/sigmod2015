@@ -100,8 +100,8 @@ public:
         disconnectNode(cN, mlReqDeq, mlReqDeqTail);
         // connect it to Available
         append(cN, mlUnused, mlUnusedTail);
-        //if (--mCurEnqueued <= (mMaxSize>>1)) mCondFull.notify_one();    
-        mCondFull.notify_one();    
+        if (--mCurEnqueued <= (mMaxSize>>2)) mCondFull.notify_one();    
+        //mCondFull.notify_one();    
     }
   
     void debugInfo(const std::string& s) {
