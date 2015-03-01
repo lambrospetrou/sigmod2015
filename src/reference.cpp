@@ -176,9 +176,37 @@ struct RelationColumns {
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 
 
+struct RelTransLog {
+    uint64_t trans_id;
+    uint64_t last_del_id;
+    uint64_t aliveTuples;
+    std::unique_ptr<uint64_t[]> tuples;
+    uint64_t rowCount;
+    RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
+        tuples.reset(tpl);
+    } 
+    static bool ByTrans(const RelTransLog& l, const RelTransLog& r) {
+        return l.trans_id < r.trans_id;
+    }
+};
+struct RTLComp_t {
+    bool operator() (const RelTransLog& l, const RelTransLog& r) {
+        return l.trans_id < r.trans_id;
+    }
+    bool operator() (const RelTransLog& o, uint64_t target) {
+        return o.trans_id < target;
+    }
+    bool operator() (const unique_ptr<RelTransLog>& l, const unique_ptr<RelTransLog>& r) {
+        return l->trans_id < r->trans_id;
+    }
+    bool operator() (const unique_ptr<RelTransLog>& o, uint64_t target) {
+        return o->trans_id < target;
+    }
+} RTLComp;
 // The general structure for each relation
 struct RelationStruct {
-    unordered_map<uint32_t, std::unique_ptr<uint64_t[]>> insertedRows;
+    vector<unique_ptr<RelTransLog>> transLog;
+    unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
 
 // general relations
@@ -210,10 +238,28 @@ struct TransOperation {
 };
 struct TransactionStruct {
     uint64_t trans_id;
-    vector<TransOperation> operations;
-    TransactionStruct(uint64_t tid, vector<TransOperation> ops) : trans_id(tid), operations(move(ops)) {}  
+    //vector<TransOperation> operations;
+    std::atomic<uint64_t> aliveTuples;
+    std::unique_ptr<uint64_t[]> tuples;
+    uint64_t rowCount;
+    TransactionStruct(uint64_t tid, uint64_t* tpl, uint64_t rowCount) : trans_id(tid) {
+        tuples.reset(tpl);
+        aliveTuples = rowCount;
+    } 
+
+    static bool ByTrans(const TransactionStruct& l, const TransactionStruct& r) {
+        return l.trans_id < r.trans_id;
+    }
 };
-static vector<TransactionStruct> gTransactionHistory;
+struct TSComp_t {
+    bool operator() (const std::unique_ptr<TransactionStruct>& l, const std::unique_ptr<TransactionStruct>& r) {
+        return l->trans_id < r->trans_id;
+    }
+    bool operator() (const std::unique_ptr<TransactionStruct>& o, uint64_t target) {
+        return o->trans_id < target;
+    }
+} TSComp;
+static vector<std::unique_ptr<TransactionStruct>> gTransactionHistory;
 static std::mutex gTransactionHistoryMutex;
 //static LPSpinLock gTransactionHistoryMutex;
 
@@ -375,6 +421,7 @@ static void processForget(const Forget& f) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
+        // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
             cCol.transactions.erase(cCol.transactions.begin(),
@@ -383,15 +430,23 @@ static void processForget(const Forget& f) {
                         [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; }
                         ));
         }
+        // clean the transactions log
+        auto& transLog = gRelations[i].transLog; 
+        //cerr << "size bef: " << transLog.size() << endl;
+        for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
+            if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
+            else ++it;
+        }
+        //cerr << "size after: " << transLog.size() << endl;
     }
-
+/*
     // then delete the transactions from the transaction history 
     auto ub = upper_bound(gTransactionHistory.begin(), 
             gTransactionHistory.end(), 
             f.transactionId,
             [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
     gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-
+*/
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -705,39 +760,39 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             }
             if (trans.isDelOp) {
                 // this is a delete operation
-                vector<TransOperation> operations;
+                //vector<TransOperation> operations;
                 for (const uint64_t* key=trans.values,*keyLimit=key+trans.rowCount;key!=keyLimit;++key) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
+                        // lb->second is a pair<uint64_t, uint64_t*> - trans_id/tuple
+                        // - TODO - decrease counter of trans tuples
+                        auto tit = lower_bound(relation.transLog.begin(), relation.transLog.end(), lb->second.first, RTLComp);
+                        (*tit)->last_del_id = trans.trans_id;
+                        --(*tit)->aliveTuples;
+                        
                         // update the relation transactions - transfer ownership of the tuple
-                        operations.emplace_back(ri, move(lb->second));
-                        // remove the row from the relations table
+                        tuple_t tpl = lb->second.second;
+                        // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
                         for (uint32_t c=0; c<relCols; ++c) {
-                            relColumns[c].transactions.back().second.emplace_back(operations.back().tuple[c], operations.back().tuple.get());
+                            relColumns[c].transactions.back().second.emplace_back(tpl[c], tpl);
                         }
                     }
                 }
-                {
-                    gTransactionHistoryMutex.lock();
-                    gTransactionHistory.push_back(move(TransactionStruct(trans.trans_id, move(operations))));
-                    gTransactionHistoryMutex.unlock();
-                }
+                delete[] trans.values;
             } else {
                 // this is an insert operation
-                uint64_t *tptr_r; const uint64_t *vptr;
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                    std::unique_ptr<uint64_t[]> tptr2(new uint64_t[relCols]);
-                    tptr_r = tptr2.get(); vptr = values;
+                    tuple_t vals = const_cast<uint64_t*>(values);
                     for (uint32_t c=0; c<relCols; ++c) {
-                        *tptr_r++ = *vptr++;
-                        relColumns[c].transactions.back().second.emplace_back(values[c], tptr2.get());
+                        relColumns[c].transactions.back().second.emplace_back(vals[c], vals);
                     }
                     // finally add the new tuple to the inserted rows of the relation
-                    relation.insertedRows[values[0]]=move(tptr2);
-                } 
+                    relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
+                }
+                // TODO - THIS HAS TO BE IN ORDER - each transaction will have its own transaction history from now on
+                relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
             }
-            delete[] trans.values;
         }
         // TODO - store the last transaction data
         for (uint32_t c=0; c<relCols; ++c) {
@@ -770,6 +825,7 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif
