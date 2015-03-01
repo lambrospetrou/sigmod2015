@@ -349,6 +349,9 @@ struct StatComp_t {
     bool operator() (const SColType& l, uint32_t target) {
         return l.second < target;
     }
+    bool operator() (uint32_t target, const SColType& r) {
+        return target < r.second;
+    }
     /*
     bool operator() (const SColType& l, const SColType& r) {
         if (l.first && !r.first) return true;
@@ -766,33 +769,28 @@ namespace lp {
     }
 }
 
-static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
+static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
         // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
         // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
         // FOLOWING VALIDATION SESSION - 1st predicates only for now
 
-        //cerr << ":: update transactions on rel " << ri << endl;
         //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
-        
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
         
         // for each column to be indexed
         // will be used in binary search to find the first column index we need for this relation
-        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
         //uint32_t rcStart = (ri << 16) & 0xffff0000;
-        auto colBegin = lower_bound(statCols->begin(), statCols->end(), rcStart, StatComp);
-        auto colEnd = statCols->end();
-        for (; colBegin!=colEnd; ++colBegin) {
+        for (;colBegin!=colEnd; ++colBegin) {
             uint32_t rel,col;
             lp::validation::unpackRelCol(colBegin->second, rel, col);
-            if (rel != ri) return; // no column to index for this relation
+            //if (rel != ri) return; // no column to index for this relation
+            
             //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
         
         //for (uint32_t col=0; col<gSchema[ri]; ++col) {
             auto& colTransactions = relColumns[col].transactions;
             uint64_t updatedUntil = relColumns[col].transTo;
-            //cerr << "col " << col << " starts from " << transFrom << endl;
 
             // TODO - IMPORTANT OPTIMIZATION - Use lower_bound to automatically jump to the transaction to start
             auto transFrom = lower_bound(relation.transLogDel.begin(), relation.transLogDel.end(), updatedUntil,
@@ -801,8 +799,6 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
             //for(auto& trp : relation.transLogDel) {
             for(auto tEnd=relation.transLogDel.end(); transFrom!=tEnd; ++transFrom) {
                 auto& trp = *transFrom;
-                // skip the transactions that this column index is updated to
-                if (trp.first < updatedUntil) break;
                 // allocate vectors for the current new transaction to put its data
                 colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
                 for (auto tpl : trp.second) {
@@ -824,9 +820,14 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         uint64_t ri = gNextIndex++;
         if (ri >= NUM_RELATIONS) return;
 
+        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
+        auto colBegin = lower_bound(gStatColumns->begin(), gStatColumns->end(), rcStart, StatComp);
+        uint32_t rcEnd = lp::validation::packRelCol(ri, gSchema[ri]);
+        auto colEnd = upper_bound(colBegin, gStatColumns->end(), rcEnd, StatComp);
+
         // TODO - we have to run this regardless of transactions since some
         // columns might have to use previous transactions and be called for the first time
-        updateRequiredColumns(ri, gStatColumns);
+        updateRequiredColumns(ri, colBegin, colEnd);
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
@@ -926,7 +927,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             relation.transLogDel.emplace_back(lastTransId, move(operations));
 
         // update with new transactions
-        updateRequiredColumns(ri, gStatColumns);
+        updateRequiredColumns(ri, colBegin, colEnd);
 
 
     } // end of while true
