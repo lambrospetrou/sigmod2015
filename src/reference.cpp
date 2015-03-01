@@ -773,7 +773,6 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
 
         //cerr << ":: update transactions on rel " << ri << endl;
         //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
-        //for (SColType& cp : *statCols) cerr << " col: " << cp.second << endl; 
         
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
@@ -781,10 +780,9 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
         // for each column to be indexed
         // will be used in binary search to find the first column index we need for this relation
         uint32_t rcStart = lp::validation::packRelCol(ri, 0);
-        auto colFrom = lower_bound(statCols->begin(), statCols->end(), rcStart, StatComp);
-        //if (colFrom == statCols->end()) return; // no column to index for this relation
-        //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-        auto colBegin = colFrom, colEnd = statCols->end();
+        //uint32_t rcStart = (ri << 16) & 0xffff0000;
+        auto colBegin = lower_bound(statCols->begin(), statCols->end(), rcStart, StatComp);
+        auto colEnd = statCols->end();
         for (; colBegin!=colEnd; ++colBegin) {
             uint32_t rel,col;
             lp::validation::unpackRelCol(colBegin->second, rel, col);
@@ -793,14 +791,18 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
         
         //for (uint32_t col=0; col<gSchema[ri]; ++col) {
             auto& colTransactions = relColumns[col].transactions;
-            uint64_t transFrom = relColumns[col].transTo;
+            uint64_t updatedUntil = relColumns[col].transTo;
             //cerr << "col " << col << " starts from " << transFrom << endl;
 
             // TODO - IMPORTANT OPTIMIZATION - Use lower_bound to automatically jump to the transaction to start
+            auto transFrom = lower_bound(relation.transLogDel.begin(), relation.transLogDel.end(), updatedUntil,
+                    [](const pair<uint64_t, vector<tuple_t>>& o, const uint64_t target) { return o.first < target; });
             // for all the transactions in the relation
-            for(auto& trp : relation.transLogDel) {
+            //for(auto& trp : relation.transLogDel) {
+            for(auto tEnd=relation.transLogDel.end(); transFrom!=tEnd; ++transFrom) {
+                auto& trp = *transFrom;
                 // skip the transactions that this column index is updated to
-                if (trp.first < transFrom) continue;
+                if (trp.first < updatedUntil) break;
                 // allocate vectors for the current new transaction to put its data
                 colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
                 for (auto tpl : trp.second) {
@@ -809,7 +811,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
                 sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
             }
             if(!relation.transLogDel.empty())
-                relColumns[col].transTo = lp::max(relation.transLogDel.back().first+1, transFrom);
+                relColumns[col].transTo = lp::max(relation.transLogDel.back().first+1, updatedUntil);
             //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
         }
 }
@@ -832,7 +834,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
 
-        std::stable_sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
+        std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
