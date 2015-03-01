@@ -591,10 +591,12 @@ int main(int argc, char**argv) {
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
-                        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                        msgQ.registerDeq(res.refId);
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
+                        /*
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
                         BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
                         ParseMessageStruct *pvs = mem.value;
@@ -604,6 +606,7 @@ int main(int argc, char**argv) {
                         pvs->memQ = &memQ;
                         pvs->msg = &msg;
                         multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
+                        */
                         break;
                     }
                 case MessageHead::Transaction: 
