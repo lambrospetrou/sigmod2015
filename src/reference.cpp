@@ -802,7 +802,8 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         }
                     }
                 }
-                relation.transLogDel.emplace_back(trans.trans_id, move(operations));
+                if (!operations.empty())
+                    relation.transLogDel.emplace_back(trans.trans_id, move(operations));
                 delete[] trans.values;
             } else {
                 // this is an insert operation
@@ -823,7 +824,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
 
-
+/*
         // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
         // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
         // FOLOWING VALIDATION SESSION - 1st predicates only for now
@@ -838,10 +839,37 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         for (auto cEnd=gStatColumns->end(); colFrom!=cEnd; ++colFrom) {
             lp::validation::unpackRelCol(colFrom->second, rel, col);
             if (rel != ri) break; // no column to index for this relation
-            
+        
+            // TODO - IMPORTANT OPTIMIZATION - MERGE THE TWO PASSES INTO ONE
 
+            auto& colTransactions = relColumns[col].transactions;
+            auto transFrom = relColumns[col].transTo;
+            // first do the inserts - relation.transLog
+            for(uint64_t i=0, sz=relation.transLog.size(); i<sz && transFrom<relation.transLog[i]->trans_id; ++i) ++transFrom;
+            for(uint64_t tri=0, sz=relation.transLog.size(); tri<sz; ++tri) {
+                auto rtl = relation.transLog[tri].get();
+                // allocate vectors for the current new transaction to put its data
+                colTransactions.emplace_back(rtl->trans_id, move(vector<CTransStruct>()));
+                for (uint64_t* values=rtl->tuples.get(),*valuesLimit=values+(rtl->rowCount*relCols);values!=valuesLimit;values+=relCols) {
+                    colTransactions.back().second.emplace_back(values[col], values);
+                }
+            }
+            stable_sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
+
+            // second do the deletes - relation.transLogDel
+            transFrom = relColumns[col].transTo;
+            for(uint64_t i=0, sz=relation.transLogDel.size(); i<sz && transFrom<relation.transLogDel[i].first; ++i) ++transFrom;
+            for(uint64_t tri=0, sz=relation.transLogDel.size(); tri<sz; ++tri) {
+                auto trp = relation.transLogDel[tri];
+                // allocate vectors for the current new transaction to put its data
+                colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
+                for (auto& tpl : trp.second) {
+                    colTransactions.back().second.emplace_back(tpl[col], tpl);
+                }
+            }
+            stable_sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
         }
-
+*/
 
     } // end of while true
 }
