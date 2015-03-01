@@ -153,8 +153,9 @@ struct CTRSValueLessThan_t {
 typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
-    uint32_t transTo;
+    uint64_t transTo;
     vector<ColumnTransaction_t> transactions;
+    ColumnStruct() : transTo(0) {}
 };
 struct CTRSLessThan_t {
     bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -374,14 +375,19 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
-        //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
+        if (v.validationId == 16922)
+        cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         if (!lp::validation::isQueryUnsolvable(nQ)) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
                 // gather statistics    
                 auto& p = nQ.predicates[0];
-                //uint32_t rc = ((nQ.relationId & MSK_L16) << 16) | (p.column & MSK_L16);
                 uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
+                /* 
+                uint32_t rel, col;
+                lp::validation::unpackRelCol(rc, rel, col);
+                if (rel != nQ.relationId || col != p.column) { cerr << "error packing relcol" << endl; exit(1); }
+                */
                 //cerr << " " << rc;
                 gStats[tid].reqCols.push_back(move(make_pair((p.op == lp::LPOps::Equal), rc)));
                 //cerr << " " << gStats[tid].reqCols.back().second;
@@ -756,6 +762,56 @@ namespace lp {
     }
 }
 
+static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
+        // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
+        // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
+        // FOLOWING VALIDATION SESSION - 1st predicates only for now
+
+        cerr << ":: update transactions on rel " << ri << endl;
+        //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
+        //for (SColType& cp : *statCols) cerr << " col: " << cp.second << endl; 
+        
+        auto& relation = gRelations[ri];
+        auto& relColumns = gRelColumns[ri].columns;
+        
+        // for each column to be indexed
+        // will be used in binary search to find the first column index we need for this relation
+        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
+        auto colFrom = lower_bound(statCols->begin(), statCols->end(), rcStart, StatComp);
+        //if (colFrom == statCols->end()) return; // no column to index for this relation
+        //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
+        auto colBegin = colFrom, colEnd = statCols->end();
+
+
+        for (; colBegin!=colEnd; ++colBegin) {
+            uint32_t rel,col;
+            lp::validation::unpackRelCol(colBegin->second, rel, col);
+            if (rel != ri) return; // no column to index for this relation
+            //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
+        
+        //for (uint32_t col=0; col<gSchema[ri]; ++col) {
+            auto& colTransactions = relColumns[col].transactions;
+            uint64_t transFrom = relColumns[col].transTo;
+            //cerr << "col " << col << " starts from " << transFrom << endl;
+
+            // TODO - IMPORTANT OPTIMIZATION - Use lower_bound to automatically jump to the transaction to start
+            // for all the transactions in the relation
+            for(auto& trp : relation.transLogDel) {
+                // skip the transactions that this column index is updated to
+                if (trp.first < transFrom) continue;
+                // allocate vectors for the current new transaction to put its data
+                colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
+                for (auto tpl : trp.second) {
+                    colTransactions.back().second.emplace_back(tpl[col], tpl);
+                }
+                sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
+            }
+            if(!relation.transLogDel.empty())
+                relColumns[col].transTo = lp::max(relation.transLogDel.back().first+1, transFrom);
+            //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
+        }
+}
+
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
@@ -763,6 +819,10 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     for (;true;) {
         uint64_t ri = gNextIndex++;
         if (ri >= NUM_RELATIONS) return;
+
+        // TODO - we have to run this regardless of transactions since some
+        // columns might have to use previous transactions and be called for the first time
+        updateRequiredColumns(ri, gStatColumns);
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
@@ -777,13 +837,24 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         uint32_t relCols = gSchema[ri];
         
         uint64_t lastTransId = relTrans[0].trans_id;
+        /*
         for (uint32_t c=0; c<relCols; ++c) {
             relColumns[c].transactions.emplace_back(relTrans[0].trans_id, move(vector<CTransStruct>()));
         }
+        */
         
         // for each transaction regarding this relation
+        vector<tuple_t> operations;
         for (auto& trans : relTrans) {
-            
+            if (trans.trans_id != lastTransId) {
+                // store the tuples for the last transaction just finished
+                if (!operations.empty())
+                    relation.transLogDel.emplace_back(lastTransId, operations);
+                lastTransId = trans.trans_id;
+                operations.clear();
+            }
+
+            /*
             if (trans.trans_id != lastTransId) {
                 // TODO - store the last transactions data
                 for (uint32_t c=0; c<relCols; ++c) {
@@ -793,16 +864,17 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 }
                 lastTransId = trans.trans_id;
             }
+            */
             
             if (trans.isDelOp) {
                 // this is a delete operation
-                vector<tuple_t> operations;
-                operations.reserve(trans.rowCount);
+                //vector<tuple_t> operations;
+                //operations.reserve(trans.rowCount);
                 for (const uint64_t* key=trans.values,*keyLimit=key+trans.rowCount;key!=keyLimit;++key) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
                         // lb->second is a pair<uint64_t, uint64_t*> - trans_id/tuple
-                        // - TODO - decrease counter of trans tuples
+                        // decrease counter of trans tuples
                         auto tit = lower_bound(relation.transLog.begin(), relation.transLog.end(), lb->second.first, RTLComp);
                         (*tit)->last_del_id = trans.trans_id;
                         --(*tit)->aliveTuples;
@@ -810,26 +882,28 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         // update the relation transactions - transfer ownership of the tuple
                         tuple_t tpl = lb->second.second;
                         operations.push_back(tpl);
+                        
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
-                        
+                        /*
                         for (uint32_t c=0; c<relCols; ++c) {
                             relColumns[c].transactions.back().second.emplace_back(tpl[c], tpl);
                         }
-                        
+                        */
                     }
                 }
-                if (!operations.empty())
-                    relation.transLogDel.emplace_back(trans.trans_id, move(operations));
                 delete[] trans.values;
             } else {
                 // this is an insert operation
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                     tuple_t vals = const_cast<uint64_t*>(values);
-                    
+                    /*    
                     for (uint32_t c=0; c<relCols; ++c) {
                         relColumns[c].transactions.back().second.emplace_back(vals[c], vals);
                     }
+                    */
+                    
+                    operations.push_back(vals);
                     
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
@@ -838,69 +912,18 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
             }
         }
-        // TODO - store the last transaction data
+        // store the last transaction data
+        /*
         for (uint32_t c=0; c<relCols; ++c) {
             sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
+        */
+        if (!operations.empty())
+            relation.transLogDel.emplace_back(lastTransId, move(operations));
 
-/*
-        // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
-        // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
-        // FOLOWING VALIDATION SESSION - 1st predicates only for now
+        // update with new transactions
+        updateRequiredColumns(ri, gStatColumns);
 
-        // will be used in binary search to find the first column index we need for this relation
-        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
-        uint32_t rel,col; 
-        auto colFrom = lower_bound(gStatColumns->begin(), gStatColumns->end(), rcStart, StatComp);
-        if (colFrom == gStatColumns->end()) continue; // no column to index for this relation
-
-        // for each column to be indexed
-        for (auto cEnd=gStatColumns->end(); colFrom!=cEnd; ++colFrom) {
-            lp::validation::unpackRelCol(colFrom->second, rel, col);
-            if (rel != ri) break; // no column to index for this relation
-       
-            cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
-
-            // TODO - IMPORTANT OPTIMIZATION - MERGE THE TWO PASSES INTO ONE
-
-            auto& colTransactions = relColumns[col].transactions;
-            uint64_t transFrom = relColumns[col].transTo;
-            uint64_t tri = 0;
-            // first do the inserts - relation.transLog
-            for(auto& trl:relation.transLog) if (trl->trans_id < transFrom) ++tri; else break;
-            for(uint64_t sz=relation.transLog.size(); tri<sz; ++tri) {
-                auto& rtl = relation.transLog[tri];
-                // allocate vectors for the current new transaction to put its data
-                colTransactions.emplace_back(rtl->trans_id, move(vector<CTransStruct>()));
-                for (uint64_t* values=rtl->tuples.get(),*valuesLimit=values+(rtl->rowCount*relCols);values!=valuesLimit;values+=relCols) {
-                    colTransactions.back().second.emplace_back(values[col], values);
-                }
-                stable_sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
-            }
-
-            // second do the deletes - relation.transLogDel
-            tri = 0;
-            for(auto& trl:relation.transLogDel) if (trl.first < transFrom) ++tri; else break;
-            for(uint64_t sz=relation.transLogDel.size(); tri<sz; ++tri) {
-                auto& trp = relation.transLogDel[tri];
-                // allocate vectors for the current new transaction to put its data
-                colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
-                for (auto tpl : trp.second) {
-                    colTransactions.back().second.emplace_back(tpl[col], tpl);
-                }
-                stable_sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
-            }
-
-            uint64_t del = relation.transLogDel.empty() ? 0 : relation.transLogDel.size();
-            uint64_t ins = relation.transLog.empty() ? 0 : relation.transLog.size();
-            relColumns[col].transTo = lp::max(lp::max(del, ins)+1, transFrom);
-
-            stable_sort(colTransactions.begin(), colTransactions.end(), 
-                    [](const pair<uint64_t,vector<CTransStruct>>& l, const pair<uint64_t,vector<CTransStruct>>& r) {
-                        return l.first < r.first;
-                    });
-        }
-*/
 
     } // end of while true
 }
@@ -919,18 +942,20 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
         auto ccols = &gStats[tid].reqCols;
         if (ccols == cols) continue;
-        //for (auto& p : *ccols) cerr << " " << p.second;
         copy(ccols->begin(), ccols->end(), back_inserter(*cols));
         ccols->clear();
     }
+    
+    // add the first column for all relations
     std::sort(cols->begin(), cols->end(), StatComp);
     auto it = std::unique(cols->begin(), cols->end(), [] (const SColType& l, const SColType& r) { return l.second == r.second; });
     cols->resize(std::distance(cols->begin(), it));
     //cerr << "unique reqCols: " << cols->size() << endl;
     //for (auto& p : *cols) cerr << " " << p.second;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-    
+
     gStatColumns = cols;
+    //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
 
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
@@ -1022,13 +1047,15 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
 
             auto& relColumns = gRelColumns[q.relationId].columns;
-
             
             // protect from the case where there is no single predicate
             if (q.predicates.empty()) { 
                 //cerr << "empty: " << v.validationId << endl; 
-                auto& transactionsCheck = relColumns[0].transactions;
-                auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, CTRSLessThan);
+                auto& transactionsCheck = gRelations[q.relationId].transLogDel;
+                auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, 
+                        [](const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
+                            return l.first < target;
+                        });
                 if (transFromCheck == transactionsCheck.end()) { 
                     // no transactions exist for this query
                     continue;
