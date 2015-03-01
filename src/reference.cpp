@@ -379,6 +379,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         if (!lp::validation::isQueryUnsolvable(nQ)) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
+                std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
                 // gather statistics    
                 auto& p = nQ.predicates[0];
                 uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
@@ -565,6 +566,7 @@ int main(int argc, char**argv) {
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
+    //MultiTaskPool multiPool(numOfThreads-2);
     MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
@@ -1062,8 +1064,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 }; 
             }
 
-            // IMPORTANT!!! - sort them in order to have the equality checks first
-            std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
+            // IMPORTANT!!! - sort them in order to have the equality checks first -  done earlier now
+            //std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
 
             auto& pFirst = q.predicates[0];
             auto& transactions = relColumns[pFirst.column].transactions;
@@ -1114,10 +1116,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                     bool match=true;
                     for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
                         auto& c = q.predicates[cp];
-                        //if (v.validationId == 4) cerr << "pred:" << c << endl;
                         // make the actual check
                         uint64_t tupleValue = tuple[c.column]; 
-                        //cerr << "tpl value: " << tupleValue << endl;
                         uint64_t queryValue = c.value;
                         bool result=false;
                         switch (c.op) {
