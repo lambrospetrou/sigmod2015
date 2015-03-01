@@ -342,18 +342,28 @@ struct StatStruct {
 };
 struct StatComp_t {
     bool operator() (const SColType& l, const SColType& r) {
+        return l.second < r.second;
+    }
+    /*
+    bool operator() (const SColType& l, const SColType& r) {
         if (l.first && !r.first) return true;
         else if (r.first && !l.first) return false;
         return l.second < r.second;
     }
+    */
 } StatComp;
 static unique_ptr<StatStruct[]> gStats;
+static vector<SColType> *gStatColumns;
 
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
     (void)vdata; (void)tid;
+
+    const static uint32_t MSK_L16 = 0x0000ffff;
+    //static uint32_t MSK_H16 = 0xffff0000;
+
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
@@ -368,8 +378,10 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             if (!nQ.predicates.empty()) {
                 // gather statistics    
                 auto& p = nQ.predicates[0];
-                uint32_t rc = (nQ.relationId << 16) + p.column;
-                gStats[tid].reqCols.emplace_back((p.op == lp::LPOps::Equal), rc);
+                uint32_t rc = ((nQ.relationId & MSK_L16) << 16) | (p.column & MSK_L16);
+                //cerr << " " << rc;
+                gStats[tid].reqCols.push_back(move(make_pair((p.op == lp::LPOps::Equal), rc)));
+                //cerr << " " << gStats[tid].reqCols.back().second;
             }
             queries.push_back(move(nQ));
         }
@@ -814,27 +826,33 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 
     //cerr << "::: session start ::::" << endl;
     vector<SColType>* cols = &gStats[0].reqCols;
+    //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     for (uint32_t tid=1; tid<Globals.nThreads; tid++) {
         if (gStats[tid].reqCols.size() > cols->size()) cols = &gStats[tid].reqCols;
     }
     for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
         auto ccols = &gStats[tid].reqCols;
         if (ccols == cols) continue;
-        cols->insert(cols->begin(), ccols->begin(), ccols->end());
+        //for (auto& p : *ccols) cerr << " " << p.second;
+        copy(ccols->begin(), ccols->end(), back_inserter(*cols));
         ccols->clear();
     }
     std::sort(cols->begin(), cols->end(), StatComp);
-    auto it = std::unique(cols->begin(), cols->end(), StatComp);
+    auto it = std::unique(cols->begin(), cols->end(), [] (const SColType& l, const SColType& r) { return l.second == r.second; });
     cols->resize(std::distance(cols->begin(), it));
-    //cerr << "unique reqCols: " << cols1.size() << endl;
-    //for (auto& cp : cols1) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-    cols->clear();
-  
+    //cerr << "unique reqCols: " << cols->size() << endl;
+    //for (auto& p : *cols) cerr << " " << p.second;
+    //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
+    
+    gStatColumns = cols;
 
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    
+    // clear the 1st predicate columns 
+    cols->clear();
 
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
