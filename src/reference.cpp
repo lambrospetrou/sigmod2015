@@ -299,7 +299,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif
-    (void)vdata;
+    (void)vdata; (void)tid;
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
@@ -307,6 +307,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
+
         LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         if (!lp::validation::isQueryUnsolvable(nQ)) {
@@ -319,7 +320,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             }
             queries.push_back(move(nQ));
         }
-        //queries.push_back(move(LPQuery(*q)));
+
+       // queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
@@ -827,8 +829,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // check if someone else found a conflict already for this validation ID
         if (atoRes) continue;
 
+/*
+        for (auto it = v.queries.begin(); it!=v.queries.end();) {
+            if (lp::validation::isQueryUnsolvable(*it)) {
+                it = v.queries.erase(it);
+            } else {
+                ++it;
+            }
+        }
+*/
         if (v.queries.empty()) { continue; }
-
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         sort(v.queries.begin(), v.queries.end(), LPQuery::LPQuerySizeLessThan);
