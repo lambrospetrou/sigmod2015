@@ -36,6 +36,7 @@ namespace lp {
             memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
             std::sort(predicates.begin(), predicates.end());
             predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
+           
             //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
             // reorder operators
             //for (auto& p : predicates) if (p.op == LPOps::NotEqual) p.op = LPOps::NotEqualLast ;

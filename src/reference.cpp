@@ -307,7 +307,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
-
         LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         if (!lp::validation::isQueryUnsolvable(nQ)) {
@@ -321,13 +320,13 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             queries.push_back(move(nQ));
         }
 
-       // queries.push_back(move(LPQuery(*q)));
+//        queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
     {
         //std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-        gPendingValidationsMutex.lock();;
+        gPendingValidationsMutex.lock();
         gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
         // update the global pending validations to reflect this new one
         ++gPVunique;
@@ -478,7 +477,8 @@ int main(int argc, char**argv) {
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
@@ -507,7 +507,7 @@ int main(int argc, char**argv) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
                         //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-#ifndef LPDEBUG
+#ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
@@ -831,6 +831,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
 /*
         for (auto it = v.queries.begin(); it!=v.queries.end();) {
+            std::sort(it->predicates.begin(), it->predicates.end(), );
+            
+            it->predicates.resize(std::distance(it->predicates.begin(), std::unique(it->predicates.begin(), it->predicates.end())));
             if (lp::validation::isQueryUnsolvable(*it)) {
                 it = v.queries.erase(it);
             } else {
@@ -850,6 +853,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             auto& relColumns = gRelColumns[q.relationId].columns;
 
+            
             // protect from the case where there is no single predicate
             if (q.predicates.empty()) { 
                 //cerr << "empty: " << v.validationId << endl; 
