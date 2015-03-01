@@ -16,14 +16,14 @@
 template<class T>
 class BoundedQueue {
 private: 
-    typedef uint64_t NodePtr;
 
     struct Node {
-        NodePtr next;
-        NodePtr prev;
-        NodePtr refId;
+        Node* next;
+        Node* prev;
+        uint64_t refId;
         T value;
     };
+    typedef Node* NodePtr;
 
 public:
 
@@ -33,7 +33,7 @@ public:
         BQResult(uint64_t id, T* v) : refId(id), value(v){}
     };
 
-    BoundedQueue(uint64_t sz) : mMaxSize(sz), InvalidPtr(sz+1), 
+    BoundedQueue(uint64_t sz) : mMaxSize(sz), InvalidPtr(nullptr), 
     mlUnused(InvalidPtr), mlAvailable(InvalidPtr), mlReqEnq(InvalidPtr), mlReqDeq(InvalidPtr), 
     mlUnusedTail(InvalidPtr), mlAvailableTail(InvalidPtr), mlReqEnqTail(InvalidPtr), mlReqDeqTail(InvalidPtr), 
     mNodes(std::vector<Node>(mMaxSize)) {
@@ -41,13 +41,13 @@ public:
             mNodes[0].prev = InvalidPtr;
             mNodes[0].refId = 0;
             for (uint64_t i=1; i<sz; ++i) {
-                mNodes[i].prev = i-1;
-                mNodes[i-1].next = i;
+                mNodes[i].prev = &mNodes[i-1];
+                mNodes[i-1].next = &mNodes[i];
                 mNodes[i].refId = i;
             }
             mNodes[sz-1].next = InvalidPtr;
-            mlUnused = 0;
-            mlUnusedTail = sz-1;
+            mlUnused = &mNodes[0];
+            mlUnusedTail = &mNodes[sz-1];
             mReservedDeq = 0;
             mCurEnqueued = 0;
     }
@@ -55,13 +55,13 @@ public:
     BQResult reqNextEnq() { 
         std::unique_lock<std::mutex> lk(mMutex);
         //debugInfo("req-enq");
-        mCondFull.wait(lk, [this]{return mlUnused != InvalidPtr;});
+        if (mlUnused == InvalidPtr) mCondFull.wait(lk, [this]{return mlUnused != InvalidPtr;});
         // transfer the node from Unused list to ReqEnq list
         NodePtr cN = disconnectHead(mlUnused, mlUnusedTail);
         // connect node to mReqEnq
         append(cN, mlReqEnq, mlReqEnqTail);
         lk.unlock();
-        return BQResult(cN, &mNodes[cN].value); 
+        return BQResult(cN->refId, &cN->value); 
     }
 
     void registerEnq(uint64_t id) {
@@ -69,7 +69,7 @@ public:
         std::lock_guard<std::mutex> lk(mMutex);
         //debugInfo("register-enq");
         // transfer node from mReqEnq to Available
-        NodePtr nN = mNodes[id].refId;
+        NodePtr nN = &mNodes[id];
         // remove it from ReqEnq
         disconnectNode(nN, mlReqEnq, mlReqEnqTail);
         // connect it to Available
@@ -82,25 +82,26 @@ public:
         std::unique_lock<std::mutex> lk(mMutex);
         ++mReservedDeq;
         //debugInfo("req-deq");
-        mCondEmpty.wait(lk, [this]{return mlAvailable != InvalidPtr;});
+        if (mlAvailable == InvalidPtr) mCondEmpty.wait(lk, [this]{return mlAvailable != InvalidPtr;});
         // transfer the node from Available list to ReqDeq list
         NodePtr cN = disconnectHead(mlAvailable, mlAvailableTail);
         // connect node to mReqDeq
         append(cN, mlReqDeq, mlReqDeqTail);
         lk.unlock();
-        return BQResult(cN, &mNodes[cN].value);
+        return BQResult(cN->refId, &cN->value);
     }
     void registerDeq(uint64_t id) {
         std::lock_guard<std::mutex> lk(mMutex);
         --mReservedDeq;
         //debugInfo("register-deq");
         // transfer node from mReqDeq to Unused
-        NodePtr cN = mNodes[id].refId;
+        NodePtr cN = &mNodes[id];
         // remove it from ReqEnq
         disconnectNode(cN, mlReqDeq, mlReqDeqTail);
         // connect it to Available
         append(cN, mlUnused, mlUnusedTail);
-        if (--mCurEnqueued <= (mMaxSize>>1)) mCondFull.notify_one();    
+        //if (--mCurEnqueued <= (mMaxSize>>1)) mCondFull.notify_one();    
+        mCondFull.notify_one();    
     }
   
     void debugInfo(const std::string& s) {
@@ -114,7 +115,7 @@ public:
 private:
 
     const uint64_t mMaxSize;
-    const uint64_t InvalidPtr; 
+    const NodePtr InvalidPtr; 
     
     NodePtr mlUnused;
     NodePtr mlAvailable;
@@ -136,8 +137,8 @@ private:
 
     void cerrList(NodePtr n) {
         while (n != InvalidPtr) {
-            std::cerr << "[" << n << "] ";
-            n = mNodes[n].next;
+            std::cerr << "[" << n.refId << "] ";
+            n = n->next;
         }
         std::cerr << std::endl;
     }
@@ -149,39 +150,39 @@ private:
         } else if (cN == lT) {
             disconnectTail(lH, lT);  
         } else { 
-            if (mNodes[cN].next != InvalidPtr) mNodes[mNodes[cN].next].prev = mNodes[cN].prev;
-            if (mNodes[cN].prev != InvalidPtr) mNodes[mNodes[cN].prev].next = mNodes[cN].next;
+            if (cN->next != InvalidPtr) cN->next->prev = cN->prev;
+            if (cN->prev != InvalidPtr) cN->prev->next = cN->next;
         }
     }
 
-    NodePtr disconnectHead(NodePtr &lH, NodePtr& lT) {
+    inline NodePtr disconnectHead(NodePtr &lH, NodePtr& lT) {
         if (lH == InvalidPtr) return InvalidPtr;
         NodePtr t = lH;
-        lH = mNodes[lH].next;
+        lH = lH->next;
         if (lH == InvalidPtr) lT = InvalidPtr;
-        else mNodes[lH].prev = InvalidPtr;
+        else lH->prev = InvalidPtr;
         return t;
     }
-    NodePtr disconnectTail(NodePtr &lH, NodePtr& lT) {
+    inline NodePtr disconnectTail(NodePtr &lH, NodePtr& lT) {
         if (lT == InvalidPtr) return InvalidPtr;
         NodePtr t = lT;
-        lT = mNodes[lT].prev;
+        lT = lT->prev;
         if (lT == InvalidPtr) lH = InvalidPtr;
-        else mNodes[lT].next = InvalidPtr;
+        else lT->next = InvalidPtr;
         return t;
     }
 
     void prepend(NodePtr nN, NodePtr& lH, NodePtr& lT) { 
         if (lH == InvalidPtr) {
             // empty list
-            mNodes[nN].prev = InvalidPtr;
-            mNodes[nN].next = InvalidPtr;
+            nN->prev = InvalidPtr;
+            nN->next = InvalidPtr;
             lH = nN; lT = nN;
         } else {
             // there is a head already
-            mNodes[nN].next = lH;
-            mNodes[nN].prev = InvalidPtr;
-            mNodes[lH].prev = nN;
+            nN->next = lH;
+            nN->prev = InvalidPtr;
+            lH->prev = nN;
             lH = nN;
         }
     }  
@@ -189,13 +190,13 @@ private:
         if (lH == InvalidPtr) {
             // empty list so set both to this node
             lH = nN; lT = nN;
-            mNodes[nN].prev = InvalidPtr;
-            mNodes[nN].next = InvalidPtr;
+            nN->prev = InvalidPtr;
+            nN->next = InvalidPtr;
         } else {
             // the list is not empty
-            mNodes[nN].prev = lT;
-            mNodes[nN].next = InvalidPtr;
-            mNodes[lT].next = nN;
+            nN->prev = lT;
+            nN->next = InvalidPtr;
+            lT->next = nN;
             lT = nN;
         }
     }
