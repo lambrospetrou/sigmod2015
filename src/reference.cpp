@@ -581,10 +581,9 @@ int main(int argc, char**argv) {
                     ++gTotalTransactions; 
 #endif
                     {Globals.state = GlobalState::TRANSACTION;
-                    //processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                    //msgQ.registerDeq(res.refId);
-                    //checkPendingTransactions(workerThreads);
-                    
+                    processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                    msgQ.registerDeq(res.refId);
+                    /* 
                     BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
                     ParseMessageStruct *pvs = mem.value;
                     pvs->msgQ = &msgQ;
@@ -593,9 +592,8 @@ int main(int argc, char**argv) {
                     pvs->memQ = &memQ;
                     pvs->msg = &msg;
                     //parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
-                    //checkPendingTransactions(workerThreads);
                     multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
-                    
+                    */
                     break;
                     }
                 case MessageHead::Flush:  
