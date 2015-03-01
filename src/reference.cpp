@@ -206,6 +206,7 @@ struct RTLComp_t {
 // The general structure for each relation
 struct RelationStruct {
     vector<unique_ptr<RelTransLog>> transLog;
+    vector<pair<uint64_t, vector<tuple_t>>> transLogDel;
     unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
 
@@ -343,6 +344,9 @@ struct StatStruct {
 struct StatComp_t {
     bool operator() (const SColType& l, const SColType& r) {
         return l.second < r.second;
+    }
+    bool operator() (const SColType& l, uint32_t target) {
+        return l.second < target;
     }
     /*
     bool operator() (const SColType& l, const SColType& r) {
@@ -777,7 +781,8 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             }
             if (trans.isDelOp) {
                 // this is a delete operation
-                //vector<TransOperation> operations;
+                vector<tuple_t> operations;
+                operations.reserve(trans.rowCount);
                 for (const uint64_t* key=trans.values,*keyLimit=key+trans.rowCount;key!=keyLimit;++key) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
@@ -789,6 +794,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         
                         // update the relation transactions - transfer ownership of the tuple
                         tuple_t tpl = lb->second.second;
+                        operations.push_back(tpl);
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
                         for (uint32_t c=0; c<relCols; ++c) {
@@ -796,6 +802,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         }
                     }
                 }
+                relation.transLogDel.emplace_back(trans.trans_id, move(operations));
                 delete[] trans.values;
             } else {
                 // this is an insert operation
@@ -823,8 +830,17 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
         // will be used in binary search to find the first column index we need for this relation
         uint32_t rcStart = lp::validation::packRelCol(ri, 0);
-        uint32_t rel,col; lp::validation::unpackRelCol(rcStart, rel, col);
-        if (rel != ri || col != 0) { cerr << "our pack/unpack is wrong" << endl; }
+        uint32_t rel,col; 
+        auto colFrom = lower_bound(gStatColumns->begin(), gStatColumns->end(), rcStart, StatComp);
+        if (colFrom == gStatColumns->end()) continue; // no column to index for this relation
+
+        // for each column to be indexed
+        for (auto cEnd=gStatColumns->end(); colFrom!=cEnd; ++colFrom) {
+            lp::validation::unpackRelCol(colFrom->second, rel, col);
+            if (rel != ri) break; // no column to index for this relation
+            
+
+        }
 
 
     } // end of while true
