@@ -335,10 +335,18 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
+typedef pair<bool, uint32_t> SColType;
 struct StatStruct {
     // columns info that appear as 1st predicates - bool=True means equality, False anything else
-    vector<pair<bool, uint32_t>> reqCols; 
+    vector<SColType> reqCols; 
 };
+struct StatComp_t {
+    bool operator() (const SColType& l, const SColType& r) {
+        if (l.first && !r.first) return true;
+        else if (r.first && !l.first) return false;
+        return l.second < r.second;
+    }
+} StatComp;
 static unique_ptr<StatStruct[]> gStats;
 
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
@@ -803,21 +811,25 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
-/*
+
     //cerr << "::: session start ::::" << endl;
-    auto& cols1 = gStats[0].reqCols;
+    vector<SColType>* cols = &gStats[0].reqCols;
     for (uint32_t tid=1; tid<Globals.nThreads; tid++) {
-        auto& cols = gStats[tid].reqCols;
-        cols1.insert(cols1.begin(), cols.begin(), cols.end());
-        cols.clear();
+        if (gStats[tid].reqCols.size() > cols->size()) cols = &gStats[tid].reqCols;
     }
-        std::sort(cols1.begin(), cols1.end(), [](const pair<bool, uint32_t>& l,const pair<bool, uint32_t>& r ){ return l.second < r.second; });
-        auto it = std::unique(cols1.begin(), cols1.end(), [](const pair<bool, uint32_t>& l,const pair<bool, uint32_t>& r ){ return l.second < r.second; });
-        cols1.resize(std::distance(cols1.begin(), it));
-        //cerr << "unique reqCols: " << cols1.size() << endl;
-        //for (auto& cp : cols1) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-        cols1.clear();
-*/  
+    for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
+        auto ccols = &gStats[tid].reqCols;
+        if (ccols == cols) continue;
+        cols->insert(cols->begin(), ccols->begin(), ccols->end());
+        ccols->clear();
+    }
+    std::sort(cols->begin(), cols->end(), StatComp);
+    auto it = std::unique(cols->begin(), cols->end(), StatComp);
+    cols->resize(std::distance(cols->begin(), it));
+    //cerr << "unique reqCols: " << cols1.size() << endl;
+    //for (auto& cp : cols1) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
+    cols->clear();
+  
 
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
