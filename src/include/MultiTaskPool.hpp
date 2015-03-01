@@ -106,6 +106,10 @@ class MultiTaskPool {
 
         std::atomic<uint32_t> mHelperId;
 
+        bool inline canProceed() {
+            return ((mPoolRunning && !mTasks.empty()) || mPoolStopped);
+        }
+
         void worker(uint32_t tid) {
             //cerr << tid << endl;
             while(true) {
@@ -114,7 +118,7 @@ class MultiTaskPool {
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
                 if (mWaiting == mNumOfThreads && mTasks.empty()) mCondMaster.notify_all();
-                mCondActive.wait(lk, [tid,this]{return ((mPoolRunning && !mTasks.empty()) || mPoolStopped);});
+                if (!canProceed()) mCondActive.wait(lk, [tid,this]{return canProceed();});
                 --mWaiting;
                 if (mPoolStopped) { lk.unlock(); return; }
                 
