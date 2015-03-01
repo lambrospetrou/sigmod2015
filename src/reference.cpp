@@ -152,6 +152,8 @@ struct CTRSValueLessThan_t {
 
 typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
+    // the trans_id the transactions are updated to inclusive
+    uint32_t transTo;
     vector<ColumnTransaction_t> transactions;
 };
 struct CTRSLessThan_t {
@@ -181,7 +183,6 @@ struct RelationStruct {
 
 // general relations
 static std::unique_ptr<RelationStruct[]> gRelations;
-
 
 
 struct TRMapPhase {
