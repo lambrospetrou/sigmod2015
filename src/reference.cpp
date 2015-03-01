@@ -775,15 +775,15 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
         uint32_t relCols = gSchema[ri];
-        /*
+        
         uint64_t lastTransId = relTrans[0].trans_id;
         for (uint32_t c=0; c<relCols; ++c) {
             relColumns[c].transactions.emplace_back(relTrans[0].trans_id, move(vector<CTransStruct>()));
         }
-        */
+        
         // for each transaction regarding this relation
         for (auto& trans : relTrans) {
-            /*
+            
             if (trans.trans_id != lastTransId) {
                 // TODO - store the last transactions data
                 for (uint32_t c=0; c<relCols; ++c) {
@@ -793,7 +793,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 }
                 lastTransId = trans.trans_id;
             }
-            */
+            
             if (trans.isDelOp) {
                 // this is a delete operation
                 vector<tuple_t> operations;
@@ -812,11 +812,11 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         operations.push_back(tpl);
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
-                        /*
+                        
                         for (uint32_t c=0; c<relCols; ++c) {
                             relColumns[c].transactions.back().second.emplace_back(tpl[c], tpl);
                         }
-                        */
+                        
                     }
                 }
                 if (!operations.empty())
@@ -826,11 +826,11 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 // this is an insert operation
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                     tuple_t vals = const_cast<uint64_t*>(values);
-                    /*
+                    
                     for (uint32_t c=0; c<relCols; ++c) {
                         relColumns[c].transactions.back().second.emplace_back(vals[c], vals);
                     }
-                    */
+                    
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
                 }
@@ -838,13 +838,12 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
             }
         }
-/*
         // TODO - store the last transaction data
         for (uint32_t c=0; c<relCols; ++c) {
             sort(relColumns[c].transactions.back().second.begin(), relColumns[c].transactions.back().second.end(), CTransStruct::CompValOnly);
         }
-*/
 
+/*
         // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
         // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
         // FOLOWING VALIDATION SESSION - 1st predicates only for now
@@ -901,7 +900,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         return l.first < r.first;
                     });
         }
-
+*/
 
     } // end of while true
 }
