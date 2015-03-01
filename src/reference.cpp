@@ -375,8 +375,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
         LPQuery nQ(*q);
-        if (v.validationId == 16922)
-        cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
+        //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         if (!lp::validation::isQueryUnsolvable(nQ)) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
@@ -767,7 +766,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
         // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
         // FOLOWING VALIDATION SESSION - 1st predicates only for now
 
-        cerr << ":: update transactions on rel " << ri << endl;
+        //cerr << ":: update transactions on rel " << ri << endl;
         //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
         //for (SColType& cp : *statCols) cerr << " col: " << cp.second << endl; 
         
@@ -781,8 +780,6 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType> *statCols) {
         //if (colFrom == statCols->end()) return; // no column to index for this relation
         //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
         auto colBegin = colFrom, colEnd = statCols->end();
-
-
         for (; colBegin!=colEnd; ++colBegin) {
             uint32_t rel,col;
             lp::validation::unpackRelCol(colBegin->second, rel, col);
