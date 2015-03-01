@@ -289,7 +289,6 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
-
 struct StatStruct {
     // columns info that appear as 1st predicates - bool=True means equality, False anything else
     vector<pair<bool, uint32_t>> reqCols; 
@@ -481,7 +480,7 @@ int main(int argc, char**argv) {
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -544,7 +543,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -554,7 +553,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
@@ -597,6 +596,9 @@ struct TRMapPhase {
 */
 
 static void processTransactionMessage(const Transaction& t, vector<char>& data) {
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+#endif
     (void)data;
 
     const char* reader=t.operations;
@@ -641,6 +643,9 @@ static void processTransactionMessage(const Transaction& t, vector<char>& data) 
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
+#ifdef LPDEBUG
+    LPTimer.transactions += LPTimer.getChrono(start);
+#endif
 }
 
 
@@ -774,10 +779,13 @@ static std::atomic<uint64_t> gNextPending;
 
 static void checkPendingValidations(SingleTaskPool &pool) {
     if (gPendingValidations.empty()) return;
+
+    // check if there is any pending index creation to be made before checking validation
+    checkPendingTransactions(pool);
+
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    checkPendingTransactions(pool);
 
     resIndexOffset = UINT64_MAX;
     for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
