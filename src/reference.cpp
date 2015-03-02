@@ -546,7 +546,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
         pvs->msgQ->registerDeq(pvs->refId);
-        pvs->memQ->free(pvs->memRefId);
+        //pvs->memQ->free(pvs->memRefId);
+        delete pvs;
     }
 
 
@@ -609,22 +610,22 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                 switch (head.type) {
                     case MessageHead::ValidationQueries: 
                         {    Globals.state = GlobalState::VALIDATION;
-                            processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                            msgQ.registerDeq(res.refId);
+                            //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                            //msgQ.registerDeq(res.refId);
 #ifdef LPDEBUG
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                            /*
-                            //ParseValidationStruct *pvs = new ParseValidationStruct();
-                            BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
-                            ParseMessageStruct *pvs = mem.value;
+                            
+                            ParseMessageStruct *pvs = new ParseMessageStruct();
+                            //BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
+                            //ParseMessageStruct *pvs = mem.value;
                             pvs->msgQ = &msgQ;
                             pvs->refId = res.refId;
-                            pvs->memRefId = mem.refId;
-                            pvs->memQ = &memQ;
+                            //pvs->memRefId = mem.refId;
+                            //pvs->memQ = &memQ;
                             pvs->msg = &msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                            */
+                            
                             break;
                         }
                     case MessageHead::Transaction: 
