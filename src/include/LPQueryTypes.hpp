@@ -106,8 +106,80 @@ namespace lp {
         typedef Query::Column::Op Op;
         typedef Query::Column Column;
 
+        struct Satisfiability {
+            bool pastOps[6];
+            uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
+            std::vector<uint64_t> neq; 
+            Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
+                memset(pastOps, 0, 6);
+            }
+            void reset() {
+                eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
+                memset(pastOps, 0, 6);
+                neq.clear();
+            }
+        };
+
+        bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
+            switch (p.op) {
+                case Op::Equal:
+                    // already found an equality check
+                    if (sat.pastOps[Op::Equal]) return true;
+                    sat.pastOps[Op::Equal] = true; 
+                    sat.eq = p.value;
+                    break;
+                case Op::NotEqual:
+                    // both equality and inequality with same value
+                    if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
+                    sat.pastOps[Op::NotEqual] = true;
+                    //sat.neq.push_back(p.value);
+                    break;
+                case Op::Less:
+                    if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
+                    sat.pastOps[Op::Less] = true;
+                    if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
+                    break;
+                case Op::LessOrEqual:
+                    if (sat.pastOps[Op::Equal] && sat.eq > p.value) return true;
+                    sat.pastOps[Op::LessOrEqual] = true;
+                    if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
+                    break;
+                case Op::Greater:
+                    if (sat.pastOps[Op::Equal] && sat.eq <= p.value) return true;
+                    sat.pastOps[Op::Greater] = true;
+                    if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
+                    break;
+                case Op::GreaterOrEqual:
+                    if (sat.pastOps[Op::Equal] && sat.eq < p.value) return true;
+                    sat.pastOps[Op::GreaterOrEqual] = true;
+                    if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
+                    break;
+            }
+
+            // check for equality and constrasting ranges
+            if (sat.pastOps[Op::Equal] && (sat.eq < sat.gt || sat.eq > sat.lt))
+                return true;
+
+            // check non-overlapping ranges
+            if (sat.lt - sat.gt <= 0) return true;
+
+            return false;
+        }
+
+        bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
+            if (colBegin == colEnd) return false;
+            Satisfiability sat;
+            uint64_t lastCol = UINT64_MAX;
+            for (; colBegin != colEnd; ++colBegin) {
+                if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
+                if (isQueryColumnUnsolvable(*colBegin, sat)) return true;
+            }
+            return false;
+        }
+
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ) {
             (void)relCols; (void)nQ;
+            Column * qc = const_cast<Column*>(q->columns);
             /*
             std::cerr << std::endl;
             for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
@@ -115,8 +187,24 @@ namespace lp {
             }
             */
             //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
-            std::sort(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompCol);
-            auto uend = std::unique(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompColEq);
+            
+            // sort the columns by column first in order to remove uniques and check satisfiability
+            std::sort(qc, qc+q->columnCount, ColumnCompCol);
+            auto colEnd = std::unique(qc, qc+q->columnCount, ColumnCompColEq);
+            auto colBegin = qc;
+            uint64_t uniqSz = std::distance(colBegin, colEnd);
+            
+            if (isQueryUnsolvable(colBegin, colEnd)) {
+                // the query is not-satisfiable so it should be skipped-pruned
+                nQ->satisfiable = false;
+                nQ->columnCount = 0;
+                return false;
+            }
+            
+            // the query is satisfiable so insert it into the predicates of the passed in LPQuery
+            nQ->predicates.reserve(uniqSz);
+            nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
+            nQ->columnCount = uniqSz;
             //std::cerr << "unique: " << uend-q->columns << std::endl; 
             /*
             std::cerr << std::endl << "after unique: " << std::distance(const_cast<Column*>(q->columns), uend) << std::endl; 
@@ -124,14 +212,12 @@ namespace lp {
             //for (auto c=uend, cLimit=const_cast<Column*>(q->columns)+q->columnCount; c!=cLimit; ++c) {
                 std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
             }
-            */
-            if (std::distance(const_cast<Column*>(q->columns), uend) != q->columnCount) {
+            if (std::distance(qc, uend) != q->columnCount) {
                 std::cerr << std::endl << std::endl << " unique worked " << std::endl << std::endl; 
             }
-
+            */
             
             //for (auto c: preds) std::cerr << c.column << ":" << c.op << ":" << c.value << " ";
-
             return true;
         }
 
@@ -154,7 +240,6 @@ namespace lp {
             return ((pck & MSK32_H16) >> 16);
         }
 
-        //typedef LPOps Op;
         typedef Query::Column::Op Op;
         typedef Query::Column Column;
 
