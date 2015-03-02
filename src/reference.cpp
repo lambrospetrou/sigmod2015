@@ -545,8 +545,9 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         (void)tid; (void)nThreads;
         ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
-        pvs->msgQ->registerDeq(pvs->refId);
+        //pvs->msgQ->registerDeq(pvs->refId);
         //pvs->memQ->free(pvs->memRefId);
+        delete pvs->msg;
         delete pvs;
     }
 
@@ -555,8 +556,10 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         (void)tid; (void)nThreads;
         ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
         processTransactionMessage(*reinterpret_cast<const Transaction*>(pvs->msg->data.data()), pvs->msg->data); 
-        pvs->msgQ->registerDeq(pvs->refId);
-        pvs->memQ->free(pvs->memRefId);
+        //pvs->msgQ->registerDeq(pvs->refId);
+        //pvs->memQ->free(pvs->memRefId);
+        delete pvs->msg;
+        delete pvs;
     }
 
 
@@ -574,11 +577,11 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         cerr << "Number of threads: " << numOfThreads << endl;
         Globals.nThreads = numOfThreads;
 
-        uint64_t MessageQSize = 500;
-        BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
+        //uint64_t MessageQSize = 500;
+        //BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
         //BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
 
-        std::thread readerTask(ReaderTask, std::ref(msgQ));
+        //std::thread readerTask(ReaderTask, std::ref(msgQ));
 
         SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
         //SingleTaskPool workerThreads(1, processPendingValidationsTask);
@@ -596,16 +599,32 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         uint64_t gTotalValidations = 0;
 
         try {
+            
             //uint64_t msgs = 0;
             while (true) {
 
+            ReceivedMessage *msg = new ReceivedMessage();
+            auto& head = msg->head;
+            auto& msgData = msg->data;
+            // read the head of the message - type and len
+            // Read the message body and cast it to the desired type
+            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+            if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            // read the actual message content
+            msgData.reserve(head.messageLen);
+            msgData.resize(head.messageLen);
+            cin.read(msgData.data(), head.messageLen);
+
+
+
+
                 // Retrieve the message
                 //cerr << "try for incoming" << endl;
-                auto res = msgQ.reqNextDeq();
+                //auto res = msgQ.reqNextDeq();
                 //cerr << "deq id: " << res.refId << endl;
-                ReceivedMessage& msg = *res.value;
-                auto& head = msg.head;
-                //cerr << "incoming: " << head.type << " =" << msgs++ << endl;
+                //ReceivedMessage& msg = *res.value;
+                //auto& head = msg.head;
+                //cerr << "incoming: " << head.type << " : " << head.messageLen << " data: " << msgData.size() << endl;
                 // And interpret it
                 switch (head.type) {
                     case MessageHead::ValidationQueries: 
@@ -616,9 +635,9 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
                             ParseMessageStruct *pvs = new ParseMessageStruct();
-                            pvs->msgQ = &msgQ;
-                            pvs->refId = res.refId;
-                            pvs->msg = &msg;
+                            //pvs->msgQ = &msgQ;
+                            //pvs->refId = res.refId;
+                            pvs->msg = msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
                             
                             break;
@@ -628,8 +647,13 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                         ++gTotalTransactions; 
 #endif
                         {Globals.state = GlobalState::TRANSACTION;
-                            processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
-                            msgQ.registerDeq(res.refId);
+                            //processTransactionMessage(*reinterpret_cast<const Transaction*>(msg.data.data()), msg.data); 
+                            processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg->data); 
+                            delete msg;
+                            //ParseMessageStruct *pvs = new ParseMessageStruct();
+                            //pvs->msg = msg;
+                            //parseTransactionPH1(numOfThreads, numOfThreads, pvs);
+                            //msgQ.registerDeq(res.refId);
                             /* 
                                BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
                                ParseMessageStruct *pvs = mem.value;
@@ -645,35 +669,38 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                         }
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
-                        multiPool.helpExecution();
+                        //multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
-                        processFlush(*reinterpret_cast<const Flush*>(msg.data.data())); 
-                        msgQ.registerDeq(res.refId);
+                        processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
+                        //msgQ.registerDeq(res.refId);
+                        delete msg;
                         break;
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
-                        multiPool.helpExecution();
+                        //multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FORGET;
-                        processForget(*reinterpret_cast<const Forget*>(msg.data.data())); 
-                        msgQ.registerDeq(res.refId);
+                        processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
+                        //msgQ.registerDeq(res.refId);
+                        delete msg;
                         break;
 
                     case MessageHead::DefineSchema: 
                         Globals.state = GlobalState::SCHEMA;
-                        processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg.data.data()));
-                        msgQ.registerDeq(res.refId);
+                        processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg->data.data()));
+                        delete msg;
+                        //msgQ.registerDeq(res.refId);
                         break;
                     case MessageHead::Done: 
                         {
 #ifdef LPDEBUG
                             cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                            readerTask.join();
+                            //readerTask.join();
                             workerThreads.destroy();
                             multiPool.destroy();
                             return 0;
