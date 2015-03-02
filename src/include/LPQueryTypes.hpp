@@ -51,13 +51,6 @@ namespace lp {
             else if (right.op < left.op) return false;
             else return left.value < right.value;    
         }
-        static bool QCSortOp (const Query::Column& left, const Query::Column& right) {
-            if (left.op < right.op) return true;
-            else if (right.op < left.op) return false;
-            else if (left.column < right.column) return true;
-            else if (right.column < left.column) return false;
-            else return left.value < right.value;    
-        }
         static bool QCEquality (const Query::Column& l, const Query::Column& r) {
             if (l.column != r.column) return false;
             if (l.op != r.op) return false;
@@ -65,6 +58,22 @@ namespace lp {
         }
     };
 
+    struct ColumnCompOp_t {
+        inline bool operator()(const Query::Column *left, const Query::Column *right) {
+            if (left->op < right->op) return true;
+            else if (right->op < left->op) return false;
+            else if (left->column < right->column) return true;
+            else if (right->column < left->column) return false;
+            else return left->value < right->value;    
+        }
+        inline bool operator()(const Query::Column& left, const Query::Column& right) {
+            if (left.op < right.op) return true;
+            else if (right.op < left.op) return false;
+            else if (left.column < right.column) return true;
+            else if (right.column < left.column) return false;
+            else return left.value < right.value;    
+        }
+    } ColumnCompOp;
     struct LPQueryCompSize_t {
         inline bool operator()(const LPQuery& left, const LPQuery& right) {
             return (left.columnCount < right.columnCount);
@@ -86,6 +95,26 @@ namespace lp {
 
         typedef Query::Column::Op Op;
         typedef Query::Column Column;
+
+        bool parse(const Query *q, uint32_t relCols, LPQuery *nQ) {
+            (void)relCols; (void)nQ;
+            std::cerr << std::endl;
+            for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
+                std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
+            }
+            //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
+            std::sort(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompOp);
+           
+            std::cerr << std::endl;
+            for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
+                std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
+            }
+            
+            //for (auto c: preds) std::cerr << c.column << ":" << c.op << ":" << c.value << " ";
+
+            return true;
+        }
+
     }
 
     // the following will be used for the query filtering and quick rejection

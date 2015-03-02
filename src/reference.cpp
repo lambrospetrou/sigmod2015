@@ -377,14 +377,14 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             //if (lp::query::parse(*q, nQ, gSchema[q->relationId])) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
-                std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
+                std::sort(nQ.predicates.begin(), nQ.predicates.end(), ColumnCompOp);
 
 
                 // print the proper predicates passed the checks
                 //cerr << "===== proper predicates" << endl;
                 //for (auto& c : nQ.predicates) cerr << c << " " << endl;
                 //cerr << "===== new predicates" << endl;
-                //lp::query::parse(*q, nQ);
+                lp::query::parse(q, gSchema[q->relationId], &nQ);
 
 
                 // gather statistics    
