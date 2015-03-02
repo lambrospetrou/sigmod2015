@@ -383,7 +383,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         //LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         //if (!lp::validation::isQueryUnsolvable(nQ)) {
-        if (lp::query::parse(*q, nQ)) {
+        if (lp::query::parse(*q, nQ, gSchema[q->relationId])) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
                 //std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);

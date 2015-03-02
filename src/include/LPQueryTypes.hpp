@@ -10,6 +10,8 @@
 #include <iostream>
 #include <utility>
 #include <algorithm>
+#include <memory>
+
 
 namespace lp {
 
@@ -93,31 +95,35 @@ namespace lp {
 
         struct PMatrix {
             //enum Op : uint32_t { Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual };
-            PCell cell[6][1000];
-            PMatrix() { reset(); }
-            void reset(uint32_t cols = 1000) {
-                for (uint32_t op=0; op<4; ++op) {
-                    for (uint32_t c=0; c<cols; ++c) {
-                        cell[op][c].valid = false;
-                        cell[op][c].val = UINT64_MAX;;
-                    }
-                }
-                //memset(cell[0], 1, sizeof(PCell)*cols); // UINT64_MAX
-                //memset(cell[1], 1, sizeof(PCell)*cols); // UINT64_MAX
-                //memset(cell[2], 1, sizeof(PCell)*cols); // UINT64_MAX
-                //memset(cell[3], 1, sizeof(PCell)*cols); // UINT64_MAX
-                memset(cell[4], 0, sizeof(PCell)*cols); // 0
-                memset(cell[5], 0, sizeof(PCell)*cols); // 0
+            std::unique_ptr<PCell> cell[6];
+            PMatrix() { 
+                cell[0].reset(new PCell[1000]);
+                cell[1].reset(new PCell[1000]);
+                cell[2].reset(new PCell[1000]);
+                cell[3].reset(new PCell[1000]);
+                cell[4].reset(new PCell[1000]);
+                cell[5].reset(new PCell[1000]);
+                reset(); 
             }
-            PCell* operator[] (uint64_t index) { return cell[index]; }
+            void reset(const uint32_t cols = 1000) {
+                PCell c; c.val = UINT64_MAX;
+                PCell c0;
+                std::fill_n(cell[0].get(), cols, c);
+                std::fill_n(cell[1].get(), cols, c);
+                std::fill_n(cell[2].get(), cols, c);
+                std::fill_n(cell[3].get(), cols, c);
+                std::fill_n(cell[4].get(), cols, c0);
+                std::fill_n(cell[5].get(), cols, c0);
+            }
+            PCell* operator[] (uint64_t index) { return cell[index].get(); }
         };
 
         // Return True if the query passed is fine - False if it is unsolvable
         // LPQuery& resQ : will contain the proper predicates at the end if True or will not be modified
-        bool parse(const Query& q, LPQuery& resQ) {
+        bool parse(const Query& q, LPQuery& resQ, uint32_t relCols = 1000) {
             (void)q; (void)resQ;
             static PMatrix cell;
-            cell.reset();
+            cell.reset(relCols);
 
             PCell* EQ = cell[Op::Equal];
             PCell* LT = cell[Op::Less];
@@ -165,15 +171,14 @@ namespace lp {
                 }
             }
 
-            std::vector<Column> preds; preds.reserve(8);
+            std::vector<Column> preds;
             for (uint32_t op=0; op<6; ++op) {
                 for (uint32_t col=0; col<1000; ++col) {
                     if (cell[op][col].valid) preds.push_back(Column(col, static_cast<Op>(op), cell[op][col].val));
                 }
             }
             //for (auto& c : preds) std::cerr << c.column << ":" << c.op << ":" << c.value << std::endl;
-            using std::swap;
-            swap(resQ.predicates, preds);
+            resQ.predicates = move(preds);
 
             return true;
 
