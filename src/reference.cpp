@@ -576,7 +576,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
         uint64_t MessageQSize = 500;
         BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
-        BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
+        //BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
 
         std::thread readerTask(ReaderTask, std::ref(msgQ));
 
@@ -585,7 +585,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         workerThreads.initThreads();
 
         // leave two available workes - master - msgQ
-        MultiTaskPool multiPool(numOfThreads-2);
+        MultiTaskPool multiPool(numOfThreads-1);
         //MultiTaskPool multiPool(1);
         multiPool.initThreads();
         multiPool.startAll();
@@ -615,14 +615,9 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                            
                             ParseMessageStruct *pvs = new ParseMessageStruct();
-                            //BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
-                            //ParseMessageStruct *pvs = mem.value;
                             pvs->msgQ = &msgQ;
                             pvs->refId = res.refId;
-                            //pvs->memRefId = mem.refId;
-                            //pvs->memQ = &memQ;
                             pvs->msg = &msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
                             
