@@ -91,11 +91,33 @@ namespace lp {
             PCell() : val(0) , valid(false) {}
         };
 
+        struct PMatrix {
+            //enum Op : uint32_t { Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual };
+            PCell cell[6][1000];
+            PMatrix() { reset(); }
+            void reset(uint32_t cols = 1000) {
+                for (uint32_t op=0; op<4; ++op) {
+                    for (uint32_t c=0; c<cols; ++c) {
+                        cell[op][c].valid = false;
+                        cell[op][c].val = UINT64_MAX;;
+                    }
+                }
+                //memset(cell[0], 1, sizeof(PCell)*cols); // UINT64_MAX
+                //memset(cell[1], 1, sizeof(PCell)*cols); // UINT64_MAX
+                //memset(cell[2], 1, sizeof(PCell)*cols); // UINT64_MAX
+                //memset(cell[3], 1, sizeof(PCell)*cols); // UINT64_MAX
+                memset(cell[4], 0, sizeof(PCell)*cols); // 0
+                memset(cell[5], 0, sizeof(PCell)*cols); // 0
+            }
+            PCell* operator[] (uint64_t index) { return cell[index]; }
+        };
+
         // Return True if the query passed is fine - False if it is unsolvable
         // LPQuery& resQ : will contain the proper predicates at the end if True or will not be modified
         bool parse(const Query& q, LPQuery& resQ) {
             (void)q; (void)resQ;
-            PCell cell[6][1000];
+            static PMatrix cell;
+            cell.reset();
 
             PCell* EQ = cell[Op::Equal];
             PCell* LT = cell[Op::Less];
@@ -143,14 +165,15 @@ namespace lp {
                 }
             }
 
-            //std::vector<Column> preds; preds.reserve(8);
-            std::vector<Column>& preds = resQ.predicates; preds.reserve(8);
+            std::vector<Column> preds; preds.reserve(8);
             for (uint32_t op=0; op<6; ++op) {
                 for (uint32_t col=0; col<1000; ++col) {
                     if (cell[op][col].valid) preds.push_back(Column(col, static_cast<Op>(op), cell[op][col].val));
                 }
             }
             //for (auto& c : preds) std::cerr << c.column << ":" << c.op << ":" << c.value << std::endl;
+            using std::swap;
+            swap(resQ.predicates, preds);
 
             return true;
 

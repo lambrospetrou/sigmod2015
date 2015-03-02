@@ -377,19 +377,22 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
-        LPQuery nQ(*q);
+        LPQuery nQ;
+        nQ.relationId = q->relationId;
+        nQ.columnCount = q->columnCount;
+        //LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-        if (!lp::validation::isQueryUnsolvable(nQ)) {
+        //if (!lp::validation::isQueryUnsolvable(nQ)) {
+        if (lp::query::parse(*q, nQ)) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
-                std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
+                //std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
                 
                 
                 // print the proper predicates passed the checks
-                cerr << "===== proper predicates" << endl;
-                for (auto& c : nQ.predicates) cerr << c << " " << endl;
-                cerr << "===== new predicates" << endl;
+                //cerr << "===== proper predicates" << endl;
                 //for (auto& c : nQ.predicates) cerr << c << " " << endl;
+                //cerr << "===== new predicates" << endl;
                 //lp::query::parse(*q, nQ);
                 
                 
@@ -405,7 +408,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                 gStats[tid].reqCols.push_back(move(make_pair((p.op == Op::Equal), rc)));
                 //cerr << " " << gStats[tid].reqCols.back().second;
             }
-            queries.push_back(move(nQ));
+            //queries.push_back(move(nQ));
+            queries.push_back(nQ);
         }
 
 //        queries.push_back(move(LPQuery(*q)));
