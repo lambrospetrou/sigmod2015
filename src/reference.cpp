@@ -124,6 +124,7 @@ bool operator== (const Query::Column& left, const Query::Column& right) {
 ///////////////////////////////////////////////////////////////////////////////////
 
 typedef uint64_t* tuple_t;
+typedef Query::Column::Op  Op;
 
 // Custom data structures to hold data
 struct CTransStruct {
@@ -392,7 +393,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                 if (rel != nQ.relationId || col != p.column) { cerr << "error packing relcol" << endl; exit(1); }
                 */
                 //cerr << " " << rc;
-                gStats[tid].reqCols.push_back(move(make_pair((p.op == lp::LPOps::Equal), rc)));
+                gStats[tid].reqCols.push_back(move(make_pair((p.op == Op::Equal), rc)));
                 //cerr << " " << gStats[tid].reqCols.back().second;
             }
             queries.push_back(move(nQ));
@@ -573,13 +574,13 @@ int main(int argc, char**argv) {
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(numOfThreads-2);
-    //MultiTaskPool multiPool(1);
+    //MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -603,12 +604,12 @@ int main(int argc, char**argv) {
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
-                        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                        //msgQ.registerDeq(res.refId);
+                        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                        msgQ.registerDeq(res.refId);
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        
+                        /*
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
                         BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
                         ParseMessageStruct *pvs = mem.value;
@@ -618,7 +619,7 @@ int main(int argc, char**argv) {
                         pvs->memQ = &memQ;
                         pvs->msg = &msg;
                         multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                        
+                        */
                         break;
                     }
                 case MessageHead::Transaction: 
@@ -643,7 +644,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -653,7 +654,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
@@ -1071,24 +1072,24 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 decltype(transValues.begin()) tupFrom, tupTo, 
                     tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
-                if (pFirst.op == lp::LPOps::Equal) {
+                if (pFirst.op == Op::Equal) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     if (tupFrom == tEnd) continue;
                     tupTo = std::upper_bound(tupFrom, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == lp::LPOps::Less) {
+                } else if (pFirst.op == Op::Less) {
                     tupFrom = tBegin;                    
                     tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == lp::LPOps::LessOrEqual) {
+                } else if (pFirst.op == Op::LessOrEqual) {
                     tupFrom = tBegin;                    
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
-                } else if (pFirst.op == lp::LPOps::Greater) {
+                } else if (pFirst.op == Op::Greater) {
                     tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);  
                     tupTo = tEnd;                   
                     pFrom = 1;
-                } else if (pFirst.op == lp::LPOps::GreaterOrEqual) {
+                } else if (pFirst.op == Op::GreaterOrEqual) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     tupTo = tEnd;                   
                     pFrom = 1;
@@ -1112,23 +1113,22 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                         uint64_t queryValue = c.value;
                         bool result=false;
                         switch (c.op) {
-                            case lp::LPOps::Equal: 
+                            case Op::Equal: 
                                 result=(tupleValue==queryValue); 
                                 break;
-                            case lp::LPOps::Less: 
+                            case Op::Less: 
                                 result=(tupleValue<queryValue); 
                                 break;
-                            case lp::LPOps::LessOrEqual: 
+                            case Op::LessOrEqual: 
                                 result=(tupleValue<=queryValue); 
                                 break;
-                            case lp::LPOps::Greater: 
+                            case Op::Greater: 
                                 result=(tupleValue>queryValue); 
                                 break;
-                            case lp::LPOps::GreaterOrEqual: 
+                            case Op::GreaterOrEqual: 
                                 result=(tupleValue>=queryValue); 
                                 break;
-                            case lp::LPOps::NotEqual: 
-                            case lp::LPOps::NotEqualLast: 
+                            case Op::NotEqual: 
                                 result=(tupleValue!=queryValue); 
                                 break;
                         } 

@@ -58,9 +58,6 @@ struct ValidationQueries {
     char queries[];
 };
 //---------------------------------------------------------------------------
-namespace lp {
-    enum LPOps : uint32_t { Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqualLast };
-}
 struct Query {
     /// A column description
     struct Column {
@@ -69,7 +66,7 @@ struct Query {
         /// The column id
         uint32_t column;
         /// The operations
-        lp::LPOps op;
+        Op op;
         /// The constant
         uint64_t value;
     };

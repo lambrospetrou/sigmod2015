@@ -75,7 +75,18 @@ namespace lp {
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
             : validationId(vid), from(fr), to(t), queries(q) {}
     };
-    
+   
+
+    namespace query {
+
+        bool parse(const Query& q, LPQuery& resQ) {
+            (void)q; (void)resQ;
+            return true;
+        }
+
+    }
+
+
     // the following will be used for the query filtering and quick rejection
     namespace validation {
 
@@ -90,7 +101,8 @@ namespace lp {
             col = (pck & MSK32_L16);
         }
 
-        typedef LPOps Op;
+        //typedef LPOps Op;
+        typedef Query::Column::Op Op;
         typedef Query::Column Column;
 
         struct Satisfiability {
@@ -116,7 +128,6 @@ namespace lp {
                     sat.eq = p.value;
                     break;
                 case Op::NotEqual:
-                case Op::NotEqualLast:
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
                     sat.pastOps[Op::NotEqual] = true;
@@ -175,19 +186,6 @@ namespace lp {
                 }
             }
             if (v.queries.size() == unsatisfied) return true;
-            // since we have some queries that are candidates for confliction
-            // we will sort them to be in front of the queries and be able to break
-            /*uint64_t left=0, right=v.queries.size()-1, lastSwapPos=v.queries.size()-1;
-              for (; left < right; ) {
-              for(; v.queries[left].satisfiable && left<right; ) ++left;
-              for(; !v.queries[right].satisfiable && left<right; ) --right;
-              if (left < right) {
-              std::swap(v.queries[left], v.queries[right]);
-              lastSwapPos = right;
-              ++left; --right;
-              }
-              }
-              (void)lastSwapPos;*/
             return false;
         }
     }
