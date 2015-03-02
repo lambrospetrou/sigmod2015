@@ -1050,7 +1050,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             auto& pFirst = q.predicates[0];
             auto& transactions = relColumns[pFirst.column].transactions;
             auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-            auto transTo = std::upper_bound(transactions.begin(), transactions.end(), v.to, CTRSLessThan);
+            auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
 
             //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
 
@@ -1063,7 +1063,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 if (pFirst.op == lp::LPOps::Equal) {
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
                     if (tupFrom == tEnd) continue;
-                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
+                    tupTo = std::upper_bound(tupFrom, tEnd, pFirst.value, CTRSValueLessThan);                   
                     pFrom = 1;
                 } else if (pFirst.op == lp::LPOps::Less) {
                     tupFrom = tBegin;                    
