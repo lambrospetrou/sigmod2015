@@ -398,7 +398,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                    if (rel != nQ.relationId || col != p.column) { cerr << "error packing relcol" << endl; exit(1); }
                  */
                 //cerr << " " << rc;
-                gStats[tid].reqCols.push_back(move(make_pair((p.op == Op::Equal), rc)));
+                gStats[tid].reqCols.emplace_back((p.op == Op::Equal), rc);
                 //cerr << " " << gStats[tid].reqCols.back().second;
             }
             queries.push_back(move(nQ));
@@ -579,13 +579,13 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
         std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-        //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-        SingleTaskPool workerThreads(1, processPendingValidationsTask);
+        SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+        //SingleTaskPool workerThreads(1, processPendingValidationsTask);
         workerThreads.initThreads();
 
         // leave two available workes - master - msgQ
-        //MultiTaskPool multiPool(numOfThreads-2);
-        MultiTaskPool multiPool(1);
+        MultiTaskPool multiPool(numOfThreads-2);
+        //MultiTaskPool multiPool(1);
         multiPool.initThreads();
         multiPool.startAll();
 
@@ -624,7 +624,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                             pvs->memQ = &memQ;
                             pvs->msg = &msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                             */
+                            */
                             break;
                         }
                     case MessageHead::Transaction: 
@@ -649,7 +649,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                         }
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
-                        //multiPool.helpExecution();
+                        multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
@@ -659,7 +659,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
-                        //multiPool.helpExecution();
+                        multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FORGET;
