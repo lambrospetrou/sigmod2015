@@ -19,45 +19,22 @@ namespace lp {
     //static LPOps lpopw[6] = { LPOps::Equal, LPOps::NotEqual, LPOps::Less, LPOps::LessOrEqual, LPOps::Greater, LPOps::GreaterOrEqual }; 
     //enum LPOps : uint32_t { Equal, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqual }
 
-    struct LPQuery {
-        /// The relation
-        uint32_t relationId;
-        /// The number of bound columns
-        uint32_t columnCount;
-        /// The bindings
-        std::vector<Query::Column> predicates;
-        /// States whether this query can ever be true - will be set to false later by our filtering
-        bool satisfiable;
-        // the weight assigned to this query by the validation processor
-        uint32_t weight;
-
-        LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true), weight(0) {}
-        LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true), weight(0) {
-            memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
-            std::sort(predicates.begin(), predicates.end(), QCSortCol);
-            predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end(), QCEquality)));
-
-            //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
-            // reorder operators
-            //for (auto& p : predicates) if (p.op == LPOps::NotEqual) p.op = LPOps::NotEqualLast ;
-
-            columnCount = predicates.size();
-        }
-        // this is the default - operator< of Column
-        static bool QCSortCol (const Query::Column& left, const Query::Column& right) {
+    struct ColumnCompCol_t {
+        inline bool operator() (const Query::Column& left, const Query::Column& right) {
             if (left.column < right.column) return true;
             else if (right.column < left.column) return false;
             else if (left.op < right.op) return true;
             else if (right.op < left.op) return false;
             else return left.value < right.value;    
         }
-        static bool QCEquality (const Query::Column& l, const Query::Column& r) {
-            if (l.column != r.column) return false;
-            if (l.op != r.op) return false;
-            return l.value == r.value;
+    } ColumnCompCol;
+    struct ColumnCompColEq_t {
+        inline bool operator() (const Query::Column& left, const Query::Column& right) {
+            if (left.column != right.column) return false;
+            else if (left.op != right.op) return false;
+            else return left.value == right.value;    
         }
-    };
-
+    } ColumnCompColEq;
     struct ColumnCompOp_t {
         inline bool operator()(const Query::Column *left, const Query::Column *right) {
             if (left->op < right->op) return true;
@@ -74,6 +51,39 @@ namespace lp {
             else return left.value < right.value;    
         }
     } ColumnCompOp;
+    
+    struct LPQuery {
+        /// The relation
+        uint32_t relationId;
+        /// The number of bound columns
+        uint32_t columnCount;
+        /// The bindings
+        std::vector<Query::Column> predicates;
+        /// States whether this query can ever be true - will be set to false later by our filtering
+        bool satisfiable;
+        // the weight assigned to this query by the validation processor
+        uint32_t weight;
+
+        LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true), weight(0) {}
+        LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true), weight(0) {
+            memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
+            std::sort(predicates.begin(), predicates.end(), ColumnCompCol);
+            predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end(), QCEquality)));
+
+            //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
+            // reorder operators
+            //for (auto& p : predicates) if (p.op == LPOps::NotEqual) p.op = LPOps::NotEqualLast ;
+
+            columnCount = predicates.size();
+        }
+        // this is the default - operator< of Column
+        static bool QCEquality (const Query::Column& l, const Query::Column& r) {
+            if (l.column != r.column) return false;
+            if (l.op != r.op) return false;
+            return l.value == r.value;
+        }
+    };
+
     struct LPQueryCompSize_t {
         inline bool operator()(const LPQuery& left, const LPQuery& right) {
             return (left.columnCount < right.columnCount);
@@ -98,17 +108,27 @@ namespace lp {
 
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ) {
             (void)relCols; (void)nQ;
+            /*
             std::cerr << std::endl;
             for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
                 std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
             }
+            */
             //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
-            std::sort(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompOp);
-           
-            std::cerr << std::endl;
-            for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
+            std::sort(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompCol);
+            auto uend = std::unique(const_cast<Column*>(q->columns), const_cast<Column*>(q->columns+q->columnCount), ColumnCompColEq);
+            //std::cerr << "unique: " << uend-q->columns << std::endl; 
+            /*
+            std::cerr << std::endl << "after unique: " << std::distance(const_cast<Column*>(q->columns), uend) << std::endl; 
+            for (auto c=q->columns; c!=uend; ++c) {
+            //for (auto c=uend, cLimit=const_cast<Column*>(q->columns)+q->columnCount; c!=cLimit; ++c) {
                 std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
             }
+            */
+            if (std::distance(const_cast<Column*>(q->columns), uend) != q->columnCount) {
+                std::cerr << std::endl << std::endl << " unique worked " << std::endl << std::endl; 
+            }
+
             
             //for (auto c: preds) std::cerr << c.column << ":" << c.op << ":" << c.value << " ";
 
