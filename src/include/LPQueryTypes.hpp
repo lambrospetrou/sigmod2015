@@ -116,7 +116,7 @@ namespace lp {
             void reset() {
                 eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
                 memset(pastOps, 0, 6);
-                neq.clear();
+                neq.resize(0);
             }
         };
 
@@ -131,7 +131,7 @@ namespace lp {
                 case Op::NotEqual:
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
-                    sat.pastOps[Op::NotEqual] = true;
+                    sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
                     //sat.neq.push_back(p.value);
                     break;
                 case Op::Less:
@@ -177,6 +177,17 @@ namespace lp {
             return false;
         }
 
+        
+    struct ColumnCompQuality_t {
+        inline bool operator() (const Query::Column& left, const Query::Column& right) {
+            if (left.op == Op::Equal && right.op != Op::Equal) return true;
+            else if (left.op != Op::Equal && right.op == Op::Equal) return false;
+            else if (left.op == Op::NotEqual && right.op != Op::NotEqual) return false;
+            else if (left.op != Op::NotEqual && right.op == Op::NotEqual) return true;
+            return (left.column < right.column);
+        }
+    } ColumnCompQuality;
+
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ) {
             (void)relCols; (void)nQ;
             Column * qc = const_cast<Column*>(q->columns);
@@ -202,16 +213,18 @@ namespace lp {
             }
             
             // the query is satisfiable so insert it into the predicates of the passed in LPQuery
+            std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
             nQ->predicates.reserve(uniqSz);
             nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
             nQ->columnCount = uniqSz;
             //std::cerr << "unique: " << uend-q->columns << std::endl; 
+            
+            //std::cerr << std::endl << "after unique: " << std::distance(const_cast<Column*>(q->columns), uend) << std::endl; 
+            //std::cerr << ":: new method: unique: " << uniqSz << std::endl;
+            //for (auto c=colBegin; c!=colEnd; ++c) {
+            //    std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
+            //}
             /*
-            std::cerr << std::endl << "after unique: " << std::distance(const_cast<Column*>(q->columns), uend) << std::endl; 
-            for (auto c=q->columns; c!=uend; ++c) {
-            //for (auto c=uend, cLimit=const_cast<Column*>(q->columns)+q->columnCount; c!=cLimit; ++c) {
-                std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
-            }
             if (std::distance(qc, uend) != q->columnCount) {
                 std::cerr << std::endl << std::endl << " unique worked " << std::endl << std::endl; 
             }

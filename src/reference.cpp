@@ -371,20 +371,22 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
-        LPQuery nQ(*q);
+        LPQuery nQ;
+        //LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-        if (!lp::validation::isQueryUnsolvable(nQ)) {
-            //if (lp::query::parse(*q, nQ, gSchema[q->relationId])) {
+        //if (!lp::validation::isQueryUnsolvable(nQ)) {
+        if (lp::query::parse(q, gSchema[q->relationId], &nQ)) {
             // this is a valid query
+            nQ.relationId = q->relationId;
             if (!nQ.predicates.empty()) {
-                std::sort(nQ.predicates.begin(), nQ.predicates.end(), ColumnCompOp);
+                //std::sort(nQ.predicates.begin(), nQ.predicates.end(), ColumnCompOp);
 
 
                 // print the proper predicates passed the checks
-                //cerr << "===== proper predicates" << endl;
+                //cerr << endl <<  "===== proper predicates" << endl;
                 //for (auto& c : nQ.predicates) cerr << c << " " << endl;
                 //cerr << "===== new predicates" << endl;
-                lp::query::parse(q, gSchema[q->relationId], &nQ);
+                //lp::query::parse(q, gSchema[q->relationId], &nQ);
 
 
                 // gather statistics    
@@ -404,18 +406,18 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
         //        queries.push_back(move(LPQuery(*q)));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
-        }
-        //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
-        {
-            //std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-            gPendingValidationsMutex.lock();
-            gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
-            // update the global pending validations to reflect this new one
-            ++gPVunique;
-            gPendingValidationsMutex.unlock();;
-        }
+    }
+    //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
+    {
+        //std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
+        gPendingValidationsMutex.lock();
+        gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
+        // update the global pending validations to reflect this new one
+        ++gPVunique;
+        gPendingValidationsMutex.unlock();;
+    }
 #ifdef LPDEBUG
-        LPTimer.validations += LPTimer.getChrono(start);
+    LPTimer.validations += LPTimer.getChrono(start);
 #endif
     }
     //---------------------------------------------------------------------------
@@ -1042,8 +1044,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                     switch (pFirst.op) {
                         case Op::Equal: 
                             {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
-                            tupFrom = tp.first; tupTo = tp.second;
-                            pFrom = 1; break;}
+                                tupFrom = tp.first; tupTo = tp.second;
+                                pFrom = 1; break;}
                         case Op::Less: 
                             tupFrom = tBegin;                    
                             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
