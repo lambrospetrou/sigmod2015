@@ -564,13 +564,13 @@ int main(int argc, char**argv) {
 
     std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
 
     // leave two available workes - master - msgQ
-    //MultiTaskPool multiPool(numOfThreads-2);
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads-2);
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -594,12 +594,12 @@ int main(int argc, char**argv) {
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
-                        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                        msgQ.registerDeq(res.refId);
+                        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
+                        //msgQ.registerDeq(res.refId);
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        /*
+                        
                         //ParseValidationStruct *pvs = new ParseValidationStruct();
                         BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
                         ParseMessageStruct *pvs = mem.value;
@@ -609,7 +609,7 @@ int main(int argc, char**argv) {
                         pvs->memQ = &memQ;
                         pvs->msg = &msg;
                         multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                        */
+                        
                         break;
                     }
                 case MessageHead::Transaction: 
@@ -634,7 +634,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -644,7 +644,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
