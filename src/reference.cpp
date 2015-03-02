@@ -50,9 +50,6 @@
 #include <system_error>
 #include <exception>
 
-#include "include/ReferenceTypes.hpp"
-#include "include/LPQueryTypes.hpp"
-
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
 #include "include/BoundedQueue.hpp"
@@ -63,6 +60,8 @@
 
 #include "include/cpp_btree/btree_map.h"
 
+#include "include/ReferenceTypes.hpp"
+#include "include/LPQueryTypes.hpp"
 //---------------------------------------------------------------------------
 using namespace std;
 using namespace lp;
@@ -384,6 +383,16 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             // this is a valid query
             if (!nQ.predicates.empty()) {
                 std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
+                
+                
+                // print the proper predicates passed the checks
+                cerr << "===== proper predicates" << endl;
+                for (auto& c : nQ.predicates) cerr << c << " " << endl;
+                cerr << "===== new predicates" << endl;
+                //for (auto& c : nQ.predicates) cerr << c << " " << endl;
+                //lp::query::parse(*q, nQ);
+                
+                
                 // gather statistics    
                 auto& p = nQ.predicates[0];
                 uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
@@ -768,17 +777,6 @@ bool TRMapPhaseByTrans(const TRMapPhase& l, const TRMapPhase& r) {
     else return l.isDelOp && !r.isDelOp;
 }
 
-namespace lp {
-    template<typename A>
-    A inline min(const A& a, const A& b) {
-        return a<b ? a : b;
-    }
-    template<typename A>
-    A inline max(const A& a, const A& b) {
-        return a>b ? a : b;
-    }
-}
-
 //static void updateRequiredColumns(uint64_t ri, vector<uint32_t>& reqCols) {
 static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
         // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
@@ -814,7 +812,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
                 sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
             }
             if(!relation.transLogDel.empty())
-                relColumns[col].transTo = lp::max(relation.transLogDel.back().first+1, updatedUntil);
+                relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
             //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
         }
 }

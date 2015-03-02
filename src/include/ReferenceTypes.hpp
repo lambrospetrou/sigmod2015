@@ -69,6 +69,9 @@ struct Query {
         Op op;
         /// The constant
         uint64_t value;
+
+        Column(uint32_t c, Op o, uint64_t v) : column(c), op(o), value(v) {}
+        Column() : column(0), op(Op::Equal), value(0) {}
     };
 
     /// The relation

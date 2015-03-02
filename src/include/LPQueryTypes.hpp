@@ -13,8 +13,6 @@
 
 namespace lp {
 
-    using namespace std;
-
     //static uint32_t opw[6] = { 0, 5, 1, 2, 3, 4 }; 
     //static LPOps lpopw[6] = { LPOps::Equal, LPOps::NotEqual, LPOps::Less, LPOps::LessOrEqual, LPOps::Greater, LPOps::GreaterOrEqual }; 
     //enum LPOps : uint32_t { Equal, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqual }
@@ -34,9 +32,9 @@ namespace lp {
         LPQuery() : relationId(-1), columnCount(0), predicates(std::vector<Query::Column>()), satisfiable(true), weight(0) {}
         LPQuery(const Query& q) : relationId(q.relationId), columnCount(q.columnCount), predicates(std::vector<Query::Column>(q.columnCount)), satisfiable(true), weight(0) {
             memcpy(predicates.data(), q.columns, sizeof(Query::Column)*columnCount);
-            std::sort(predicates.begin(), predicates.end());
-            predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end())));
-           
+            std::sort(predicates.begin(), predicates.end(), QCSortCol);
+            predicates.resize(std::distance(predicates.begin(), std::unique(predicates.begin(), predicates.end(), QCEquality)));
+
             //if (columns.size() != columnCount) cerr << "diff: " << columnCount-columns.size() << endl;
             // reorder operators
             //for (auto& p : predicates) if (p.op == LPOps::NotEqual) p.op = LPOps::NotEqualLast ;
@@ -64,6 +62,11 @@ namespace lp {
         static bool LPQueryWeightLess(const LPQuery& left, const LPQuery& right) {
             return (left.weight < right.weight);
         }
+        static bool QCEquality (const Query::Column& l, const Query::Column& r) {
+            if (l.column != r.column) return false;
+            if (l.op != r.op) return false;
+            return l.value == r.value;
+        }
     };
 
     struct LPValidation {
@@ -75,17 +78,84 @@ namespace lp {
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
             : validationId(vid), from(fr), to(t), queries(q) {}
     };
-   
+
 
     namespace query {
 
+        typedef Query::Column::Op Op;
+        typedef Query::Column Column;
+
+        struct PCell {
+            uint64_t val;
+            bool valid;
+            PCell() : val(0) , valid(false) {}
+        };
+
+        // Return True if the query passed is fine - False if it is unsolvable
+        // LPQuery& resQ : will contain the proper predicates at the end if True or will not be modified
         bool parse(const Query& q, LPQuery& resQ) {
             (void)q; (void)resQ;
+            PCell cell[6][1000];
+
+            PCell* EQ = cell[Op::Equal];
+            PCell* LT = cell[Op::Less];
+            PCell* LEQ = cell[Op::LessOrEqual];
+            PCell* GT = cell[Op::Greater];
+            PCell* GEQ = cell[Op::GreaterOrEqual];
+
+            for (auto c=q.columns,cLimit=c+q.columnCount;c!=cLimit;++c) {
+                const Column& p = *c;
+                //std::cerr << p.column << ":" << p.op << ":" << p.value << std::endl;
+                auto& pcell = cell[p.op][p.column];
+                switch (p.op) {
+                    case Op::Equal:
+                        // already found an equality check
+                        if (pcell.valid && pcell.val != p.value) return false;
+                        pcell.valid = true; 
+                        pcell.val = p.value; 
+                        break;
+                    case Op::NotEqual:
+                        // both equality and inequality with same value
+                        if (EQ[p.column].valid && EQ[p.column].val == p.value) return false;
+                        pcell.valid = true;
+                        pcell.val = p.value; // TODO - SPECIAL CARE FOR THIS - MAYBE JUST PUSH IT
+                        break;
+                    case Op::Less:
+                        if (EQ[p.column].valid && EQ[p.column].val >= p.value) return false;
+                        pcell.valid = true;
+                        if (p.value < pcell.val) { pcell.val = p.value; LEQ[p.column].val = p.value - 1; }
+                        break;
+                    case Op::LessOrEqual:
+                        if (EQ[p.column].valid && EQ[p.column].val > p.value) return false;
+                        pcell.valid = true;
+                        if (p.value < pcell.val) { pcell.val = p.value; LT[p.column].val = p.value + 1; }
+                        break;
+                    case Op::Greater:
+                        if (EQ[p.column].valid && EQ[p.column].val <= p.value) return false;
+                        pcell.valid = true;
+                        if (p.value > pcell.val) { pcell.val = p.value; GEQ[p.column].val = p.value + 1; }
+                        break;
+                    case Op::GreaterOrEqual:
+                        if (EQ[p.column].valid && EQ[p.column].val < p.value) return false;
+                        pcell.valid = true;
+                        if (p.value > pcell.val) { pcell.val = p.value; GT[p.column].val = p.value - 1; }
+                        break;
+                }
+            }
+
+            //std::vector<Column> preds; preds.reserve(8);
+            std::vector<Column>& preds = resQ.predicates; preds.reserve(8);
+            for (uint32_t op=0; op<6; ++op) {
+                for (uint32_t col=0; col<1000; ++col) {
+                    if (cell[op][col].valid) preds.push_back(Column(col, static_cast<Op>(op), cell[op][col].val));
+                }
+            }
+            //for (auto& c : preds) std::cerr << c.column << ":" << c.op << ":" << c.value << std::endl;
+
             return true;
+
         }
-
     }
-
 
     // the following will be used for the query filtering and quick rejection
     namespace validation {
