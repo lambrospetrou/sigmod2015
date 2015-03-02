@@ -919,7 +919,7 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].resize(0);
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     
     // clear the 1st predicate columns 
     cols->resize(0);
@@ -948,7 +948,8 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
+    //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz); // TODO - maybe memset better
+    std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending.store(0);
 
     pool.startAll(processPendingValidationsTask);
