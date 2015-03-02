@@ -91,34 +91,6 @@ std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
     return os;
 }
 
-
-bool operator< (const LPQuery& left, const LPQuery& right) {
-    if (left.relationId < right.relationId) return true;
-    else if (right.relationId < left.relationId) return false;
-    else if (left.columnCount < right.columnCount) return true;
-    else return left.predicates < right.predicates;
-}
-
-bool operator== (const LPQuery& left, const LPQuery& right)  {
-    if (left.relationId != right.relationId) return false;
-    if (left.columnCount != right.columnCount) return false;
-    return left.predicates == right.predicates;
-}
-
-bool operator< (const Query::Column& left, const Query::Column& right) {
-    if (left.column < right.column) return true;
-    else if (right.column < left.column) return false;
-    else if (left.op < right.op) return true;
-    else if (right.op < left.op) return false;
-    else return left.value < right.value;    
-}
-
-bool operator== (const Query::Column& left, const Query::Column& right) {
-    if (left.column != right.column) return false;
-    else if (left.op != right.op) return false;
-    else return left.value == right.value;    
-}
-
 ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -133,23 +105,22 @@ struct CTransStruct {
     bool operator< (const CTransStruct& o) { 
         return value < o.value;
     }
-    static bool CompValOnly(const CTransStruct& l, const CTransStruct& r) {
+};
+struct CTRSValueLessThan_t {
+    inline bool operator()(const CTransStruct& l, const CTransStruct& r) {
         return l.value < r.value;
     }
-};
+    inline bool operator() (const CTransStruct& o, uint64_t target) {
+        return o.value < target;
+    }
+    inline bool operator() (uint64_t target, const CTransStruct& o) {
+        return target < o.value;
+    }
+} ColTransValueLess;
 std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     os << "{" << "-" << o.value << "}";
     return os;
 }
-struct CTRSValueLessThan_t {
-    bool operator() (const CTransStruct& o, uint64_t target) {
-        return o.value < target;
-    }
-    bool operator() (uint64_t target, const CTransStruct& o) {
-        return target < o.value;
-    }
-} CTRSValueLessThan;
-
 typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
@@ -158,13 +129,13 @@ struct ColumnStruct {
     ColumnStruct() : transTo(0) {}
 };
 struct CTRSLessThan_t {
-    bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
+    inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
     }
-    bool operator() (const ColumnTransaction_t& o, uint64_t target) {
+    inline bool operator() (const ColumnTransaction_t& o, uint64_t target) {
         return o.first < target;
     }
-    bool operator() (uint64_t target, const ColumnTransaction_t& o) {
+    inline bool operator() (uint64_t target, const ColumnTransaction_t& o) {
         return target < o.first;
     }
 } CTRSLessThan;
@@ -186,21 +157,18 @@ struct RelTransLog {
     RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
         tuples.reset(tpl);
     } 
-    static bool ByTrans(const RelTransLog& l, const RelTransLog& r) {
-        return l.trans_id < r.trans_id;
-    }
 };
 struct RTLComp_t {
-    bool operator() (const RelTransLog& l, const RelTransLog& r) {
+    inline bool operator() (const RelTransLog& l, const RelTransLog& r) {
         return l.trans_id < r.trans_id;
     }
-    bool operator() (const RelTransLog& o, uint64_t target) {
+    inline bool operator() (const RelTransLog& o, uint64_t target) {
         return o.trans_id < target;
     }
-    bool operator() (const unique_ptr<RelTransLog>& l, const unique_ptr<RelTransLog>& r) {
+    inline bool operator() (const unique_ptr<RelTransLog>& l, const unique_ptr<RelTransLog>& r) {
         return l->trans_id < r->trans_id;
     }
-    bool operator() (const unique_ptr<RelTransLog>& o, uint64_t target) {
+    inline bool operator() (const unique_ptr<RelTransLog>& o, uint64_t target) {
         return o->trans_id < target;
     }
 } RTLComp;
@@ -210,6 +178,15 @@ struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogDel;
     unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
+
+struct TransLogComp_t {
+    inline bool operator()(const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
+        return l.first < target;
+    }
+    inline bool operator()(const uint64_t target, const pair<uint64_t, vector<tuple_t>>& r) {
+        return target < r.first;
+    }
+} TransLogComp;
 
 // general relations
 static std::unique_ptr<RelationStruct[]> gRelations;
@@ -224,6 +201,13 @@ struct TRMapPhase {
     TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
         : trans_id(tid), isDelOp(isdel), rowCount(rows), values(vals) {}
 };
+struct TransMapPhase_t {
+    inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
+        if (l.trans_id < r.trans_id) return true;
+        else if (r.trans_id < l.trans_id) return false;
+        else return l.isDelOp && !r.isDelOp;
+    }
+} TRMapPhaseByTrans;
 
 typedef std::mutex RelTransLock;
 //typedef LPSpinLock RelTransLock;
@@ -248,21 +232,20 @@ struct TransactionStruct {
         tuples.reset(tpl);
         aliveTuples = rowCount;
     } 
-
-    static bool ByTrans(const TransactionStruct& l, const TransactionStruct& r) {
-        return l.trans_id < r.trans_id;
-    }
 };
 struct TSComp_t {
-    bool operator() (const std::unique_ptr<TransactionStruct>& l, const std::unique_ptr<TransactionStruct>& r) {
+    inline bool ByTrans(const TransactionStruct& l, const TransactionStruct& r) {
+        return l.trans_id < r.trans_id;
+    }
+    inline bool operator() (const std::unique_ptr<TransactionStruct>& l, const std::unique_ptr<TransactionStruct>& r) {
         return l->trans_id < r->trans_id;
     }
-    bool operator() (const std::unique_ptr<TransactionStruct>& o, uint64_t target) {
+    inline bool operator() (const std::unique_ptr<TransactionStruct>& o, uint64_t target) {
         return o->trans_id < target;
     }
 } TSComp;
-static vector<std::unique_ptr<TransactionStruct>> gTransactionHistory;
-static std::mutex gTransactionHistoryMutex;
+//static vector<std::unique_ptr<TransactionStruct>> gTransactionHistory;
+//static std::mutex gTransactionHistoryMutex;
 //static LPSpinLock gTransactionHistoryMutex;
 
 static uint32_t NUM_RELATIONS;
@@ -280,6 +263,43 @@ static uint64_t gPVunique;
 static std::mutex gPendingValidationsMutex;
 
 
+/////////////////////////////////////////// STRUCTURES FOR STATS
+typedef pair<bool, uint32_t> SColType;
+struct StatStruct {
+    // columns info that appear as 1st predicates - bool=True means equality, False anything else
+    vector<SColType> reqCols; 
+};
+struct StatCompEq_t {
+    inline bool operator() (const SColType& l, const SColType& r) {
+        return l.second == r.second;
+    }
+} StatCompEq;
+struct StatComp_t {
+    inline bool operator() (const SColType& l, const SColType& r) {
+        return l.second < r.second;
+    }
+    inline bool operator() (const SColType& l, uint32_t target) {
+        return l.second < target;
+    }
+    inline bool operator() (uint32_t target, const SColType& r) {
+        return target < r.second;
+    }
+} StatComp;
+struct StatComp2_t {
+    inline bool operator() (const SColType& l, const SColType& r) {
+        return lp::validation::unpackRel(l.second) < lp::validation::unpackRel(r.second);
+    }
+    inline bool operator() (const SColType& l, uint32_t target) {
+        return lp::validation::unpackRel(l.second) < target;
+    }
+    inline bool operator() (uint32_t target, const SColType& r) {
+        return target < lp::validation::unpackRel(r.second);
+    }
+} StatCompRel;
+static unique_ptr<StatStruct[]> gStats;
+static vector<SColType> *gStatColumns;
+
+////////////////////////////////////////////////////
 
 struct ReceivedMessage {
     MessageHead head;
@@ -337,32 +357,6 @@ static void processDefineSchema(const DefineSchema& d) {
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
-typedef pair<bool, uint32_t> SColType;
-struct StatStruct {
-    // columns info that appear as 1st predicates - bool=True means equality, False anything else
-    vector<SColType> reqCols; 
-};
-struct StatComp_t {
-    bool operator() (const SColType& l, const SColType& r) {
-        return l.second < r.second;
-    }
-    bool operator() (const SColType& l, uint32_t target) {
-        return l.second < target;
-    }
-    bool operator() (uint32_t target, const SColType& r) {
-        return target < r.second;
-    }
-    /*
-    bool operator() (const SColType& l, const SColType& r) {
-        if (l.first && !r.first) return true;
-        else if (r.first && !l.first) return false;
-        return l.second < r.second;
-    }
-    */
-} StatComp;
-static unique_ptr<StatStruct[]> gStats;
-static vector<SColType> *gStatColumns;
-
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
@@ -377,16 +371,13 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
-        LPQuery nQ;
-        nQ.relationId = q->relationId;
-        nQ.columnCount = q->columnCount;
-        //LPQuery nQ(*q);
+        LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-        //if (!lp::validation::isQueryUnsolvable(nQ)) {
-        if (lp::query::parse(*q, nQ, gSchema[q->relationId])) {
+        if (!lp::validation::isQueryUnsolvable(nQ)) {
+        //if (lp::query::parse(*q, nQ, gSchema[q->relationId])) {
             // this is a valid query
             if (!nQ.predicates.empty()) {
-                //std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
+                std::sort(nQ.predicates.begin(), nQ.predicates.end(), LPQuery::QCSortOp);
                 
                 
                 // print the proper predicates passed the checks
@@ -408,8 +399,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                 gStats[tid].reqCols.push_back(move(make_pair((p.op == Op::Equal), rc)));
                 //cerr << " " << gStats[tid].reqCols.back().second;
             }
-            //queries.push_back(move(nQ));
-            queries.push_back(nQ);
+            queries.push_back(move(nQ));
         }
 
 //        queries.push_back(move(LPQuery(*q)));
@@ -774,19 +764,10 @@ struct TRMapPhase {
 */
 static std::atomic<uint64_t> gNextIndex;
 
-bool TRMapPhaseByTrans(const TRMapPhase& l, const TRMapPhase& r) {
-    //return l.trans_id < r.trans_id;
-    if (l.trans_id < r.trans_id) return true;
-    else if (r.trans_id < l.trans_id) return false;
-    else return l.isDelOp && !r.isDelOp;
-}
-
-//static void updateRequiredColumns(uint64_t ri, vector<uint32_t>& reqCols) {
 static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
         // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
         // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
         // FOLOWING VALIDATION SESSION - 1st predicates only for now
-
         //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
         auto& relation = gRelations[ri];
         auto& relColumns = gRelColumns[ri].columns;
@@ -794,26 +775,23 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         // for each column to be indexed
         uint32_t rel,col;
         for (; colBegin!=colEnd; ++colBegin) {
-        //for (auto col : reqCols) {
             lp::validation::unpackRelCol(colBegin->second, rel, col);
             //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
-        //for (uint32_t col=0; col<gSchema[ri]; ++col) {
             auto& colTransactions = relColumns[col].transactions;
             uint64_t updatedUntil = relColumns[col].transTo;
 
             // Use lower_bound to automatically jump to the transaction to start
-            auto transFrom = lower_bound(relation.transLogDel.begin(), relation.transLogDel.end(), updatedUntil,
-                    [](const pair<uint64_t, vector<tuple_t>>& o, const uint64_t target) { return o.first < target; });
+            auto transFrom = lower_bound(relation.transLogDel.begin(), relation.transLogDel.end(), updatedUntil, TransLogComp);
             // for all the transactions in the relation
-            //for(auto& trp : relation.transLogDel) {
             for(auto tEnd=relation.transLogDel.end(); transFrom!=tEnd; ++transFrom) {
                 auto& trp = *transFrom;
                 // allocate vectors for the current new transaction to put its data
                 colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
+                colTransactions.back().second.reserve(trp.second.size());
                 for (auto tpl : trp.second) {
                     colTransactions.back().second.emplace_back(tpl[col], tpl);
                 }
-                sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), CTransStruct::CompValOnly);
+                sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
             }
             if(!relation.transLogDel.empty())
                 relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
@@ -829,27 +807,14 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         uint64_t ri = gNextIndex++;
         if (ri >= NUM_RELATIONS) return;
 
-        uint32_t rcStart = lp::validation::packRelCol(ri, 0);
-        auto colBegin = lower_bound(gStatColumns->begin(), gStatColumns->end(), rcStart, StatComp);
-        uint32_t rcEnd = lp::validation::packRelCol(ri, gSchema[ri]);
-        auto colEnd = upper_bound(colBegin, gStatColumns->end(), rcEnd, StatComp);
-/*
-        // unpack all the required columns in order to avoid doing it all the time later in the updates
-        vector<uint32_t> reqCols;
-        reqCols.reserve(std::distance(colBegin, colEnd));
-        for (auto cb=colBegin; cb!=colEnd; ++cb) {
-            uint32_t rel,col;
-            lp::validation::unpackRelCol(cb->second, rel, col);
-            reqCols.push_back(col);
-        }
-*/
+        auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
+        auto colBegin = colpair.first, colEnd = colpair.second; 
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (relTrans.empty()) { 
             // TODO - we have to run this regardless of transactions since some
             // columns might have to use previous transactions and be called for the first time
-            //updateRequiredColumns(ri, reqCols);
             updateRequiredColumns(ri, colBegin, colEnd);
             continue; 
         }
@@ -872,7 +837,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                 if (!operations.empty())
                     relation.transLogDel.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
-                operations.clear();
+                operations.resize(0);
             }
             
             if (trans.isDelOp) {
@@ -914,10 +879,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             relation.transLogDel.emplace_back(lastTransId, move(operations));
         
         // update with new transactions
-        //updateRequiredColumns(ri, reqCols);
         updateRequiredColumns(ri, colBegin, colEnd);
-
-
     } // end of while true
 }
 
@@ -928,21 +890,25 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 
     //cerr << "::: session start ::::" << endl;
     vector<SColType>* cols = &gStats[0].reqCols;
+    uint64_t totalCols = 0;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     for (uint32_t tid=1; tid<Globals.nThreads; tid++) {
         if (gStats[tid].reqCols.size() > cols->size()) cols = &gStats[tid].reqCols;
+        totalCols += gStats[tid].reqCols.size();
     }
+    cols->reserve(totalCols);
     for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
         auto ccols = &gStats[tid].reqCols;
         if (ccols == cols) continue;
-        copy(ccols->begin(), ccols->end(), back_inserter(*cols));
-        ccols->clear();
+        //copy(ccols->begin(), ccols->end(), back_inserter(*cols));
+        cols->insert(cols->end(), ccols->begin(), ccols->end());
+        ccols->resize(0);
     }
     
     // add the first column for all relations
     std::sort(cols->begin(), cols->end(), StatComp);
-    auto it = std::unique(cols->begin(), cols->end(), [] (const SColType& l, const SColType& r) { return l.second == r.second; });
-    cols->resize(std::distance(cols->begin(), it));
+    auto it = std::unique(cols->begin(), cols->end(), StatCompEq);
+    cols->erase(it, cols->end());
     //cerr << "unique reqCols: " << cols->size() << endl;
     //for (auto& p : *cols) cerr << " " << p.second;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
@@ -953,10 +919,10 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     gNextIndex = 0;
     pool.startAll(processPendingIndexTask);
     pool.waitAll();
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].resize(0);
     
     // clear the 1st predicate columns 
-    cols->clear();
+    cols->resize(0);
 
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
@@ -1045,10 +1011,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             if (q.predicates.empty()) { 
                 //cerr << "empty: " << v.validationId << endl; 
                 auto& transactionsCheck = gRelations[q.relationId].transLogDel;
-                auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, 
-                        [](const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
-                            return l.first < target;
-                        });
+                auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
                 if (transFromCheck == transactionsCheck.end()) { 
                     // no transactions exist for this query
                     continue;
@@ -1075,24 +1038,27 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                     tBegin = transValues.begin(), tEnd=transValues.end();
                 // find the valid tuples using range binary searches based on the first predicate
                 if (pFirst.op == Op::Equal) {
-                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
-                    if (tupFrom == tEnd) continue;
-                    tupTo = std::upper_bound(tupFrom, tEnd, pFirst.value, CTRSValueLessThan);                   
+                    auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                    if (tp.first == tp.second) continue;
+                    tupFrom = tp.first; tupTo = tp.second;
+                    //tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                    //if (tupFrom == tEnd) continue;
+                    //tupTo = std::upper_bound(tupFrom, tEnd, pFirst.value, ColTransValueLess);                   
                     pFrom = 1;
                 } else if (pFirst.op == Op::Less) {
                     tupFrom = tBegin;                    
-                    tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
+                    tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
                     pFrom = 1;
                 } else if (pFirst.op == Op::LessOrEqual) {
                     tupFrom = tBegin;                    
-                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);                   
+                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
                     pFrom = 1;
                 } else if (pFirst.op == Op::Greater) {
-                    tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);  
+                    tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
                     tupTo = tEnd;                   
                     pFrom = 1;
                 } else if (pFirst.op == Op::GreaterOrEqual) {
-                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, CTRSValueLessThan);
+                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
                     tupTo = tEnd;                   
                     pFrom = 1;
                 } else {
