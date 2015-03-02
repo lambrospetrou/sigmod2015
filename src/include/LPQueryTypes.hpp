@@ -58,18 +58,18 @@ namespace lp {
             else if (right.column < left.column) return false;
             else return left.value < right.value;    
         }
-        static bool LPQuerySizeLessThan(const LPQuery& left, const LPQuery& right) {
-            return (left.columnCount < right.columnCount);
-        }
-        static bool LPQueryWeightLess(const LPQuery& left, const LPQuery& right) {
-            return (left.weight < right.weight);
-        }
         static bool QCEquality (const Query::Column& l, const Query::Column& r) {
             if (l.column != r.column) return false;
             if (l.op != r.op) return false;
             return l.value == r.value;
         }
     };
+
+    struct LPQueryCompSize_t {
+        inline bool operator()(const LPQuery& left, const LPQuery& right) {
+            return (left.columnCount < right.columnCount);
+        }
+    } LPQueryCompSizeLess;
 
     struct LPValidation {
         uint64_t validationId;
