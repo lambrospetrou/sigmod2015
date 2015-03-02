@@ -840,14 +840,16 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             reqCols.push_back(col);
         }
 */
-        // TODO - we have to run this regardless of transactions since some
-        // columns might have to use previous transactions and be called for the first time
-        //updateRequiredColumns(ri, reqCols);
-        updateRequiredColumns(ri, colBegin, colEnd);
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
-        if (relTrans.empty()) continue;
+        if (relTrans.empty()) { 
+            // TODO - we have to run this regardless of transactions since some
+            // columns might have to use previous transactions and be called for the first time
+            //updateRequiredColumns(ri, reqCols);
+            updateRequiredColumns(ri, colBegin, colEnd);
+            continue; 
+        }
 
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
 
