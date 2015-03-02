@@ -461,6 +461,7 @@ static void processForget(const Forget& f) {
                         f.transactionId,
                         [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; }
                         ));
+
         }
         // clean the transactions log
         auto& transLog = gRelations[i].transLog; 
@@ -469,6 +470,14 @@ static void processForget(const Forget& f) {
             if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
             else ++it;
         }
+
+        // delete the transLogDel
+        auto& transLogDel = gRelations[i].transLogDel;
+        transLogDel.erase(transLogDel.begin(), 
+                upper_bound(transLogDel.begin(), transLogDel.end(), f.transactionId,
+                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
+                );
+
         //cerr << "size after: " << transLog.size() << endl;
     }
 /*
