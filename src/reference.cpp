@@ -66,6 +66,8 @@
 
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
+
+#include "include/tbb/tbb.h"
 //---------------------------------------------------------------------------
 using namespace std;
 using namespace lp;
