@@ -71,7 +71,7 @@ using namespace lp;
 
 using namespace memory_relaxed_aquire_release;
 
-#define LPDEBUG  
+//#define LPDEBUG  
 
 //---------------------------------------------------------------------------
 // Begin reference implementation
@@ -266,6 +266,7 @@ static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
 static std::mutex gPendingValidationsMutex;
+//static LPSpinLock gPendingValidationsMutex;
 
 
 /////////////////////////////////////////// STRUCTURES FOR STATS
@@ -534,7 +535,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
-        setvbuf ( stdin , NULL , _IOFBF , 4096 );
+//        setvbuf ( stdin , NULL , _IOFBF , 1<<12 );
         while (true) {
             // request place from the message queue - it blocks if full
             ReceivedMessage *msg = new ReceivedMessage();
@@ -579,7 +580,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
-            while (!msgQ.push(msg)) { lp_spin_sleep(std::chrono::microseconds(10)); }
+            while (!msgQ.push(msg)) { cerr << "r" << std::endl; lp_spin_sleep(std::chrono::microseconds(0)); }
         }
 #ifdef LPDEBUG
         LPTimer.readingTotal += LPTimer.getChrono(start);
@@ -610,7 +611,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
 
 #ifdef LPDEBUG
-    static uint64_t gTotalTransactions = 0, gTotalTuples = 0;
+    static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 #endif
 
     int main(int argc, char**argv) {
@@ -644,7 +645,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         // allocate global structures based on thread number
         gStats.reset(new StatStruct[numOfThreads+1]);
 
-        uint64_t gTotalValidations = 0;
 
         try {
 
@@ -674,7 +674,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                  */
 
                 ReceivedMessage *msg;
-                while (!msgQ.pop(msg)) { lp_spin_sleep(std::chrono::microseconds(0)); }
+                while (!msgQ.pop(msg)) { /*cerr << "m" << endl;*/ lp_spin_sleep(std::chrono::microseconds(100)); }
                 auto& head = msg->head;
                 auto& msgData = msg->data;
                 // Retrieve the message
@@ -694,8 +694,6 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
                             ParseMessageStruct *pvs = new ParseMessageStruct();
-                            //pvs->msgQ = &msgQ;
-                            //pvs->refId = res.refId;
                             pvs->msg = msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
 
@@ -752,7 +750,6 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                         Globals.state = GlobalState::SCHEMA;
                         processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg->data.data()));
                         delete msg;
-                        //msgQ.registerDeq(res.refId);
                         break;
                     case MessageHead::Done: 
                         {

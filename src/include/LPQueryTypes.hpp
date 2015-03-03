@@ -19,6 +19,11 @@ namespace lp {
     //static LPOps lpopw[6] = { LPOps::Equal, LPOps::NotEqual, LPOps::Less, LPOps::LessOrEqual, LPOps::Greater, LPOps::GreaterOrEqual }; 
     //enum LPOps : uint32_t { Equal, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqual }
 
+    struct ColumnCompColOnly_t {
+        inline bool operator() (const Query::Column& left, const Query::Column& right) {
+            return left.column < right.column;    
+        }
+    } ColumnCompColOnly;
     struct ColumnCompCol_t {
         inline bool operator() (const Query::Column& left, const Query::Column& right) {
             if (left.column < right.column) return true;
@@ -112,13 +117,13 @@ namespace lp {
             Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
                 memset(pastOps, 0, 6);
             }
-            void reset() {
+            inline void reset() {
                 eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
                 memset(pastOps, 0, 6);
             }
         };
 
-        bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
+        inline bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
             switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
@@ -129,7 +134,7 @@ namespace lp {
                 case Op::NotEqual:
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
-                    sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
+                    //sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
                     break;
                 case Op::Less:
                     if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
@@ -211,7 +216,7 @@ namespace lp {
             
             // the query is satisfiable so insert it into the predicates of the passed in LPQuery
             std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
-            nQ->predicates.reserve(uniqSz);
+            //nQ->predicates.reserve(uniqSz);
             nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
             nQ->columnCount = uniqSz;
             //std::cerr << "unique: " << uend-q->columns << std::endl; 

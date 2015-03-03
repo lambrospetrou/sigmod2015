@@ -35,14 +35,14 @@ class MultiTaskPool {
             }
         }
 
-        void startAll() {
+        inline void startAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mPoolRunning = true;
             lk.unlock();
             mCondActive.notify_all();
         }
 
-        void waitAllAndStop() {
+        inline void waitAllAndStop() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
                     return (mWaiting == mNumOfThreads && mTasks.empty());
@@ -50,7 +50,7 @@ class MultiTaskPool {
             mPoolRunning = false;
             lk.unlock();
         }
-        void waitAll() {
+        inline void waitAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
                     return (mWaiting == mNumOfThreads && mTasks.empty());
@@ -58,13 +58,13 @@ class MultiTaskPool {
             lk.unlock();
         }
 
-        void helpExecution() {
+        inline void helpExecution() {
             uint32_t tid = mHelperId++;
             workerOutside(tid);
             --mHelperId;
         }
 
-        void destroy() {
+        inline void destroy() {
             std::unique_lock<std::mutex> lk(mMutex);
             mPoolStopped = true;
             lk.unlock();
@@ -73,17 +73,17 @@ class MultiTaskPool {
             for(auto& t : mThreads) t.join();
         }
 
-        uint64_t addTask(LPFunc f, void* args) {
+        inline uint64_t addTask(LPFunc f, void* args) {
             Task t;
             t.func = f;
             t.args = args;
             std::lock_guard<std::mutex> lk(mMutex);
             uint64_t sz = mTasks.size();
             mTasks.push(std::move(t));
-            mCondActive.notify_all();
+            mCondActive.notify_one();
             return sz;
         }
-        uint64_t addTaskUnsafe(LPFunc f, void* args) {
+        inline uint64_t addTaskUnsafe(LPFunc f, void* args) {
             Task t;
             t.func = f;
             t.args = args;
@@ -117,7 +117,7 @@ class MultiTaskPool {
                 ++mWaiting;
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
-                if (mWaiting == mNumOfThreads && mTasks.empty()) mCondMaster.notify_all();
+                if (mWaiting == mNumOfThreads && mTasks.empty()) mCondMaster.notify_one();
                 if (!canProceed()) mCondActive.wait(lk, [tid,this]{return canProceed();});
                 --mWaiting;
                 if (mPoolStopped) { lk.unlock(); return; }
