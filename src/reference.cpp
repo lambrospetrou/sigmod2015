@@ -51,6 +51,8 @@
 #include <system_error>
 #include <exception>
 
+#include "include/circularfifo_memory_relaxed_aquire_release.hpp"
+
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
 #include "include/BoundedQueue.hpp"
@@ -60,7 +62,6 @@
 #include "include/LPSpinLock.hpp"
 
 #include "include/cpp_btree/btree_map.h"
-#include "include/circularfifo_memory_relaxed_aquire_release.hpp"
 
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
@@ -412,18 +413,18 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
-    {
-        //std::lock_guard<std::mutex> lk(gPendingValidationsMutex);
-        gPendingValidationsMutex.lock();
-        gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
-        // update the global pending validations to reflect this new one
-        ++gPVunique;
-        gPendingValidationsMutex.unlock();;
-    }
+
+    gPendingValidationsMutex.lock();
+    gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
+    // update the global pending validations to reflect this new one
+    ++gPVunique;
+    gPendingValidationsMutex.unlock();;
+
 #ifdef LPDEBUG
     LPTimer.validations += LPTimer.getChrono(start);
 #endif
     }
+
     //---------------------------------------------------------------------------
     static void processFlush(const Flush& f) {
 #ifdef LPDEBUG
@@ -509,7 +510,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     inline void lp_spin_sleep(std::function<bool ()> pred) {
         do { std::this_thread::yield(); } while (!pred());
     }
-    inline void lp_spin_sleep(std::chrono::microseconds us = std::chrono::microseconds(0)) {
+    inline void lp_spin_reschedule(std::chrono::microseconds us = std::chrono::microseconds(0)) {
         if (us == std::chrono::microseconds(0)) {
             std::this_thread::yield();
         } else {
@@ -519,58 +520,70 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             while (std::chrono::high_resolution_clock::now() < tend);
         }
     }
+    inline void lp_spin_sleep(std::chrono::microseconds us = std::chrono::microseconds(0)) {
+        if (us == std::chrono::microseconds(0)) {
+            std::this_thread::yield();
+        } else {
+            std::this_thread::sleep_for(us);
+        }
+    }
 
-    typedef CircularFifo<ReceivedMessage*, 500> LPMsgQ;
+    typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
 
     void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
-        setvbuf ( stdin , NULL , _IOFBF , 1024 );
+        setvbuf ( stdin , NULL , _IOFBF , 4096 );
         while (true) {
             // request place from the message queue - it blocks if full
             ReceivedMessage *msg = new ReceivedMessage();
             //auto& head = msg->head;
             //auto& buffer = msg->data;
-#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
-            auto startInner = LPTimer.getChrono();
-#endif
-/*
+            /*
             // read the head of the message - type and len
             // Read the message body and cast it to the desired type
             cin.read(reinterpret_cast<char*>(&head),sizeof(head));
             if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
             if (head.type == MessageHead::Done) {
-                msgQ.registerEnq(res.refId); 
-                // exit the loop since the reader has finished its job
-                break;        
+            msgQ.registerEnq(res.refId); 
+            // exit the loop since the reader has finished its job
+            break;        
             }
 
             // read the actual message content
             if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
             cin.read(buffer.data(), head.messageLen);
-*/
+             */
             auto& head = msg->head;
             auto& msgData = msg->data;
             size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
             if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
+            auto startInner = LPTimer.getChrono();
+#endif
+
+            if (head.type == MessageHead::Done) {
+                // exit the loop since the reader has finished its job
+                while (!msgQ.push(msg)) { lp_spin_sleep(); }
+                break;        
+            }
+
             // read the actual message content
             msgData.reserve(head.messageLen);
             msgData.resize(head.messageLen);
             rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
             if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
-            while (!msgQ.push(msg)) { lp_spin_sleep(std::chrono::microseconds(50)); }
-
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
-            //msgQ.registerEnq(res.refId);
+            while (!msgQ.push(msg)) { lp_spin_sleep(std::chrono::microseconds(10)); }
         }
 #ifdef LPDEBUG
         LPTimer.readingTotal += LPTimer.getChrono(start);
-#endif 
+#endif
         return;
     }
 
@@ -637,31 +650,31 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
             //uint64_t msgs = 0;
             while (true) {
-/*
+                /*
 #ifdef LPDEBUG
-        auto start = LPTimer.getChrono();
+auto start = LPTimer.getChrono();
 #endif
-            ReceivedMessage *msg = new ReceivedMessage();
-            auto& head = msg->head;
-            auto& msgData = msg->data;
-            // read the head of the message - type and len
-            // Read the message body and cast it to the desired type
-            //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-            //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-            size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
-            if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-            // read the actual message content
-            msgData.reserve(head.messageLen);
-            msgData.resize(head.messageLen);
-            rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
-            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+ReceivedMessage *msg = new ReceivedMessage();
+auto& head = msg->head;
+auto& msgData = msg->data;
+                // read the head of the message - type and len
+                // Read the message body and cast it to the desired type
+                //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+                //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+                size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
+                if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+                // read the actual message content
+                msgData.reserve(head.messageLen);
+                msgData.resize(head.messageLen);
+                rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
+                if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 #ifdef LPDEBUG
-        LPTimer.readingTotal += LPTimer.getChrono(start);
+LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
-*/
-                
+                 */
+
                 ReceivedMessage *msg;
-                while (!msgQ.pop(msg)) { lp_spin_sleep(std::chrono::microseconds(50)); }
+                while (!msgQ.pop(msg)) { lp_spin_sleep(std::chrono::microseconds(0)); }
                 auto& head = msg->head;
                 auto& msgData = msg->data;
                 // Retrieve the message
@@ -685,7 +698,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                             //pvs->refId = res.refId;
                             pvs->msg = msg;
                             multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                            
+
                             break;
                         }
                     case MessageHead::Transaction: 
@@ -746,7 +759,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
                             cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                            //readerTask.join();
+                            readerTask.join();
                             workerThreads.destroy();
                             multiPool.destroy();
                             return 0;

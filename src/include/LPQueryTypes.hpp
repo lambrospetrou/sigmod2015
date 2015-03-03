@@ -109,14 +109,12 @@ namespace lp {
         struct Satisfiability {
             bool pastOps[6];
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
-            std::vector<uint64_t> neq; 
             Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
                 memset(pastOps, 0, 6);
             }
             void reset() {
                 eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
                 memset(pastOps, 0, 6);
-                neq.resize(0);
             }
         };
 
@@ -132,7 +130,6 @@ namespace lp {
                     // both equality and inequality with same value
                     if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
                     sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
-                    //sat.neq.push_back(p.value);
                     break;
                 case Op::Less:
                     if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
@@ -166,7 +163,7 @@ namespace lp {
             return false;
         }
 
-        bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
+        inline __attribute__((always_inline) )bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
             if (colBegin == colEnd) return false;
             Satisfiability sat;
             uint64_t lastCol = UINT64_MAX;
