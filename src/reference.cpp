@@ -60,12 +60,15 @@
 #include "include/LPSpinLock.hpp"
 
 #include "include/cpp_btree/btree_map.h"
+#include "include/circularfifo_memory_relaxed_aquire_release.hpp"
 
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
 //---------------------------------------------------------------------------
 using namespace std;
 using namespace lp;
+
+using namespace memory_relaxed_aquire_release;
 
 #define LPDEBUG  
 
@@ -503,22 +506,39 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     //---------------------------------------------------------------------------
     //---------------------------------------------------------------------------
     /////////////////// MAIN-READING STRUCTURES ///////////////////////
-    void ReaderTask(BoundedQueue<ReceivedMessage>& msgQ) {
+    inline void lp_spin_sleep(std::function<bool ()> pred) {
+        do { std::this_thread::yield(); } while (!pred());
+    }
+    inline void lp_spin_sleep(std::chrono::microseconds us = std::chrono::microseconds(0)) {
+        if (us == std::chrono::microseconds(0)) {
+            std::this_thread::yield();
+        } else {
+            auto start = std::chrono::high_resolution_clock::now();
+            auto tend = start + us;
+            do { std::this_thread::yield(); }
+            while (std::chrono::high_resolution_clock::now() < tend);
+        }
+    }
+
+    typedef CircularFifo<ReceivedMessage*, 500> LPMsgQ;
+
+    void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
+        setvbuf ( stdin , NULL , _IOFBF , 1024 );
         while (true) {
             // request place from the message queue - it blocks if full
-            auto res = msgQ.reqNextEnq();
-            ReceivedMessage& msg = *res.value;
-            auto& head = msg.head;
-            auto& buffer = msg.data;
-            // read the head of the message - type and len
-            // Read the message body and cast it to the desired type
-            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+            ReceivedMessage *msg = new ReceivedMessage();
+            //auto& head = msg->head;
+            //auto& buffer = msg->data;
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
             auto startInner = LPTimer.getChrono();
 #endif
+/*
+            // read the head of the message - type and len
+            // Read the message body and cast it to the desired type
+            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
             if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 
             if (head.type == MessageHead::Done) {
@@ -530,11 +550,23 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             // read the actual message content
             if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
             cin.read(buffer.data(), head.messageLen);
+*/
+            auto& head = msg->head;
+            auto& msgData = msg->data;
+            size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
+            if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            // read the actual message content
+            msgData.reserve(head.messageLen);
+            msgData.resize(head.messageLen);
+            rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
+            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+
+            while (!msgQ.push(msg)) { lp_spin_sleep(std::chrono::microseconds(50)); }
 
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
-            msgQ.registerEnq(res.refId);
+            //msgQ.registerEnq(res.refId);
         }
 #ifdef LPDEBUG
         LPTimer.readingTotal += LPTimer.getChrono(start);
@@ -578,18 +610,20 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         cerr << "Number of threads: " << numOfThreads << endl;
         Globals.nThreads = numOfThreads;
 
-        //uint64_t MessageQSize = 500;
+        //const uint64_t MessageQSize = 500;
         //BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
         //BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
 
-        //std::thread readerTask(ReaderTask, std::ref(msgQ));
+        LPMsgQ msgQ;
+
+        std::thread readerTask(ReaderTask, std::ref(msgQ));
 
         SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
         //SingleTaskPool workerThreads(1, processPendingValidationsTask);
         workerThreads.initThreads();
 
         // leave two available workes - master - msgQ
-        MultiTaskPool multiPool(numOfThreads-1);
+        MultiTaskPool multiPool(numOfThreads-2);
         //MultiTaskPool multiPool(1);
         multiPool.initThreads();
         multiPool.startAll();
@@ -600,11 +634,10 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         uint64_t gTotalValidations = 0;
 
         try {
-            setvbuf ( stdin , NULL , _IOFBF , 1024 );
 
             //uint64_t msgs = 0;
             while (true) {
-
+/*
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
@@ -625,12 +658,12 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
         LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
-            
-            //cin.read(msgData.data(), head.messageLen);
-
-
-
-
+*/
+                
+                ReceivedMessage *msg;
+                while (!msgQ.pop(msg)) { lp_spin_sleep(std::chrono::microseconds(50)); }
+                auto& head = msg->head;
+                auto& msgData = msg->data;
                 // Retrieve the message
                 //cerr << "try for incoming" << endl;
                 //auto res = msgQ.reqNextDeq();
@@ -682,7 +715,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
                         }
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
-                        //multiPool.helpExecution();
+                        multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
@@ -693,7 +726,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
-                        //multiPool.helpExecution();
+                        multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FORGET;
