@@ -677,15 +677,15 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
         gPendingValQueriesFinished = false;
         
-        SingleTaskPool workerThreads(numOfThreads, processValidationMessages);
-        //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+        //SingleTaskPool workerThreads(numOfThreads, processValidationMessages);
+        SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
         workerThreads.initThreads();
-        workerThreads.startAll();
+        //workerThreads.startAll();
         // leave two available workes - master - msgQ
-        //MultiTaskPool multiPool(numOfThreads-2);
+        MultiTaskPool multiPool(numOfThreads-2);
         //MultiTaskPool multiPool(1);
-        //multiPool.initThreads();
-        //multiPool.startAll();
+        multiPool.initThreads();
+        multiPool.startAll();
 
         // allocate global structures based on thread number
         gStats.reset(new StatStruct[numOfThreads+1]);
@@ -739,20 +739,19 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                            //cerr << "inserting msg to conc queue" << endl;
-                            //gPendingValQueries.push(msg);
-                            //gPendingValQueries.enqueue(msg);
                             //++gPendingValQueriesCount;
+                            /*
                             msgs.push_back(msg);
                             if (msgs.size() > 50) {
                                 gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
                                 gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
                                 msgs.resize(0);
                             }
+                            */
                             //cerr << "inserted msg to conc queue" << endl;
-                            //ParseMessageStruct *pvs = new ParseMessageStruct();
-                            //pvs->msg = msg;
-                            //multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
+                            ParseMessageStruct *pvs = new ParseMessageStruct();
+                            pvs->msg = msg;
+                            multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
 
                             break;
                         }
@@ -784,7 +783,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
                         //multiPool.helpExecution();
-                        
+                        /*
                         if (!msgs.empty()) {
                             gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
                             gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
@@ -793,23 +792,25 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                         
                         gPendingValQueriesFinished = true;
                         workerThreads.waitAll();
-
+                        */
 
                         //cerr << "left msgs: " << gPendingValQueriesCount << endl;
 
-                        //multiPool.waitAll();
+                        multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
                         processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
                         //msgQ.registerDeq(res.refId);
                         delete msg;
-
+/*
                         gPendingValQueriesFinished = false; 
                         workerThreads.startAll(processValidationMessages);
+*/
                         break;
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
+                        /*
                         if (!msgs.empty()) {
                             gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
                             gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
@@ -817,19 +818,20 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                         }
                         gPendingValQueriesFinished = true;
                         workerThreads.waitAll();
-                        
+                        */
                         //cerr << "left msgs: " << gPendingValQueriesCount << endl;
                         
-                        //multiPool.helpExecution();
-                        //multiPool.waitAll();
+                        multiPool.helpExecution();
+                        multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FORGET;
                         processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
                         //msgQ.registerDeq(res.refId);
                         delete msg;
-                        
+                        /*
                         gPendingValQueriesFinished = false; 
                         workerThreads.startAll(processValidationMessages);
+                        */
                         break;
 
                     case MessageHead::DefineSchema: 
@@ -842,13 +844,13 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                             cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        gPendingValQueriesFinished = true;
-                        workerThreads.waitAll();
+                        //gPendingValQueriesFinished = true;
+                        //workerThreads.waitAll();
                         //cerr << "left msgs: " << gPendingValQueriesCount << endl;
                         
                         readerTask.join();
                             workerThreads.destroy();
-                            //multiPool.destroy();
+                            multiPool.destroy();
                             return 0;
                         }
                     default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
