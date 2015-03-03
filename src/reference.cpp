@@ -29,6 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 #include <iostream>
+#include <cstdio>
 #include <iterator>
 #include <map>
 #include <unordered_map>
@@ -599,21 +600,33 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         uint64_t gTotalValidations = 0;
 
         try {
-            
+            setvbuf ( stdin , NULL , _IOFBF , 1024 );
+
             //uint64_t msgs = 0;
             while (true) {
 
+#ifdef LPDEBUG
+        auto start = LPTimer.getChrono();
+#endif
             ReceivedMessage *msg = new ReceivedMessage();
             auto& head = msg->head;
             auto& msgData = msg->data;
             // read the head of the message - type and len
             // Read the message body and cast it to the desired type
-            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-            if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+            //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
+            if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
             // read the actual message content
             msgData.reserve(head.messageLen);
             msgData.resize(head.messageLen);
-            cin.read(msgData.data(), head.messageLen);
+            rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
+            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+#ifdef LPDEBUG
+        LPTimer.readingTotal += LPTimer.getChrono(start);
+#endif 
+            
+            //cin.read(msgData.data(), head.messageLen);
 
 
 
