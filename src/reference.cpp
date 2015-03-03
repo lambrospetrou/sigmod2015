@@ -59,6 +59,7 @@
 #include "include/BoundedAlloc.hpp"
 #include "include/SingleTaskPool.hpp"
 #include "include/MultiTaskPool.hpp"
+#include "include/MultiTaskPoolConc.hpp"
 #include "include/LPSpinLock.hpp"
 
 #include "include/cpp_btree/btree_map.h"
@@ -726,7 +727,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                         }
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
-                        multiPool.helpExecution();
+                        //multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
@@ -737,7 +738,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
-                        multiPool.helpExecution();
+                        //multiPool.helpExecution();
                         multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FORGET;

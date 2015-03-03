@@ -1,5 +1,5 @@
-#ifndef __LP_MULTITASKPOOL__
-#define __LP_MULTITASKPOOL__
+#ifndef __LP_MULTITASKPOOL_CONC__
+#define __LP_MULTITASKPOOL_CONC__
 
 #include <vector>
 #include <thread>
@@ -15,7 +15,7 @@
 
 #include "tbb/tbb.h"
 
-class MultiTaskPool {
+class MultiTaskPoolConc {
     private:
 
         //template<typename T> using LPFunc = std::function<void(uint32_t, uint32_t, T)>;
@@ -27,13 +27,13 @@ class MultiTaskPool {
         };
 
     public:
-        MultiTaskPool(uint32_t tsz) : mNumOfThreads(tsz), 
+        MultiTaskPoolConc(uint32_t tsz) : mNumOfThreads(tsz), 
             mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz) {
         }
 
         void initThreads() {
             for (uint32_t i=0; i<mNumOfThreads; ++i) {
-                mThreads.push_back(std::thread(&MultiTaskPool::worker, this, i));
+                mThreads.push_back(std::thread(&MultiTaskPoolConc::worker, this, i));
             }
         }
 
@@ -53,17 +53,12 @@ class MultiTaskPool {
             lk.unlock();
         }
         inline void waitAll() {
-            std::unique_lock<std::mutex> lk(mMutex);
-            mCondMaster.wait(lk, [this]{
-                    return (mWaiting == mNumOfThreads && mTasks.empty());
-                    });
-            lk.unlock();
-        }
-
-        inline void helpExecution() {
-            uint32_t tid = mHelperId++;
-            workerOutside(tid);
-            --mHelperId;
+            //std::unique_lock<std::mutex> lk(mMutex);
+            //mCondMaster.wait(lk, [this]{
+            //        return (mWaiting == mNumOfThreads && mTasks.empty());
+            //        });
+            //lk.unlock();
+            while (!mTasks.empty() || mWaiting != mNumOfThreads) std::this_thread::yield();
         }
 
         inline void destroy() {
@@ -79,8 +74,8 @@ class MultiTaskPool {
             Task t;
             t.func = f;
             t.args = args;
-            std::lock_guard<std::mutex> lk(mMutex);
             mTasks.push(std::move(t));
+            //std::lock_guard<std::mutex> lk(mMutex);
             mCondActive.notify_one();
         }
         inline void addTaskUnsafe(LPFunc f, void* args) {
@@ -100,7 +95,7 @@ class MultiTaskPool {
         uint64_t mWaiting;
         bool mPoolStopped, mPoolRunning;
 
-        std::queue<Task> mTasks;
+        tbb::concurrent_queue<Task> mTasks;
 
         std::atomic<uint32_t> mHelperId;
 
@@ -111,18 +106,23 @@ class MultiTaskPool {
         void worker(uint32_t tid) {
             //cerr << tid << endl;
             while(true) {
-                std::unique_lock<std::mutex> lk(mMutex);
+                //std::unique_lock<std::mutex> lk(mMutex);
                 ++mWaiting;
                 //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
                 if (mWaiting == mNumOfThreads && mTasks.empty()) mCondMaster.notify_one();
-                if (!canProceed()) mCondActive.wait(lk, [tid,this]{return canProceed();});
+                if (!canProceed()) { 
+                    std::unique_lock<std::mutex> lk(mMutex);
+                    mCondActive.wait(lk, [tid,this]{return canProceed();});
+                    lk.unlock();
+                }
                 --mWaiting;
-                if (mPoolStopped) { lk.unlock(); return; }
+                if (mPoolStopped) { /*lk.unlock();*/ return; }
                 
-                auto cTask = mTasks.front();
-                mTasks.pop();
-                lk.unlock();
+                Task cTask; bool popped = false;
+                while (!(popped=mTasks.try_pop(cTask)) && !mTasks.empty()); 
+                if (!popped || mTasks.empty()) continue;
+                //lk.unlock();
                 //cerr << "-" << endl;
 
                 // run the function passing the thread ID
@@ -130,29 +130,6 @@ class MultiTaskPool {
                 cTask.func(mNumOfThreads, tid, cTask.args);
                 // wait after the execution for the other threads
                 //cerr << "2" << endl;
-            }
-        }
-
-        void workerOutside (uint32_t tid) {
-            //std::cerr << tid << std::endl;
-            while(true) {
-                std::unique_lock<std::mutex> lk(mMutex);
-                //std::cerr << ">" << std::endl;
-                // all threads are waiting and no jobs are pending
-                if (mWaiting == mNumOfThreads ||  mTasks.empty()) {
-                    lk.unlock();
-                    return;
-                }
-                if (mPoolStopped || !mPoolRunning) { lk.unlock(); return; }
-
-                auto cTask = mTasks.front();
-                mTasks.pop();
-                lk.unlock();
-
-                //std::cerr << "got job!" << std::endl;
-
-                // run the function passing the thread ID
-                cTask.func(mNumOfThreads, tid, cTask.args);
             }
         }
 
