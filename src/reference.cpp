@@ -52,6 +52,7 @@
 #include <exception>
 
 #include "include/circularfifo_memory_relaxed_aquire_release.hpp"
+#include "include/concurrentqueue.h"
 
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
@@ -67,7 +68,10 @@
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
 
-#include "include/tbb/tbb.h"
+//#include "include/tbb/tbb.h"
+
+
+
 //---------------------------------------------------------------------------
 using namespace std;
 using namespace lp;
@@ -532,7 +536,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         }
     }
 
-    typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
+    typedef CircularFifo<ReceivedMessage*, 1500> LPMsgQ;
 
     void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
@@ -603,25 +607,38 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     
 
     template<typename T>
-    using ConcQ = tbb::concurrent_queue<T>;
+    //using ConcQ = tbb::concurrent_queue<T>;
+    using ConcQ = moodycamel::ConcurrentQueue<T>;
 
-    static volatile bool gPendingValQueriesFinished;
+    static std::atomic<bool> gPendingValQueriesFinished;
     static ConcQ<ReceivedMessage*> gPendingValQueries;
+    static std::atomic<uint64_t> gPendingValQueriesCount;
 
     static inline void processValidationMessages(uint32_t nThreads, uint32_t tid) {
         (void)nThreads; (void)tid;
         //cerr << "tid: " << tid << endl;
-        for (; !gPendingValQueriesFinished || (gPendingValQueriesFinished && !gPendingValQueries.empty()); ) {
+        vector<ReceivedMessage*> msgs; msgs.resize(100);
+        //for (; !gPendingValQueriesFinished || (gPendingValQueriesFinished && !gPendingValQueries.empty()); ) {
+        while(!gPendingValQueriesFinished 
+                || (gPendingValQueriesFinished 
+                    && gPendingValQueriesCount.load(std::memory_order_acquire) > 0)) {
             
-            ReceivedMessage *msg;
-            while (!gPendingValQueries.try_pop(msg)) {
-                if (gPendingValQueriesFinished) return; // no more messages are coming
-                lp_spin_sleep();
+            //ReceivedMessage *msg;
+            //while (!gPendingValQueries.try_dequeue(msg)) {
+            std::size_t res;
+            while ((res = gPendingValQueries.try_dequeue_bulk(msgs.data(), 100)) != 0) {
+                gPendingValQueriesCount.fetch_sub(res, std::memory_order_release);
+                for (std::size_t i=0; i<res; ++i) {
+                    auto msg = msgs[i];
+                    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
+                    delete msg;
+                }
             }
-
-            processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-            delete msg;
-
+            // failed to get jobs so check again
+            if (gPendingValQueriesFinished) return; // no more messages are coming
+            cerr << "w ";
+            lp_spin_sleep(std::chrono::microseconds((tid&1)?25:100));
+            //lp_spin_sleep(std::chrono::microseconds(0));
         }// end of while there are messages
     }
 
@@ -673,6 +690,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         // allocate global structures based on thread number
         gStats.reset(new StatStruct[numOfThreads+1]);
 
+        vector<ReceivedMessage*> msgs;
 
         try {
 
@@ -702,7 +720,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                  */
 
                 ReceivedMessage *msg;
-                while (!msgQ.pop(msg)) { /*cerr << "m" << endl;*/ lp_spin_sleep(std::chrono::microseconds(100)); }
+                while (!msgQ.pop(msg)) {cerr<<"m "; lp_spin_sleep(std::chrono::microseconds(100));}
                 auto& head = msg->head;
                 //auto& msgData = msg->data;
                 // Retrieve the message
@@ -722,7 +740,15 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                             ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
                             //cerr << "inserting msg to conc queue" << endl;
-                            gPendingValQueries.push(msg);
+                            //gPendingValQueries.push(msg);
+                            //gPendingValQueries.enqueue(msg);
+                            //++gPendingValQueriesCount;
+                            msgs.push_back(msg);
+                            if (msgs.size() > 50) {
+                                gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
+                                gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
+                                msgs.resize(0);
+                            }
                             //cerr << "inserted msg to conc queue" << endl;
                             //ParseMessageStruct *pvs = new ParseMessageStruct();
                             //pvs->msg = msg;
@@ -758,8 +784,19 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
                         //multiPool.helpExecution();
+                        
+                        if (!msgs.empty()) {
+                            gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
+                            gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
+                            msgs.resize(0);
+                        }
+                        
                         gPendingValQueriesFinished = true;
                         workerThreads.waitAll();
+
+
+                        //cerr << "left msgs: " << gPendingValQueriesCount << endl;
+
                         //multiPool.waitAll();
                         checkPendingValidations(workerThreads);
                         Globals.state = GlobalState::FLUSH;
@@ -773,8 +810,16 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 
                     case MessageHead::Forget: 
                         // check if we have pending transactions to be processed
+                        if (!msgs.empty()) {
+                            gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
+                            gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
+                            msgs.resize(0);
+                        }
                         gPendingValQueriesFinished = true;
                         workerThreads.waitAll();
+                        
+                        //cerr << "left msgs: " << gPendingValQueriesCount << endl;
+                        
                         //multiPool.helpExecution();
                         //multiPool.waitAll();
                         checkPendingValidations(workerThreads);
@@ -797,7 +842,11 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                             cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                            readerTask.join();
+                        gPendingValQueriesFinished = true;
+                        workerThreads.waitAll();
+                        //cerr << "left msgs: " << gPendingValQueriesCount << endl;
+                        
+                        readerTask.join();
                             workerThreads.destroy();
                             //multiPool.destroy();
                             return 0;

@@ -215,7 +215,8 @@ namespace lp {
             }
             
             // the query is satisfiable so insert it into the predicates of the passed in LPQuery
-            std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
+            //std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
+            std::sort(colBegin, colEnd, ColumnCompQuality);
             //nQ->predicates.reserve(uniqSz);
             nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
             nQ->columnCount = uniqSz;

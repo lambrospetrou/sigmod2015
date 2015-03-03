@@ -7,7 +7,8 @@ RELEASE_CFLAGS=-march=native -msse4.1 -std=c++11 -O3 -W -Wall -Wextra -Werror -D
 all: reference
 
 reference: reference.cpp 
-	g++ $(RELEASE_CFLAGS) -Llib/tbb/lib/intel64/gcc4.4 -ltbb  -o$@ reference.cpp -lpthread 
+	g++ $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread 
+#g++ $(RELEASE_CFLAGS) -Llib/tbb/lib/intel64/gcc4.4 -ltbb  -o$@ reference.cpp -lpthread 
 
 clean:
 	rm reference
