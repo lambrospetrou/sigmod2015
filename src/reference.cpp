@@ -32,6 +32,8 @@
 #include "include/ReaderTask.hpp"
 
 #include <iostream>
+#include <fstream>
+#include <ios>
 #include <cstdio>
 #include <iterator>
 #include <map>
@@ -405,7 +407,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 }
 
 //---------------------------------------------------------------------------
-static void processFlush(const Flush& f) {
+static void processFlush(const Flush& f, bool isTestdriver) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
@@ -415,7 +417,8 @@ static void processFlush(const Flush& f) {
         uint64_t removed = 0;
         for (auto& vp : gQueryResults) {
             if (vp.first > f.validationId) break;
-            cout << (vp.second == true ? one : zero); 
+            if (unlikely(!isTestdriver))
+                cout << (vp.second == true ? one : zero); 
             //cerr << (vp.second == true ? one : zero); 
             ++removed;  
         }
@@ -486,12 +489,13 @@ static void processForget(const Forget& f) {
 //typedef moodycamel::ConcurrentQueue<ReceivedMessage*> LPMsgQ;
 typedef moodycamel::ReaderWriterQueue<ReceivedMessage*> LPMsgQ;
 
-void ReaderTask(LPMsgQ& msgQ) {
+void ReaderTask(LPMsgQ& msgQ, ReaderIO *msgReader) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
     while (true) {
-        ReceivedMessage *msg = ReaderIO::readInput(stdin);
+        //ReceivedMessage *msg = ReaderIO::readInput(stdin);
+        ReceivedMessage *msg = msgReader->nextMsg();
         if (unlikely(msg->head.type == MessageHead::Done)) {
             // exit the loop since the reader has finished its job
             //while (!msgQ.push(msg)) { lp_spin_sleep(); }
@@ -589,12 +593,23 @@ int main(int argc, char**argv) {
 
     initOpenMP(numOfThreads);
 
-    std::ios_base::sync_with_stdio(false);
-    setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
+    std::ifstream ifs; bool isTestdriver = false;  
+    ReaderIO* msgReader;
+    if (argc > 2) {
+        // there is a file argument os use the test driver reader
+        ifs.open(argv[2], ios::in | ios::binary);
+        if (!ifs) {
+            cerr << "ERROR opening the file passed as 2nd argument!!!" << endl;
+            abort();
+        }
+        isTestdriver = true;
+        msgReader = ReaderIOFactory::create(ifs, true);
+    } else { 
+        msgReader = ReaderIOFactory::create(stdin);
+    }
 
     LPMsgQ msgQ;
-
-    std::thread readerTask(ReaderTask, std::ref(msgQ));
+    std::thread readerTask(ReaderTask, std::ref(msgQ), msgReader);
 
     //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
@@ -666,7 +681,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
-                    processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
+                    processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
                     break;
 
