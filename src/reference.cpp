@@ -319,7 +319,6 @@ struct ParseMessageStruct {
     BoundedQueue<ReceivedMessage> *msgQ;
 };
 
-
 LPTimer_t LPTimer;
 
 struct GlobalState {
@@ -540,13 +539,14 @@ int main(int argc, char**argv) {
 
     LPMsgQ msgQ;
 
-    std::thread readerTask(ReaderTask, std::ref(msgQ));
+    //std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(numOfThreads-2);
-    //MultiTaskPool multiPool(1);
+    //MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -559,31 +559,17 @@ int main(int argc, char**argv) {
 
         //uint64_t msgs = 0;
         while (true) {
-            /*
 #ifdef LPDEBUG
 auto start = LPTimer.getChrono();
 #endif
-ReceivedMessage *msg = new ReceivedMessage();
-auto& head = msg->head;
-auto& msgData = msg->data;
-            // read the head of the message - type and len
-            // Read the message body and cast it to the desired type
-            //cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-            //if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-            size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
-            if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-            // read the actual message content
-            msgData.reserve(head.messageLen);
-            msgData.resize(head.messageLen);
-            rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
-            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            ReceivedMessage *msg = ReaderIO::readInput(stdin);
+
 #ifdef LPDEBUG
 LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
-             */
-
-            ReceivedMessage *msg;
-            while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(50));}
+            //ReceivedMessage *msg;
+            //while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(50));}
+            
             auto& head = msg->head;
             switch (head.type) {
                 case MessageHead::ValidationQueries: 
@@ -615,7 +601,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
@@ -625,7 +611,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
@@ -643,7 +629,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        readerTask.join();
+                        //readerTask.join();
                         workerThreads.destroy();
                         multiPool.destroy();
                         return 0;
