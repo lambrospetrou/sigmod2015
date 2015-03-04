@@ -536,13 +536,14 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         }
     }
 
-    typedef CircularFifo<ReceivedMessage*, 1500> LPMsgQ;
+    typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
 
     void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
-//        setvbuf ( stdin , NULL , _IOFBF , 1<<12 );
+        std::ios_base::sync_with_stdio(false);
+        setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
         while (true) {
             // request place from the message queue - it blocks if full
             ReceivedMessage *msg = new ReceivedMessage();
@@ -572,26 +573,33 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             auto startInner = LPTimer.getChrono();
 #endif
 
-            if (head.type == MessageHead::Done) {
-                // exit the loop since the reader has finished its job
-                while (!msgQ.push(msg)) { lp_spin_sleep(); }
-                break;        
-            }
-
-            // read the actual message content
-            msgData.reserve(head.messageLen);
-            msgData.resize(head.messageLen);
-            rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
-            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-
+            switch (head.type) {
+                case MessageHead::Transaction:
+                case MessageHead::ValidationQueries:
+                case MessageHead::Flush:
+                case MessageHead::Forget:
+                case MessageHead::DefineSchema:
+                    // read the actual message content
+                    msgData.reserve(head.messageLen);
+                    msgData.resize(head.messageLen);
+                    rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
+                    // crude error handling, should never happen
+                    if (rd < head.messageLen) { cerr << "read error" << endl; abort(); }                 
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
-            while (!msgQ.push(msg)) { cerr << "r" << std::endl; lp_spin_sleep(std::chrono::microseconds(0)); }
-        }
+                    while (!msgQ.push(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
+                    break;
+                case MessageHead::Done:
+                    // exit the loop since the reader has finished its job
+                    while (!msgQ.push(msg)) { lp_spin_sleep(); }
 #ifdef LPDEBUG
         LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif
+                    return;
+                    break;        
+            }
+        }
         return;
     }
 
@@ -664,7 +672,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             if (numOfThreads == LONG_MAX)
                 numOfThreads = 1;
         }
-        cerr << "Number of threads: " << numOfThreads << endl;
+        //cerr << "Number of threads: " << numOfThreads << endl;
         Globals.nThreads = numOfThreads;
 
         //const uint64_t MessageQSize = 500;
@@ -720,7 +728,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                  */
 
                 ReceivedMessage *msg;
-                while (!msgQ.pop(msg)) {cerr<<"m "; lp_spin_sleep(std::chrono::microseconds(100));}
+                while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(50));}
                 auto& head = msg->head;
                 //auto& msgData = msg->data;
                 // Retrieve the message
@@ -782,7 +790,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                         }
                     case MessageHead::Flush:  
                         // check if we have pending transactions to be processed
-                        //multiPool.helpExecution();
+                        multiPool.helpExecution();
                         /*
                         if (!msgs.empty()) {
                             gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
