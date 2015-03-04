@@ -372,11 +372,11 @@ static void processDefineSchema(const DefineSchema& d) {
 
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
+
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
-#endif
+#endif 
     (void)vdata; (void)tid;
-
 
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
@@ -521,7 +521,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 
     typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
 
-
     void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
@@ -529,28 +528,19 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         while (true) {
             // request place from the message queue - it blocks if full
             ReceivedMessage *msg = new ReceivedMessage();
-            //auto& head = msg->head;
-            //auto& buffer = msg->data;
-            /*
-            // read the head of the message - type and len
-            // Read the message body and cast it to the desired type
-            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
-            if (!cin) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
-
-            if (head.type == MessageHead::Done) {
-            msgQ.registerEnq(res.refId); 
-            // exit the loop since the reader has finished its job
-            break;        
-            }
-
-            // read the actual message content
-            if (head.messageLen > buffer.size()) buffer.resize(head.messageLen);
-            cin.read(buffer.data(), head.messageLen);
-             */
+            
             auto& head = msg->head;
             auto& msgData = msg->data;
+            // read the head of the message - type and len
+            // Read the message body and cast it to the desired type
+            /*
+            cin.read(reinterpret_cast<char*>(&head),sizeof(head));
+            if (unlikely(!cin)) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            */
+            
             size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
             if (unlikely(rd < 1)) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
             auto startInner = LPTimer.getChrono();
 #endif
@@ -563,13 +553,19 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #endif
                 return;
             }
-
+            
             // read the actual message content
-            msgData.reserve(head.messageLen);
-            msgData.resize(head.messageLen);
+            if (unlikely(head.messageLen > msgData.size())) {
+                msgData.reserve(head.messageLen);
+                msgData.resize(head.messageLen);
+            }
+            //cin.read(msgData.data(), head.messageLen);
+            
+            // read the actual message content
             rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
             // crude error handling, should never happen
             if (unlikely(rd < head.messageLen)) { cerr << "read error" << endl; abort(); }                 
+            
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
@@ -582,8 +578,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         (void)tid; (void)nThreads;
         ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
-        //pvs->msgQ->registerDeq(pvs->refId);
-        //pvs->memQ->free(pvs->memRefId);
         delete pvs->msg;
         delete pvs;
     }
@@ -623,9 +617,9 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             lp_spin_sleep(std::chrono::microseconds((tid&1)?25:100));
             //lp_spin_sleep(std::chrono::microseconds(0));
         }// end of while there are messages
-    }
+        }
 
-    void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
+        void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
             (void)tid; (void)nThreads;
             ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
             processTransactionMessage(*reinterpret_cast<const Transaction*>(pvs->msg->data.data()), pvs->msg->data); 
@@ -650,8 +644,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             //cerr << "Number of threads: " << numOfThreads << endl;
             Globals.nThreads = numOfThreads;
 
-        std::ios_base::sync_with_stdio(false);
-        setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
+            std::ios_base::sync_with_stdio(false);
+            setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
             //const uint64_t MessageQSize = 500;
             //BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
             //BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
@@ -724,16 +718,6 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                                 ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                                //++gPendingValQueriesCount;
-                                /*
-                                   msgs.push_back(msg);
-                                   if (msgs.size() > 50) {
-                                   gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
-                                   gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
-                                   msgs.resize(0);
-                                   }
-                                 */
-                                //cerr << "inserted msg to conc queue" << endl;
                                 ParseMessageStruct *pvs = new ParseMessageStruct();
                                 pvs->msg = msg;
                                 multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
@@ -752,71 +736,26 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                                 //pvs->msg = msg;
                                 //parseTransactionPH1(numOfThreads, numOfThreads, pvs);
                                 //msgQ.registerDeq(res.refId);
-                                /* 
-                                   BoundedAlloc<ParseMessageStruct>::BAResult& mem = memQ.malloc();
-                                   ParseMessageStruct *pvs = mem.value;
-                                   pvs->msgQ = &msgQ;
-                                   pvs->refId = res.refId;
-                                   pvs->memRefId = mem.refId;
-                                   pvs->memQ = &memQ;
-                                   pvs->msg = &msg;
-                                //parseTransactionPH1(numOfThreads, numOfThreads, pvs); 
-                                multiPool.addTask(parseTransactionPH1, static_cast<void*>(pvs)); 
-                                 */
                                 break;
                             }
                         case MessageHead::Flush:  
                             // check if we have pending transactions to be processed
                             multiPool.helpExecution();
-                            /*
-                               if (!msgs.empty()) {
-                               gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
-                               gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
-                               msgs.resize(0);
-                               }
-
-                               gPendingValQueriesFinished = true;
-                               workerThreads.waitAll();
-                             */
-
-                            //cerr << "left msgs: " << gPendingValQueriesCount << endl;
-
                             multiPool.waitAll();
                             checkPendingValidations(workerThreads);
                             Globals.state = GlobalState::FLUSH;
                             processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
-                            //msgQ.registerDeq(res.refId);
                             delete msg;
-                            /*
-                               gPendingValQueriesFinished = false; 
-                               workerThreads.startAll(processValidationMessages);
-                             */
                             break;
 
                         case MessageHead::Forget: 
                             // check if we have pending transactions to be processed
-                            /*
-                               if (!msgs.empty()) {
-                               gPendingValQueries.enqueue_bulk(msgs.data(), msgs.size());
-                               gPendingValQueriesCount.fetch_add(msgs.size(), std::memory_order_release);
-                               msgs.resize(0);
-                               }
-                               gPendingValQueriesFinished = true;
-                               workerThreads.waitAll();
-                             */
-                            //cerr << "left msgs: " << gPendingValQueriesCount << endl;
-
                             multiPool.helpExecution();
                             multiPool.waitAll();
                             checkPendingValidations(workerThreads);
                             Globals.state = GlobalState::FORGET;
                             processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
-                            //msgQ.registerDeq(res.refId);
                             delete msg;
-                            /*
-                               gPendingValQueriesFinished = false; 
-                               workerThreads.startAll(processValidationMessages);
-                             */
                             break;
 
                         case MessageHead::DefineSchema: 
@@ -829,10 +768,6 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                                 cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                                //gPendingValQueriesFinished = true;
-                                //workerThreads.waitAll();
-                                //cerr << "left msgs: " << gPendingValQueriesCount << endl;
-
                                 readerTask.join();
                                 workerThreads.destroy();
                                 multiPool.destroy();
