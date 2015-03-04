@@ -519,7 +519,8 @@ void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
     delete pvs;
 }
 
-static vector<ParseMessageStruct*> gPendingValidationMessages;
+//static vector<ParseMessageStruct*> gPendingValidationMessages;
+static vector<ReceivedMessage*> gPendingValidationMessages;
 static std::atomic<uint64_t> gPVMCnt;
 
 
@@ -528,14 +529,17 @@ static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
     const uint64_t pvmsz = gPendingValidationMessages.size();
-    for (;true;) {
-        uint64_t vmi = gPVMCnt++;
+    for (uint64_t vmi = gPVMCnt++; likely(vmi < pvmsz); vmi=gPVMCnt++) {
+        //uint64_t vmi = gPVMCnt++;
         //cerr << tid << ":" << vmi << " ";
-        if (unlikely(vmi >= pvmsz)) return;
-        ParseMessageStruct *pvs = gPendingValidationMessages[vmi];
-        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
-        delete pvs->msg;
-        delete pvs;
+        //if (unlikely(vmi >= pvmsz)) return;
+        //ParseMessageStruct *pvs = gPendingValidationMessages[vmi];
+        ReceivedMessage *msg = gPendingValidationMessages[vmi];
+        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
+        //delete pvs->msg;
+        //delete pvs;
+        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
+        delete msg;
     }
 }
 
@@ -544,7 +548,7 @@ static void parsePendingValidationMessages(SingleTaskPool &pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
+    //cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
     pool.startAll(processPendingValidationMessagesTask);
     pool.waitAll();
 
@@ -625,10 +629,14 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        ParseMessageStruct *pvs = new ParseMessageStruct();
-                        pvs->msg = msg;
+                        //ParseMessageStruct *pvs = new ParseMessageStruct();
+                        //pvs->msg = msg;
                         //multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
-                        gPendingValidationMessages.push_back(pvs);
+
+                        //ParseMessageStruct *pvs = new ParseMessageStruct();
+                        //pvs->msg = msg;
+                        //gPendingValidationMessages.push_back(pvs);
+                        gPendingValidationMessages.push_back(msg);
 
                         break;
                     }
@@ -806,9 +814,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
 
-    for (;true;) {
-        uint64_t ri = gNextIndex++;
-        if (unlikely(ri >= NUM_RELATIONS)) return;
+    for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
 
         auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
         auto colBegin = colpair.first, colEnd = colpair.second; 
@@ -975,12 +981,9 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
 
     uint64_t totalPending = gPendingValidations.size();
-    uint64_t resPos, vi;
-    for (;true;) {
-
+    uint64_t resPos;
         // get a validation ID - atomic operation
-        vi = gNextPending++;
-        if (unlikely(vi >= totalPending)) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
+    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
 
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
