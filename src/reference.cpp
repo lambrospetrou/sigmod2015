@@ -29,7 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 #include "include/LPUtils.hpp"
-#include "include/ReaderTask.hpp"
+#include "include/ReaderIO.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -56,10 +56,6 @@
 #include <system_error>
 #include <exception>
 
-#include "include/circularfifo_memory_relaxed_aquire_release.hpp"
-#include "include/concurrentqueue.h"
-#include "include/readerwriterqueue.h"
-
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
 #include "include/BoundedQueue.hpp"
@@ -81,7 +77,6 @@
 using namespace std;
 using namespace lp;
 
-using namespace memory_relaxed_aquire_release;
 
 #define LPDEBUG  
 
@@ -485,31 +480,6 @@ static void processForget(const Forget& f) {
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 
-//typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
-//typedef moodycamel::ConcurrentQueue<ReceivedMessage*> LPMsgQ;
-typedef moodycamel::ReaderWriterQueue<ReceivedMessage*> LPMsgQ;
-
-void ReaderTask(LPMsgQ& msgQ, ReaderIO *msgReader) {
-#ifdef LPDEBUG
-    auto start = LPTimer.getChrono();
-#endif
-    while (true) {
-        //ReceivedMessage *msg = ReaderIO::readInput(stdin);
-        ReceivedMessage *msg = msgReader->nextMsg();
-        if (unlikely(msg->head.type == MessageHead::Done)) {
-            // exit the loop since the reader has finished its job
-            //while (!msgQ.push(msg)) { lp_spin_sleep(); }
-            while (!msgQ.enqueue(msg)) { lp_spin_sleep(); }
-#ifdef LPDEBUG
-            LPTimer.readingTotal += LPTimer.getChrono(start);
-#endif
-            return;
-        }
-        //while (!msgQ.push(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
-        while (!msgQ.enqueue(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
-    }
-    return;
-}
 
 void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads;
@@ -603,18 +573,15 @@ int main(int argc, char**argv) {
             abort();
         }
         isTestdriver = true;
-        msgReader = ReaderIOFactory::create(ifs, true);
+        msgReader = ReaderIOFactory::createAsync(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::createAsync(stdin);
     }
-
-    LPMsgQ msgQ;
-    std::thread readerTask(ReaderTask, std::ref(msgQ), msgReader);
 
     //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
-    // leave two available workes - master - msgQ
+    // leave two available workes - master - Reader
     //MultiTaskPool multiPool(numOfThreads-1);
     MultiTaskPool multiPool(1);
     multiPool.initThreads();
@@ -629,22 +596,10 @@ int main(int argc, char**argv) {
 
         //uint64_t msgs = 0;
         while (true) {
-            /*
-#ifdef LPDEBUG
-auto start = LPTimer.getChrono();
-#endif
-            ReceivedMessage *msg = ReaderIO::readInput(stdin);
-
-#ifdef LPDEBUG
-LPTimer.readingTotal += LPTimer.getChrono(start);
-#endif 
-            */
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
         auto startInner = LPTimer.getChrono();
 #endif
-            ReceivedMessage *msg;
-            //while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(0));}
-            while (!msgQ.try_dequeue(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(0));}
+            ReceivedMessage *msg = msgReader->nextMsg();
 #ifdef LPDEBUG
         LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
@@ -707,9 +662,9 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        readerTask.join();
                         workerThreads.destroy();
                         multiPool.destroy();
+                        delete msgReader;
                         return 0;
                     }
                 default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen

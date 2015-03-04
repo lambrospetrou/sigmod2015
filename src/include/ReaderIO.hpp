@@ -1,5 +1,5 @@
-#ifndef __LP_READER_TASK__
-#define __LP_READER_TASK__
+#ifndef __LP_READER_IO__
+#define __LP_READER_IO__
 
 #pragma once
 
@@ -14,9 +14,9 @@
 #include "LPUtils.hpp"
 #include "ReferenceTypes.hpp"
 
-
-#include "circularfifo_memory_relaxed_aquire_release.hpp"
-#include "concurrentqueue.h"
+//#include "circularfifo_memory_relaxed_aquire_release.hpp"
+//using namespace memory_relaxed_aquire_release;
+//#include "concurrentqueue.h"
 #include "readerwriterqueue.h"
 
 namespace lp {
