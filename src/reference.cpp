@@ -60,10 +60,8 @@
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
 #include "include/BoundedQueue.hpp"
-#include "include/BoundedAlloc.hpp"
 #include "include/SingleTaskPool.hpp"
 #include "include/MultiTaskPool.hpp"
-#include "include/MultiTaskPoolConc.hpp"
 #include "include/LPSpinLock.hpp"
 
 #include "include/cpp_btree/btree_map.h"
@@ -319,8 +317,6 @@ struct ParseMessageStruct {
     ReceivedMessage *msg;
     uint64_t refId;
     BoundedQueue<ReceivedMessage> *msgQ;
-    uint64_t memRefId;
-    BoundedAlloc<ParseMessageStruct> *memQ;
 };
 
 
