@@ -56,7 +56,7 @@ namespace lp {
             else return left.value < right.value;    
         }
     } ColumnCompOp;
-    
+
     struct LPQuery {
         /// The relation
         uint32_t relationId;
@@ -179,60 +179,50 @@ namespace lp {
             return false;
         }
 
-        
-    struct ColumnCompQuality_t {
-        inline bool operator() (const Query::Column& left, const Query::Column& right) {
-            if (left.op == Op::Equal && right.op != Op::Equal) return true;
-            else if (left.op != Op::Equal && right.op == Op::Equal) return false;
-            else if (left.op == Op::NotEqual && right.op != Op::NotEqual) return false;
-            else if (left.op != Op::NotEqual && right.op == Op::NotEqual) return true;
-            return (left.column < right.column);
-        }
-    } ColumnCompQuality;
+
+        struct ColumnCompQuality_t {
+            inline bool operator() (const Query::Column& left, const Query::Column& right) {
+                if (left.op == Op::Equal && right.op != Op::Equal) return true;
+                else if (left.op != Op::Equal && right.op == Op::Equal) return false;
+                else if (left.op == Op::NotEqual && right.op != Op::NotEqual) return false;
+                else if (left.op != Op::NotEqual && right.op == Op::NotEqual) return true;
+                return (left.column < right.column);
+            }
+        } ColumnCompQuality;
 
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ) {
             (void)relCols; (void)nQ;
             Column * qc = const_cast<Column*>(q->columns);
             /*
-            std::cerr << std::endl;
-            for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
-                std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
-            }
-            */
+               std::cerr << std::endl;
+               for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
+               std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
+               }
+             */
             //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
-            
+
             // sort the columns by column first in order to remove uniques and check satisfiability
             std::sort(qc, qc+q->columnCount, ColumnCompCol);
             auto colEnd = std::unique(qc, qc+q->columnCount, ColumnCompColEq);
             auto colBegin = qc;
             uint64_t uniqSz = std::distance(colBegin, colEnd);
-            
+
             if (isQueryUnsolvable(colBegin, colEnd)) {
                 // the query is not-satisfiable so it should be skipped-pruned
                 nQ->satisfiable = false;
                 nQ->columnCount = 0;
                 return false;
             }
-            
+
             // the query is satisfiable so insert it into the predicates of the passed in LPQuery
-            //std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
-            std::sort(colBegin, colEnd, ColumnCompQuality);
-            //nQ->predicates.reserve(uniqSz);
-            nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
+            std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
+            //nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
+            nQ->predicates.reserve(uniqSz);
+            nQ->predicates.resize(uniqSz);
+            memcpy(nQ->predicates.data(),colBegin, sizeof(Column)*uniqSz);
             nQ->columnCount = uniqSz;
             //std::cerr << "unique: " << uend-q->columns << std::endl; 
-            
-            //std::cerr << std::endl << "after unique: " << std::distance(const_cast<Column*>(q->columns), uend) << std::endl; 
-            //std::cerr << ":: new method: unique: " << uniqSz << std::endl;
-            //for (auto c=colBegin; c!=colEnd; ++c) {
-            //    std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
-            //}
-            /*
-            if (std::distance(qc, uend) != q->columnCount) {
-                std::cerr << std::endl << std::endl << " unique worked " << std::endl << std::endl; 
-            }
-            */
-            
+
             //for (auto c: preds) std::cerr << c.column << ":" << c.op << ":" << c.value << " ";
             return true;
         }
