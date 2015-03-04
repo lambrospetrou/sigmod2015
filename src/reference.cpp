@@ -118,9 +118,6 @@ struct CTransStruct {
     uint64_t value;
     tuple_t tuple;
     CTransStruct (uint64_t v, tuple_t t) : value(v), tuple(t) {}
-    bool operator< (const CTransStruct& o) { 
-        return value < o.value;
-    }
 };
 struct CTRSValueLessThan_t {
     inline bool operator()(const CTransStruct& l, const CTransStruct& r) {
@@ -392,10 +389,10 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         //LPQuery nQ(*q);
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         //if (!lp::validation::isQueryUnsolvable(nQ)) {
-        if (lp::query::parse(q, gSchema[q->relationId], &nQ)) {
+        if (likely(lp::query::parse(q, gSchema[q->relationId], &nQ))) {
             // this is a valid query
             nQ.relationId = q->relationId;
-            if (!nQ.predicates.empty()) {
+            if (likely(!nQ.predicates.empty())) {
                 //std::sort(nQ.predicates.begin(), nQ.predicates.end(), ColumnCompOp);
 
 
@@ -529,8 +526,6 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
 #ifdef LPDEBUG
         auto start = LPTimer.getChrono();
 #endif
-        std::ios_base::sync_with_stdio(false);
-        setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
         while (true) {
             // request place from the message queue - it blocks if full
             ReceivedMessage *msg = new ReceivedMessage();
@@ -555,7 +550,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             auto& head = msg->head;
             auto& msgData = msg->data;
             size_t rd = fread(reinterpret_cast<char*>(&head), sizeof(head), 1, stdin);
-            if (rd < 1) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
+            if (unlikely(rd < 1)) { cerr << "read error" << endl; abort(); } // crude error handling, should never happen
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
             auto startInner = LPTimer.getChrono();
 #endif
@@ -574,7 +569,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             msgData.resize(head.messageLen);
             rd = fread(reinterpret_cast<char*>(msgData.data()), 1, head.messageLen, stdin);
             // crude error handling, should never happen
-            if (rd < head.messageLen) { cerr << "read error" << endl; abort(); }                 
+            if (unlikely(rd < head.messageLen)) { cerr << "read error" << endl; abort(); }                 
 #ifdef LPDEBUG
             LPTimer.reading += LPTimer.getChrono(startInner);
 #endif 
@@ -628,9 +623,9 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             lp_spin_sleep(std::chrono::microseconds((tid&1)?25:100));
             //lp_spin_sleep(std::chrono::microseconds(0));
         }// end of while there are messages
-        }
+    }
 
-        void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
+    void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
             (void)tid; (void)nThreads;
             ParseMessageStruct *pvs = static_cast<ParseMessageStruct*>(args);
             processTransactionMessage(*reinterpret_cast<const Transaction*>(pvs->msg->data.data()), pvs->msg->data); 
@@ -655,6 +650,8 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
             //cerr << "Number of threads: " << numOfThreads << endl;
             Globals.nThreads = numOfThreads;
 
+        std::ios_base::sync_with_stdio(false);
+        setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
             //const uint64_t MessageQSize = 500;
             //BoundedQueue<ReceivedMessage> msgQ(MessageQSize);
             //BoundedAlloc<ParseMessageStruct> memQ(MessageQSize);
@@ -954,7 +951,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     }
                     sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
                 }
-                if(!relation.transLogDel.empty())
+                if(likely(!relation.transLogDel.empty()))
                     relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
                 //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
             }
@@ -966,7 +963,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 
             for (;true;) {
                 uint64_t ri = gNextIndex++;
-                if (ri >= NUM_RELATIONS) return;
+                if (unlikely(ri >= NUM_RELATIONS)) return;
 
                 auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
                 auto colBegin = colpair.first, colEnd = colpair.second; 
@@ -995,7 +992,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                 for (auto& trans : relTrans) {
                     if (trans.trans_id != lastTransId) {
                         // store the tuples for the last transaction just finished
-                        if (!operations.empty())
+                        if (likely(!operations.empty()))
                             relation.transLogDel.emplace_back(lastTransId, operations);
                         lastTransId = trans.trans_id;
                         operations.resize(0);
@@ -1036,7 +1033,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                 }
                 // store the last transaction data
                 // store the operations for the last transaction
-                if (!operations.empty())
+                if (likely(!operations.empty()))
                     relation.transLogDel.emplace_back(lastTransId, move(operations));
 
                 // update with new transactions
@@ -1060,7 +1057,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
             cols->reserve(totalCols);
             for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
                 auto ccols = &gStats[tid].reqCols;
-                if (ccols == cols) continue;
+                if (unlikely(ccols == cols)) continue;
                 //copy(ccols->begin(), ccols->end(), back_inserter(*cols));
                 cols->insert(cols->end(), ccols->begin(), ccols->end());
                 ccols->resize(0);
@@ -1095,7 +1092,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
         static std::atomic<uint64_t> gNextPending;
 
         static void checkPendingValidations(SingleTaskPool &pool) {
-            if (gPendingValidations.empty()) return;
+            if (unlikely(gPendingValidations.empty())) return;
 
             // check if there is any pending index creation to be made before checking validation
             checkPendingTransactions(pool);
@@ -1138,7 +1135,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 
                 // get a validation ID - atomic operation
                 vi = gNextPending++;
-                if (vi >= totalPending) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
+                if (unlikely(vi >= totalPending)) { /*cerr << "exiting" << endl;*/  return; } // all pending finished
 
                 auto& v = gPendingValidations[vi];
                 resPos = v.validationId - resIndexOffset;
@@ -1158,7 +1155,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                    }
                    }
                  */
-                if (v.queries.empty()) { continue; }
+                if (unlikely(v.queries.empty())) { continue; }
                 // sort the queries based on the number of the columns needed to check
                 // small queries first in order to try finding a solution faster
                 std::sort(v.queries.begin(), v.queries.end(), LPQueryCompSizeLess);
@@ -1166,8 +1163,6 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                 bool conflict = false, otherFinishedThis = false;
                 // for each query in this validation         
                 for (auto& q : v.queries) {
-                    if (atoRes) { otherFinishedThis = true; /*cerr << "h" << endl;*/ break; }
-
                     // protect from the case where there is no single predicate
                     if (q.predicates.empty()) { 
                         //cerr << "empty: " << v.validationId << endl; 
