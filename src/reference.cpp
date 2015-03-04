@@ -482,6 +482,7 @@ static void processForget(const Forget& f) {
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 
 typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
+typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
 
 void ReaderTask(LPMsgQ& msgQ) {
 #ifdef LPDEBUG
@@ -492,6 +493,9 @@ void ReaderTask(LPMsgQ& msgQ) {
         auto startInner = LPTimer.getChrono();
 #endif
         ReceivedMessage *msg = ReaderIO::readInput(stdin);
+#ifdef LPDEBUG
+        LPTimer.reading += LPTimer.getChrono(startInner);
+#endif 
         if (unlikely(msg->head.type == MessageHead::Done)) {
             // exit the loop since the reader has finished its job
             while (!msgQ.push(msg)) { lp_spin_sleep(); }
@@ -500,9 +504,6 @@ void ReaderTask(LPMsgQ& msgQ) {
 #endif
             return;
         }
-#ifdef LPDEBUG
-        LPTimer.reading += LPTimer.getChrono(startInner);
-#endif 
         while (!msgQ.push(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
     }
     return;
@@ -539,14 +540,14 @@ int main(int argc, char**argv) {
 
     LPMsgQ msgQ;
 
-    //std::thread readerTask(ReaderTask, std::ref(msgQ));
+    std::thread readerTask(ReaderTask, std::ref(msgQ));
 
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - msgQ
-    //MultiTaskPool multiPool(numOfThreads-2);
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads-2);
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -559,6 +560,7 @@ int main(int argc, char**argv) {
 
         //uint64_t msgs = 0;
         while (true) {
+            /*
 #ifdef LPDEBUG
 auto start = LPTimer.getChrono();
 #endif
@@ -567,8 +569,9 @@ auto start = LPTimer.getChrono();
 #ifdef LPDEBUG
 LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
-            //ReceivedMessage *msg;
-            //while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(50));}
+            */
+            ReceivedMessage *msg;
+            while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(0));}
             
             auto& head = msg->head;
             switch (head.type) {
@@ -629,7 +632,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        //readerTask.join();
+                        readerTask.join();
                         workerThreads.destroy();
                         multiPool.destroy();
                         return 0;
@@ -954,7 +957,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         if (unlikely(v.queries.empty())) { continue; }
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
-        std::sort(v.queries.begin(), v.queries.end(), LPQueryCompSizeLess);
+        std::sort(v.queries.begin(), v.queries.end(), LPQueryCompQuality);
 
         bool conflict = false, otherFinishedThis = false;
         // for each query in this validation         
@@ -974,9 +977,6 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             }
 
             auto& relColumns = gRelColumns[q.relationId].columns;
-
-            // IMPORTANT!!! - sort them in order to have the equality checks first -  done earlier now
-            //std::sort(q.predicates.begin(), q.predicates.end(), LPQuery::QCSortOp);
 
             auto& pFirst = q.predicates[0];
             auto& transactions = relColumns[pFirst.column].transactions;
