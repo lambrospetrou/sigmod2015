@@ -168,7 +168,7 @@ namespace lp {
             return false;
         }
 
-        inline __attribute__((always_inline) )bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
+        inline __attribute__((always_inline)) bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
             if (colBegin == colEnd) return false;
             Satisfiability sat;
             uint64_t lastCol = UINT64_MAX;
