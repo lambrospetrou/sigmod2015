@@ -489,13 +489,7 @@ void ReaderTask(LPMsgQ& msgQ) {
     auto start = LPTimer.getChrono();
 #endif
     while (true) {
-#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
-        auto startInner = LPTimer.getChrono();
-#endif
         ReceivedMessage *msg = ReaderIO::readInput(stdin);
-#ifdef LPDEBUG
-        LPTimer.reading += LPTimer.getChrono(startInner);
-#endif 
         if (unlikely(msg->head.type == MessageHead::Done)) {
             // exit the loop since the reader has finished its job
             while (!msgQ.push(msg)) { lp_spin_sleep(); }
@@ -613,8 +607,14 @@ auto start = LPTimer.getChrono();
 LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif 
             */
+#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
+        auto startInner = LPTimer.getChrono();
+#endif
             ReceivedMessage *msg;
             while (!msgQ.pop(msg)) {/*cerr<<"m ";*/ lp_spin_sleep(std::chrono::microseconds(0));}
+#ifdef LPDEBUG
+        LPTimer.reading += LPTimer.getChrono(startInner);
+#endif 
             
             auto& head = msg->head;
             switch (head.type) {
