@@ -2,6 +2,7 @@
 #define __LP_TYPES__
 
 #include "ReferenceTypes.hpp"
+#include "tuple_hash.hpp"
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -11,13 +12,87 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+#include <unordered_set>
+#include <tuple>
+#include <iterator>
+
+// save diagnostic state
+#pragma GCC diagnostic push 
+
+// turn off the specific warning. Can also use "-Wall"
+#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
+#include "sparsehash/dense_hash_map.h"
+#include "sparsehash/sparse_hash_map.h"
+// turn the warnings back on
+#pragma GCC diagnostic pop
 
 
 namespace lp {
 
-    //static uint32_t opw[6] = { 0, 5, 1, 2, 3, 4 }; 
-    //static LPOps lpopw[6] = { LPOps::Equal, LPOps::NotEqual, LPOps::Less, LPOps::LessOrEqual, LPOps::Greater, LPOps::GreaterOrEqual }; 
-    //enum LPOps : uint32_t { Equal, Less, LessOrEqual, Greater, GreaterOrEqual, NotEqual }
+    using GOOGLE_NAMESPACE::dense_hash_map;
+    using GOOGLE_NAMESPACE::sparse_hash_map;
+
+    // A version of each of the hashtable classes we test, that has been
+    // augumented to provide a common interface.  For instance, the
+    // sparse_hash_map and dense_hash_map versions set empty-key and
+    // deleted-key (we can do this because all our tests use int-like
+    // keys), so the users don't have to.  The hash_map version adds
+    // resize(), so users can just call resize() for all tests without
+    // worrying about whether the map-type supports it or not.
+
+    template<typename K, typename V, typename H>
+        class EasyUseSparseHashMap : public sparse_hash_map<K,V,H> {
+            public:
+                EasyUseSparseHashMap() {
+                    this->set_deleted_key(-1);
+                }
+        };
+
+    template<typename K, typename V>
+        class EasySparseHashMap : public sparse_hash_map<K,V> {
+            public:
+                EasySparseHashMap() {
+                    this->set_deleted_key(-1);
+                }
+        };
+
+    template<typename K, typename V, typename H>
+        class EasyUseDenseHashMap : public dense_hash_map<K,V,H> {
+            public:
+                EasyUseDenseHashMap() {
+                    this->set_empty_key(-1);
+                    this->set_deleted_key(-2);
+                }
+        };
+
+    template<typename K, typename V>
+        class EasyDenseHashMap : public dense_hash_map<K,V> {
+            public:
+                EasyDenseHashMap() {
+                    this->set_empty_key(-1);
+                    this->set_deleted_key(-2);
+                }
+        };
+
+    // For pointers, we only set the empty key.
+    template<typename K, typename V, typename H>
+        class EasyUseSparseHashMap<K*, V, H> : public sparse_hash_map<K*,V,H> {
+            public:
+                EasyUseSparseHashMap() { }
+        };
+
+    template<typename K, typename V, typename H>
+        class EasyUseDenseHashMap<K*, V, H> : public dense_hash_map<K*,V,H> {
+            public:
+                EasyUseDenseHashMap() {
+                    this->set_empty_key((K*)(~0));
+                }
+        };
+
+    // Google's HashMap
+    typedef EasyDenseHashMap<long,long> DMAP_LONG_LONG;
+    typedef EasyDenseHashMap<int,int> DMAP_INT_INT;
+    typedef EasySparseHashMap<long,long> SMAP_LONG_LONG;
 
     struct ColumnCompColOnly_t {
         inline bool operator() (const Query::Column& left, const Query::Column& right) {
@@ -202,8 +277,19 @@ namespace lp {
             //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
 
             // sort the columns by column first in order to remove uniques and check satisfiability
-            std::sort(qc, qc+q->columnCount, ColumnCompCol);
-            auto colEnd = std::unique(qc, qc+q->columnCount, ColumnCompColEq);
+            //std::sort(qc, qc+q->columnCount, ColumnCompCol);
+            //auto colEnd = std::unique(qc, qc+q->columnCount, ColumnCompColEq);
+            std::unordered_set<std::tuple<uint32_t, uint32_t, uint64_t>> seen;
+            auto colEnd = std::remove_if(qc, qc+q->columnCount, 
+                [&seen](const Column& c) { 
+                auto tpl = std::make_tuple(c.column, static_cast<uint32_t>(c.op), c.value);
+                std::unordered_set<std::tuple<uint32_t, uint32_t, uint64_t>>::iterator it;
+                if( (it = seen.find(tpl))== seen.end()) {
+                    seen.insert(it, tpl);
+                    return false;
+                }
+                return true; 
+                });
             auto colBegin = qc;
             uint64_t uniqSz = std::distance(colBegin, colEnd);
 
