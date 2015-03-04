@@ -364,7 +364,7 @@ static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
 
 #ifdef LPDEBUG
-    auto start = LPTimer.getChrono();    
+    //auto start = LPTimer.getChrono();    
 #endif 
     (void)vdata; (void)tid;
 
@@ -398,7 +398,7 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
     gPendingValidationsMutex.unlock();
 
 #ifdef LPDEBUG
-    LPTimer.validations += LPTimer.getChrono(start);
+    //LPTimer.validations += LPTimer.getChrono(start);
 #endif
     return;
 }
@@ -525,6 +525,47 @@ void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
     delete pvs;
 }
 
+static vector<ParseMessageStruct*> gPendingValidationMessages;
+static std::atomic<uint64_t> gPVMCnt;
+
+
+
+static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid) {
+    (void)tid; (void)nThreads;// to avoid unused warning
+    //cerr << "::: tid " << tid << "new" << endl;
+    const uint64_t pvmsz = gPendingValidationMessages.size();
+    for (;true;) {
+        uint64_t vmi = gPVMCnt++;
+        //cerr << tid << ":" << vmi << " ";
+        if (unlikely(vmi >= pvmsz)) return;
+        ParseMessageStruct *pvs = gPendingValidationMessages[vmi];
+        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
+        delete pvs->msg;
+        delete pvs;
+    }
+}
+
+static void parsePendingValidationMessages(SingleTaskPool &pool) {
+    if (unlikely(gPendingValidationMessages.empty())) return;
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+#endif
+    cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
+    pool.startAll(processPendingValidationMessagesTask);
+    pool.waitAll();
+
+    gPendingValidationMessages.clear();
+    gPVMCnt = 0;
+
+#ifdef LPDEBUG
+    LPTimer.validations += LPTimer.getChrono(start);
+#endif
+}
+
+
+
+
+
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -546,15 +587,17 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - msgQ
-    MultiTaskPool multiPool(numOfThreads-2);
+    //MultiTaskPool multiPool(numOfThreads-2);
     //MultiTaskPool multiPool(1);
-    multiPool.initThreads();
-    multiPool.startAll();
+    //multiPool.initThreads();
+    //multiPool.startAll();
 
     // allocate global structures based on thread number
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     vector<ReceivedMessage*> msgs;
+
+    gPendingValidationMessages.reserve(1024);
 
     try {
 
@@ -584,7 +627,8 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif
                         ParseMessageStruct *pvs = new ParseMessageStruct();
                         pvs->msg = msg;
-                        multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
+                        //multiPool.addTask(parseValidation, static_cast<void*>(pvs)); 
+                        gPendingValidationMessages.push_back(pvs);
 
                         break;
                     }
@@ -605,7 +649,8 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.waitAll();
+                    parsePendingValidationMessages(workerThreads);
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
@@ -615,7 +660,8 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.waitAll();
+                    parsePendingValidationMessages(workerThreads);
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
@@ -634,7 +680,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif              
                         readerTask.join();
                         workerThreads.destroy();
-                        multiPool.destroy();
+                        //multiPool.destroy();
                         return 0;
                     }
                 default: cerr << "malformed message" << endl; abort(); // crude error handling, should never happen
