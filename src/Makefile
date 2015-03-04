@@ -7,7 +7,7 @@ RELEASE_CFLAGS=-march=corei7-avx -msse4.2 -std=c++11 -O3 -W -Wall -Wextra -Werro
 all: reference
 
 reference: reference.cpp 
-	g++ $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread 
+	g++ -fopenmp  $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread 
 #g++ $(RELEASE_CFLAGS) -Llib/tbb/lib/intel64/gcc4.4 -ltbb  -o$@ reference.cpp -lpthread 
 
 clean:

@@ -71,7 +71,7 @@
 
 
 //#include "include/tbb/tbb.h"
-
+#include <omp.h>
 
 
 //---------------------------------------------------------------------------
@@ -522,36 +522,44 @@ void inline parseTransactionPH1(uint32_t nThreads, uint32_t tid, void *args) {
 //static vector<ParseMessageStruct*> gPendingValidationMessages;
 static vector<ReceivedMessage*> gPendingValidationMessages;
 static std::atomic<uint64_t> gPVMCnt;
-
-
-
+/*
 static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
     const uint64_t pvmsz = gPendingValidationMessages.size();
     for (uint64_t vmi = gPVMCnt++; likely(vmi < pvmsz); vmi=gPVMCnt++) {
-        //uint64_t vmi = gPVMCnt++;
         //cerr << tid << ":" << vmi << " ";
-        //if (unlikely(vmi >= pvmsz)) return;
-        //ParseMessageStruct *pvs = gPendingValidationMessages[vmi];
         ReceivedMessage *msg = gPendingValidationMessages[vmi];
-        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(pvs->msg->data.data()), pvs->msg->data, tid); 
-        //delete pvs->msg;
-        //delete pvs;
+        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
+        delete msg;
+    }
+}
+*/
+static void omp_processPendingValidationMessagesTask(uint32_t nThreads) {
+    (void)nThreads;// to avoid unused warning
+    //cerr << "::: tid " << tid << "new" << endl;
+    const uint64_t pvmsz = gPendingValidationMessages.size();
+    for (uint64_t vmi = 0; likely(vmi < pvmsz); ++vmi) {
+        uint32_t tid = omp_get_thread_num();
+        //cerr << tid << "/" << omp_get_num_threads() << ":" << vmi << endl;
+        ReceivedMessage *msg = gPendingValidationMessages[vmi];
         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
         delete msg;
     }
 }
 
-static void parsePendingValidationMessages(SingleTaskPool &pool) {
+static void parsePendingValidationMessages(SingleTaskPool &pool, uint32_t nThreads = 4) {
     if (unlikely(gPendingValidationMessages.empty())) return;
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
     //cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
-    pool.startAll(processPendingValidationMessagesTask);
-    pool.waitAll();
+    //pool.startAll(processPendingValidationMessagesTask);
+    //pool.waitAll();
 
+    (void)pool;
+    omp_processPendingValidationMessagesTask(nThreads);
+    
     gPendingValidationMessages.clear();
     gPVMCnt = 0;
 
@@ -562,7 +570,10 @@ static void parsePendingValidationMessages(SingleTaskPool &pool) {
 
 
 
-
+void inline initOpenMP(uint32_t nThreads) {
+    //omp_set_dynamic(0);           // Explicitly disable dynamic teams
+    omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
+}
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -573,6 +584,8 @@ int main(int argc, char**argv) {
     }
     //cerr << "Number of threads: " << numOfThreads << endl;
     Globals.nThreads = numOfThreads;
+
+    initOpenMP(numOfThreads);
 
     std::ios_base::sync_with_stdio(false);
     setvbuf ( stdin , NULL , _IOFBF , 1<<22 );
@@ -658,7 +671,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
                     //multiPool.waitAll();
-                    parsePendingValidationMessages(workerThreads);
+                    parsePendingValidationMessages(workerThreads, numOfThreads);
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data())); 
@@ -669,7 +682,7 @@ LPTimer.readingTotal += LPTimer.getChrono(start);
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
                     //multiPool.waitAll();
-                    parsePendingValidationMessages(workerThreads);
+                    parsePendingValidationMessages(workerThreads, numOfThreads);
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
