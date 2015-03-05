@@ -578,12 +578,12 @@ int main(int argc, char**argv) {
         msgReader = ReaderIOFactory::createAsync(stdin);
     }
 
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    //MultiTaskPool multiPool(numOfThreads-1);
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads-1);
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -630,7 +630,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
                     
@@ -642,7 +642,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
                     

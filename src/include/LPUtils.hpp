@@ -28,7 +28,7 @@ namespace lp {
             std::this_thread::sleep_for(us);
         }
     }
-    inline void lp_spin_reschedule(std::chrono::microseconds us = std::chrono::microseconds(0)) {
+    inline void lp_spin_for(std::chrono::microseconds us = std::chrono::microseconds(0)) {
         if (us == std::chrono::microseconds(0)) {
             std::this_thread::yield();
         } else {

@@ -114,6 +114,7 @@ namespace lp {
         uint64_t validationId;
         uint64_t from,to;
         std::vector<LPQuery> queries;
+        LPValidation() {}
         LPValidation(const ValidationQueries& v, std::vector<LPQuery> q)
             : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
