@@ -359,17 +359,17 @@ static void processDefineSchema(const DefineSchema& d) {
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 #endif
 //---------------------------------------------------------------------------
-static void processValidationQueries(const ValidationQueries& v, const vector<char>& vdata, uint64_t tid = 0) {
+static void processValidationQueries(const ValidationQueries& v, ReceivedMessage *msg, uint64_t tid = 0) {
 
 #ifdef LPDEBUG
     //auto start = LPTimer.getChrono();    
 #endif 
-    (void)vdata; (void)tid;
+    (void)tid;
 
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
-    const char* qreader=v.queries;
+/*    const char* qreader=v.queries;
     const Query *q;
     for (unsigned int i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
@@ -378,21 +378,22 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         if (likely(lp::query::parse(q, gSchema[q->relationId], &nQ))) {
             // this is a valid query
             nQ.relationId = q->relationId;
-            /*
-            if (likely(!nQ.predicates.empty())) {
-                // gather statistics    
-                auto& p = nQ.predicates[0];
-                uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
-                gStats[tid].reqCols.emplace_back((p.op == Op::Equal), rc);
-            }
-            */
+            
+            //if (likely(!nQ.predicates.empty())) {
+            //    // gather statistics    
+            //    auto& p = nQ.predicates[0];
+            //    uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
+            //    gStats[tid].reqCols.emplace_back((p.op == Op::Equal), rc);
+            //}
+            
             queries.push_back(move(nQ));
         }
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
+*/
     gPendingValidationsMutex.lock();
-    gPendingValidations.emplace_back(v.validationId, v.from, v.to, move(queries));    
+    gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
     // update the global pending validations to reflect this new one
     ++gPVunique;
     gPendingValidationsMutex.unlock();
@@ -489,8 +490,9 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
     auto start = LPTimer.getChrono();
 #endif
     ReceivedMessage *msg = reinterpret_cast<ReceivedMessage*>(args);
-    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-    delete msg;
+    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg, tid); 
+    // TODO - do not delete the vector since it contains the data for the validation being used
+    //delete msg;
 #ifdef LPDEBUG
     LPTimer.validations += LPTimer.getChrono(start);
 #endif
@@ -976,7 +978,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         // check if someone else found a conflict already for this validation ID
-        if (atoRes) continue;
+        //if (atoRes) continue; // TODO not needed since now we do not split validaitons 
 
         /*
            for (auto it = v.queries.begin(); it!=v.queries.end();) {
@@ -990,14 +992,29 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
            }
            }
          */
-        if (unlikely(v.queries.empty())) { continue; }
+        //if (unlikely(v.queries.empty())) { continue; }
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
-        std::sort(v.queries.begin(), v.queries.end(), LPQueryCompQuality);
+        //std::sort(v.queries.begin(), v.queries.end(), LPQueryCompQuality);
 
         bool conflict = false, otherFinishedThis = false;
+        ValidationQueries& rawv = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+        const char* qreader=rawv.queries;
+        const Query *rq;
+        for (unsigned int ii=0;ii<rawv.queryCount;++ii) {
+            rq=reinterpret_cast<const Query*>(qreader);
+            LPQuery q;
+            //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
+            if (unlikely(!(lp::query::parse(rq, gSchema[rq->relationId], &q)))) {
+                qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
+                continue;
+            }
+            q.relationId = rq->relationId;
+
+            //cerr << "q.relationId: " << q.relationId << " sz: " << q.predicates.size() << endl;
+
         // for each query in this validation         
-        for (auto& q : v.queries) {
+        //for (auto& q : v.queries) {
             // protect from the case where there is no single predicate
             if (q.predicates.empty()) { 
                 //cerr << "empty: " << v.validationId << endl; 
@@ -1005,6 +1022,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
                 if (transFromCheck == transactionsCheck.end()) { 
                     // no transactions exist for this query
+                    qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
                     continue;
                 } else { 
                     // transactions exist for this query
@@ -1096,11 +1114,13 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 //if (conflict) { break; }
             } // end of all the transactions for this relation for this specific query
             //if (conflict) break;
+            qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
         }// end for all queries
 CONFLICT:
         // update the pending results to help other threads skip this validation 
         // if it has other parts
         if (conflict && !otherFinishedThis)  { /*cerr<< "c: " << v.validationId << endl;*/  atoRes = true;}
+        delete v.rawMsg;
     } // while true take more validations 
 }
 

@@ -110,15 +110,24 @@ namespace lp {
         }
     } LPQueryCompQuality;
 
+    struct ReceivedMessage; // forward declaration
+
     struct LPValidation {
         uint64_t validationId;
         uint64_t from,to;
+       
+        ReceivedMessage *rawMsg;
+
+        // this needs to be removed to avoid more memory allocations
         std::vector<LPQuery> queries;
+        
         LPValidation() {}
         LPValidation(const ValidationQueries& v, std::vector<LPQuery> q)
-            : validationId(v.validationId), from(v.from), to(v.to), queries(move(q)) {}
-        LPValidation(uint64_t vid, uint64_t fr, uint64_t t, std::vector<LPQuery> q)
-            : validationId(vid), from(fr), to(t), queries(q) {}
+            : validationId(v.validationId), from(v.from), to(v.to), rawMsg(nullptr), queries(move(q)) {}
+        LPValidation(uint64_t vid, uint64_t fr, uint64_t t, ReceivedMessage* msg, std::vector<LPQuery> q)
+            : validationId(vid), from(fr), to(t), rawMsg(msg), queries(q) {}
+
+        ~LPValidation() {}
     };
 
 
