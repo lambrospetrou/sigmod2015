@@ -877,15 +877,14 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     vector<SColType>* cols = &gStats[0].reqCols;
     uint64_t totalCols = 0;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-    for (uint32_t tid=1; tid<Globals.nThreads; tid++) {
+    for (uint32_t tid=1; tid<Globals.nThreads; ++tid) {
         if (gStats[tid].reqCols.size() > cols->size()) cols = &gStats[tid].reqCols;
         totalCols += gStats[tid].reqCols.size();
     }
     cols->reserve(totalCols);
-    for (uint32_t tid=0; tid<Globals.nThreads; tid++) {
+    for (uint32_t tid=0; tid<Globals.nThreads; ++tid) {
         auto ccols = &gStats[tid].reqCols;
-        if (unlikely(ccols == cols)) continue;
-        //copy(ccols->begin(), ccols->end(), back_inserter(*cols));
+        if (unlikely(ccols == cols || ccols->empty())) continue;
         cols->insert(cols->end(), ccols->begin(), ccols->end());
         ccols->resize(0);
     }
@@ -1044,7 +1043,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 }
 
                 //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-                if (tupTo == tupFrom) continue;
+                //if (tupTo == tupFrom) continue;
 
                 for(; tupFrom!=tupTo; ++tupFrom) {  
                     tuple_t& tuple = tupFrom->tuple;
