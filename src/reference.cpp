@@ -93,11 +93,12 @@ ostream& operator<< (ostream& os, const vector<T> v) {
     }
     return os;
 }
-
+/*
 std::ostream& operator<< (std::ostream& os, const LPQuery& o) {
     os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
     return os;
 }
+*/
 std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
     os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
     return os;
@@ -369,10 +370,11 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
-/*    const char* qreader=v.queries;
+    const char* qreader=v.queries;
     const Query *q;
-    for (unsigned int i=0;i<v.queryCount;++i) {
+    for (uint32_t i=0;i<v.queryCount;++i) {
         q=reinterpret_cast<const Query*>(qreader);
+        /*
         LPQuery nQ;
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
         if (likely(lp::query::parse(q, gSchema[q->relationId], &nQ))) {
@@ -388,10 +390,11 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
             
             queries.push_back(move(nQ));
         }
+        */
+        queries.emplace_back(const_cast<Query*>(q));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
     //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
-*/
     gPendingValidationsMutex.lock();
     gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
     // update the global pending validations to reflect this new one
@@ -993,11 +996,13 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
            }
          */
         //if (unlikely(v.queries.empty())) { continue; }
+        
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
-        //std::sort(v.queries.begin(), v.queries.end(), LPQueryCompQuality);
+        std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
 
         bool conflict = false, otherFinishedThis = false;
+        /*
         ValidationQueries& rawv = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
         const char* qreader=rawv.queries;
         const Query *rq;
@@ -1012,17 +1017,21 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             q.relationId = rq->relationId;
 
             //cerr << "q.relationId: " << q.relationId << " sz: " << q.predicates.size() << endl;
-
+        */
         // for each query in this validation         
-        //for (auto& q : v.queries) {
+        for (auto& q : v.queries) {
+        
+            if (unlikely(!lp::query::satisfiable(q))) continue;
+            
             // protect from the case where there is no single predicate
-            if (q.predicates.empty()) { 
+            //if (q.predicates.empty()) { 
+            if (q.colCountUniq == 0) { 
                 //cerr << "empty: " << v.validationId << endl; 
                 auto& transactionsCheck = gRelations[q.relationId].transLogDel;
                 auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
                 if (transFromCheck == transactionsCheck.end()) { 
                     // no transactions exist for this query
-                    qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
+                    //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
                     continue;
                 } else { 
                     // transactions exist for this query
@@ -1032,7 +1041,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             auto& relColumns = gRelColumns[q.relationId].columns;
 
-            auto& pFirst = q.predicates[0];
+            auto& pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+            //auto& pFirst = q.predicates[0];
             auto& transactions = relColumns[pFirst.column].transactions;
             auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
             auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
@@ -1075,12 +1085,18 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
                 //if (tupTo == tupFrom) continue;
 
+                auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
+                     cend = cbegin + q.colCountUniq;
+                if (pFrom == 1) ++cbegin;
                 for(; tupFrom!=tupTo; ++tupFrom) {  
                     tuple_t& tuple = tupFrom->tuple;
                     //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
                     bool match=true;
-                    for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
-                        auto& c = q.predicates[cp];
+                    //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
+                        //auto& c = q.predicates[cp];
+                    for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
+                        //auto& c = q.predicates[cp];
+                        auto& c = *tbegin;
                         // make the actual check
                         uint64_t tupleValue = tuple[c.column]; 
                         uint64_t queryValue = c.value;
@@ -1114,7 +1130,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                 //if (conflict) { break; }
             } // end of all the transactions for this relation for this specific query
             //if (conflict) break;
-            qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
+            //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
         }// end for all queries
 CONFLICT:
         // update the pending results to help other threads skip this validation 
