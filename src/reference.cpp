@@ -584,12 +584,12 @@ int main(int argc, char**argv) {
         msgReader = ReaderIOFactory::createAsync(stdin);
     }
 
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     MultiTaskPool multiPool(numOfThreads-2);
-    //MultiTaskPool multiPool(1);
+    //MultiTaskPool multiPool(3);
     multiPool.initThreads();
     multiPool.startAll();
 
