@@ -378,12 +378,14 @@ static void processValidationQueries(const ValidationQueries& v, const vector<ch
         if (likely(lp::query::parse(q, gSchema[q->relationId], &nQ))) {
             // this is a valid query
             nQ.relationId = q->relationId;
+            /*
             if (likely(!nQ.predicates.empty())) {
                 // gather statistics    
                 auto& p = nQ.predicates[0];
                 uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
                 gStats[tid].reqCols.emplace_back((p.op == Op::Equal), rc);
             }
+            */
             queries.push_back(move(nQ));
         }
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
@@ -875,6 +877,7 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 
     //cerr << "::: session start ::::" << endl;
     vector<SColType>* cols = &gStats[0].reqCols;
+    /*
     uint64_t totalCols = 0;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     for (uint32_t tid=1; tid<Globals.nThreads; ++tid) {
@@ -896,7 +899,12 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     //cerr << "unique reqCols: " << cols->size() << endl;
     //for (auto& p : *cols) cerr << " " << p.second;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-
+    */
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) {
+        for (uint32_t c=0; c<gSchema[r]; ++c)
+            cols->emplace_back(false, lp::validation::packRelCol(r, c));
+    }
+    
     gStatColumns = cols;
     //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
 
