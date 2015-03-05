@@ -371,9 +371,8 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
     // try to put all the queries into a vector
     vector<LPQuery> queries;
     const char* qreader=v.queries;
-    const Query *q;
     for (uint32_t i=0;i<v.queryCount;++i) {
-        q=reinterpret_cast<const Query*>(qreader);
+        const Query *q=reinterpret_cast<const Query*>(qreader);
         /*
         LPQuery nQ;
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
@@ -589,7 +588,7 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-1);
+    MultiTaskPool multiPool(numOfThreads-2);
     //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
