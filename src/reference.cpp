@@ -761,10 +761,12 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
     auto& relation = gRelations[ri];
     auto& relColumns = gRelColumns[ri].columns;
 
+    (void)colBegin; (void)colEnd;
     // for each column to be indexed
-    uint32_t rel,col;
-    for (; colBegin!=colEnd; ++colBegin) {
-        lp::validation::unpackRelCol(colBegin->second, rel, col);
+    for (uint32_t col=0; col<gSchema[ri]; ++col) {
+    //uint32_t rel,col;
+    //for (; colBegin!=colEnd; ++colBegin) {
+    //    lp::validation::unpackRelCol(colBegin->second, rel, col);
         //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
         auto& colTransactions = relColumns[col].transactions;
         uint64_t updatedUntil = relColumns[col].transTo;
@@ -794,8 +796,9 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
     for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
 
-        auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
-        auto colBegin = colpair.first, colEnd = colpair.second; 
+        //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
+        //auto colBegin = colpair.first, colEnd = colpair.second; 
+        auto colBegin = gStatColumns->begin(), colEnd = gStatColumns->end(); 
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
@@ -900,11 +903,12 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     //for (auto& p : *cols) cerr << " " << p.second;
     //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     */
+    /*// - insert all the columns for all relations 
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) {
         for (uint32_t c=0; c<gSchema[r]; ++c)
             cols->emplace_back(false, lp::validation::packRelCol(r, c));
     }
-    
+    */
     gStatColumns = cols;
     //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
 
