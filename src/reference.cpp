@@ -796,7 +796,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     (void)tid; (void)nThreads;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
 
-    for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
+    for (uint64_t rri = gNextIndex++; likely(rri < NUM_RELATIONS); rri=gNextIndex++) {
 //#pragma omp parallel for schedule(static, 10)  
     //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
@@ -805,6 +805,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         auto colBegin = gStatColumns->begin(), colEnd = gStatColumns->end(); 
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
+        auto ri = NUM_RELATIONS-rri-1;
         auto& relTrans = gTransParseMapPhase[ri];
         if (relTrans.empty()) { 
             // TODO - we have to run this regardless of transactions since some
@@ -979,10 +980,11 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     uint64_t totalPending = gPendingValidations.size();
     uint64_t resPos;
         // get a validation ID - atomic operation
-    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
+    for (uint64_t vvi = gNextPending++; likely(vvi < totalPending); vvi=gNextPending++) {
 //#pragma omp parallel for schedule(static, 1)
     //for (uint64_t vi = 0; vi < totalPending; ++vi) {
 
+        auto vi = totalPending-vvi-1;
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
@@ -1027,7 +1029,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         // for each query in this validation         
         for (auto& q : v.queries) {
         
-            if (unlikely(!lp::query::satisfiable(q))) continue;
+            if (!lp::query::satisfiable(q)) continue;
             
             // protect from the case where there is no single predicate
             //if (q.predicates.empty()) { 
