@@ -1005,7 +1005,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
         
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
-        std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
+        //std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
 
         bool conflict = false, otherFinishedThis = false;
         /*
