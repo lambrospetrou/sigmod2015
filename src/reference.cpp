@@ -71,7 +71,7 @@
 
 //#include "include/tbb/tbb.h"
 #include <omp.h>
-//#include <cilk/cilk.h>
+#include <cilk/cilk.h>
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -766,6 +766,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
+#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
     //uint32_t rel,col;
     //for (; colBegin!=colEnd; ++colBegin) {
@@ -829,7 +830,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
-                if (likely(!operations.empty()))
+                if (!operations.empty())
                     relation.transLogDel.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
@@ -847,8 +848,9 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                         --(*tit)->aliveTuples;
 
                         // update the relation transactions - transfer ownership of the tuple
-                        tuple_t tpl = lb->second.second;
-                        operations.push_back(tpl);
+                        //tuple_t tpl = lb->second.second;
+                        //operations.push_back(tpl);
+                        operations.push_back(lb->second.second);
 
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
