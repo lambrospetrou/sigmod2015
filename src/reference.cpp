@@ -70,8 +70,8 @@
 
 
 //#include "include/tbb/tbb.h"
-#include <omp.h>
-
+//#include <omp.h>
+#include <cilk/cilk.h>
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -551,11 +551,12 @@ static void parsePendingValidationMessages(SingleTaskPool &pool, uint32_t nThrea
 }
 */
 
-
+/*
 void inline initOpenMP(uint32_t nThreads) {
     //omp_set_dynamic(0);           // Explicitly disable dynamic teams
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
+*/
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -567,7 +568,7 @@ int main(int argc, char**argv) {
     //cerr << "Number of threads: " << numOfThreads << endl;
     Globals.nThreads = numOfThreads;
 
-    initOpenMP(numOfThreads);
+    //initOpenMP(numOfThreads);
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -588,10 +589,10 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-2);
+    //MultiTaskPool multiPool(numOfThreads-2);
     //MultiTaskPool multiPool(3);
-    multiPool.initThreads();
-    multiPool.startAll();
+    //multiPool.initThreads();
+    //multiPool.startAll();
 
     // allocate global structures based on thread number
     gStats.reset(new StatStruct[numOfThreads+1]);
@@ -615,13 +616,11 @@ int main(int argc, char**argv) {
                 case MessageHead::ValidationQueries: 
                     {    Globals.state = GlobalState::VALIDATION;
                         //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg.data.data()), msg.data); 
-                        //msgQ.registerDeq(res.refId);
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
-
-                        //gPendingValidationMessages.push_back(msg);
+                        //multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
+                        cilk_spawn processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
 
                         break;
                     }
@@ -636,10 +635,12 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.helpExecution();
+                    //multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
                     
+                    cilk_sync;
+
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
@@ -648,10 +649,12 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.helpExecution();
+                    //multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
                     
+                    cilk_sync;
+
                     checkPendingValidations(workerThreads);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
@@ -669,7 +672,7 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
                         workerThreads.destroy();
-                        multiPool.destroy();
+                        //multiPool.destroy();
                         delete msgReader;
                         return 0;
                     }
