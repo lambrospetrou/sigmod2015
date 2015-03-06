@@ -186,7 +186,8 @@ struct RTLComp_t {
 struct RelationStruct {
     vector<unique_ptr<RelTransLog>> transLog;
     vector<pair<uint64_t, vector<tuple_t>>> transLogDel;
-    unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
+    //unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
+    btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
 
 struct TransLogComp_t {
