@@ -983,49 +983,51 @@ typedef vector<TupleType> TupleCont;
 typedef Query::Column* PredIter;
 
 bool isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
-        tuple_t& tuple = tup.tuple;
-        //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
-        bool match=true;
-        //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
+    tuple_t& tuple = tup.tuple;
+    //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
+    bool match=true;
+    //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
+    //auto& c = q.predicates[cp];
+    for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
         //auto& c = q.predicates[cp];
-        for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
-            //auto& c = q.predicates[cp];
-            auto& c = *tbegin;
-            // make the actual check
-            uint64_t tupleValue = tuple[c.column]; 
-            uint64_t queryValue = c.value;
-            bool result=false;
-            switch (c.op) {
-                case Op::Equal: 
-                    result=(tupleValue==queryValue); 
-                    break;
-                case Op::Less: 
-                    result=(tupleValue<queryValue); 
-                    break;
-                case Op::LessOrEqual: 
-                    result=(tupleValue<=queryValue); 
-                    break;
-                case Op::Greater: 
-                    result=(tupleValue>queryValue); 
-                    break;
-                case Op::GreaterOrEqual: 
-                    result=(tupleValue>=queryValue); 
-                    break;
-                case Op::NotEqual: 
-                    result=(tupleValue!=queryValue); 
-                    break;
-            } 
-            // there is one predicate not true so this whole query on this relation is false
-            if (!result) { return false; }
-        } // end of single query predicates
-        return match;    
+        auto& c = *tbegin;
+        // make the actual check
+        uint64_t tupleValue = tuple[c.column]; 
+        uint64_t queryValue = c.value;
+        bool result=false;
+        switch (c.op) {
+            case Op::Equal: 
+                result=(tupleValue==queryValue); 
+                break;
+            case Op::Less: 
+                result=(tupleValue<queryValue); 
+                break;
+            case Op::LessOrEqual: 
+                result=(tupleValue<=queryValue); 
+                break;
+            case Op::Greater: 
+                result=(tupleValue>queryValue); 
+                break;
+            case Op::GreaterOrEqual: 
+                result=(tupleValue>=queryValue); 
+                break;
+            case Op::NotEqual: 
+                result=(tupleValue!=queryValue); 
+                break;
+        } 
+        // there is one predicate not true so this whole query on this relation is false
+        if (!result) { return false; }
+    } // end of single query predicates
+    return match;    
 }
 
 bool isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     //for(; tupFrom!=tupTo; ++tupFrom) {  
+    //    if (isTupleConflict(cbegin, cend, tupFrom)) return true;
     //} // end of all tuples for this transaction
-    auto pred = std::bind(isTupleConflict, cbegin, cend, std::placeholders::_1);
-    return std::find_if(tupFrom, tupTo, pred) != tupTo;
+    //return false;
+    
+    return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
 
