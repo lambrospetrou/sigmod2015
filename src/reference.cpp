@@ -187,9 +187,8 @@ struct RTLComp_t {
 } RTLComp;
 // The general structure for each relation
 struct RelationStruct {
+    vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
-    vector<pair<uint64_t, vector<tuple_t>>> transLogDel;
-    //unordered_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
 
@@ -459,10 +458,10 @@ static void processForget(const Forget& f) {
             else ++it;
         }
 
-        // delete the transLogDel
-        auto& transLogDel = gRelations[i].transLogDel;
-        transLogDel.erase(transLogDel.begin(), 
-                upper_bound(transLogDel.begin(), transLogDel.end(), f.transactionId,
+        // delete the transLogTuples
+        auto& transLogTuples = gRelations[i].transLogTuples;
+        transLogTuples.erase(transLogTuples.begin(), 
+                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
                     [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
                 );
         //cerr << "size after: " << transLog.size() << endl;
@@ -596,7 +595,7 @@ int main(int argc, char**argv) {
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) gTransParseMapPhase[i].reserve(512);
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         gRelations[i].transLog.reserve(1024);
-        gRelations[i].transLogDel.reserve(1024);
+        gRelations[i].transLogTuples.reserve(1024);
     }
     // allocate global structures based on thread number
     gStats.reset(new StatStruct[numOfThreads+1]);
@@ -646,7 +645,7 @@ int main(int argc, char**argv) {
 #endif
                     {Globals.state = GlobalState::TRANSACTION;
                         processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg); 
-                        delete msg;
+                        //delete msg;
                         break;
                     }
                 case MessageHead::Flush:  
@@ -754,6 +753,9 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // advance to next Relation insertions
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
+
+    delete msg;
+
 #ifdef LPDEBUG
     LPTimer.transactions += LPTimer.getChrono(start);
 #endif
@@ -781,7 +783,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(2)
+#pragma omp parallel for schedule(static, 1) num_threads(4)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
     //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     
@@ -793,9 +795,9 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         uint64_t updatedUntil = relColumns[col].transTo;
 
         // Use lower_bound to automatically jump to the transaction to start
-        auto transFrom = lower_bound(relation.transLogDel.begin(), relation.transLogDel.end(), updatedUntil, TransLogComp);
+        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
         // for all the transactions in the relation
-        for(auto tEnd=relation.transLogDel.end(); transFrom!=tEnd; ++transFrom) {
+        for(auto tEnd=relation.transLogTuples.end(); transFrom!=tEnd; ++transFrom) {
             auto& trp = *transFrom;
             // allocate vectors for the current new transaction to put its data
             colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
@@ -805,8 +807,8 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
             }
             sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
         }
-        if(likely(!relation.transLogDel.empty()))
-            relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
+        if(likely(!relation.transLogTuples.empty()))
+            relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
     //});
     }
@@ -850,7 +852,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
                 if (!operations.empty())
-                    relation.transLogDel.emplace_back(lastTransId, operations);
+                    relation.transLogTuples.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
             }
@@ -892,7 +894,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
         // store the last transaction data
         // store the operations for the last transaction
         if (likely(!operations.empty()))
-            relation.transLogDel.emplace_back(lastTransId, move(operations));
+            relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
         // update with new transactions
         updateRequiredColumns(ri, colBegin, colEnd);
@@ -1062,7 +1064,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
             //if (q.predicates.empty()) { 
             if (q.colCountUniq == 0) { 
                 //cerr << "empty: " << v.validationId << endl; 
-                auto& transactionsCheck = gRelations[q.relationId].transLogDel;
+                auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
                 auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
                 if (transFromCheck == transactionsCheck.end()) { 
                     // no transactions exist for this query
