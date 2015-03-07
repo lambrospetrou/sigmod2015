@@ -26,7 +26,7 @@ class MultiTaskPool {
 
     public:
         MultiTaskPool(uint32_t tsz) : mNumOfThreads(tsz), 
-            mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz) {
+        mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz) {
         }
 
         void initThreads() {
@@ -91,7 +91,7 @@ class MultiTaskPool {
     private:
         uint64_t mNumOfThreads;
         std::vector<std::thread> mThreads;
-        
+
         std::condition_variable mCondActive;
         std::condition_variable mCondMaster;
         std::mutex mMutex;
@@ -117,7 +117,7 @@ class MultiTaskPool {
                 if (!canProceed()) mCondActive.wait(lk, [tid,this]{return canProceed();});
                 --mWaiting;
                 if (mPoolStopped) { lk.unlock(); return; }
-                
+
                 auto cTask = mTasks.front();
                 mTasks.pop();
                 lk.unlock();
@@ -134,18 +134,23 @@ class MultiTaskPool {
         void workerOutside (uint32_t tid) {
             //std::cerr << tid << std::endl;
             while(true) {
-                std::unique_lock<std::mutex> lk(mMutex);
-                //std::cerr << ">" << std::endl;
-                // all threads are waiting and no jobs are pending
-                if (mWaiting == mNumOfThreads ||  mTasks.empty()) {
-                    lk.unlock();
-                    return;
-                }
-                if (mPoolStopped || !mPoolRunning) { lk.unlock(); return; }
+                Task cTask; 
+                {
+                    std::lock_guard<std::mutex> lk(mMutex);
+                    //std::unique_lock<std::mutex> lk(mMutex);
+                    //std::cerr << ">" << std::endl;
+                    // all threads are waiting and no jobs are pending
+                    if (mWaiting == mNumOfThreads ||  mTasks.empty()) {
+                        //lk.unlock();
+                        return;
+                    }
+                    if (mPoolStopped || !mPoolRunning) { /*lk.unlock();*/ return; }
 
-                auto cTask = mTasks.front();
-                mTasks.pop();
-                lk.unlock();
+                    //auto cTask = mTasks.front();
+                    cTask = mTasks.front();
+                    mTasks.pop();
+                    //lk.unlock();
+                }// end of lock_guard
 
                 //std::cerr << "got job!" << std::endl;
 

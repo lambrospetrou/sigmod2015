@@ -783,7 +783,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(4)
+#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
     //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     
