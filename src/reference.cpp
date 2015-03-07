@@ -374,6 +374,7 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
     vector<LPQuery> queries;
+    queries.reserve(v.queryCount);
     const char* qreader=v.queries;
     for (uint32_t i=0;i<v.queryCount;++i) {
         const Query *q=reinterpret_cast<const Query*>(qreader);
@@ -556,15 +557,17 @@ static void parsePendingValidationMessages(SingleTaskPool &pool, uint32_t nThrea
 */
 
 
+
 void inline initOpenMP(uint32_t nThreads) {
     //omp_set_dynamic(0);           // Explicitly disable dynamic teams
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
-
+/*
 void inline initTBB(uint32_t nThreads) {
     (void)nThreads;
     tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
 }
+*/
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -577,7 +580,7 @@ int main(int argc, char**argv) {
     Globals.nThreads = numOfThreads;
 
     initOpenMP(numOfThreads);
-    initTBB(numOfThreads);
+    //initTBB(numOfThreads);
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -594,19 +597,26 @@ int main(int argc, char**argv) {
         msgReader = ReaderIOFactory::createAsync(stdin);
     }
 
+    // do some initial reserves or initializations
+    gPendingValidations.reserve(4096); 
+    for (uint32_t i=0; i<NUM_RELATIONS; ++i) gTransParseMapPhase[i].reserve(512);
+    for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
+        gRelations[i].transLog.reserve(1024);
+        gRelations[i].transLogDel.reserve(1024);
+    }
+    // allocate global structures based on thread number
+    gStats.reset(new StatStruct[numOfThreads+1]);
+    
+    // allocate the workers
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-1);
+    MultiTaskPool multiPool(numOfThreads-2);
     //MultiTaskPool multiPool(3);
     multiPool.initThreads();
     multiPool.startAll();
 
-    // allocate global structures based on thread number
-    gStats.reset(new StatStruct[numOfThreads+1]);
-
-    gPendingValidationMessages.reserve(1024);
 /*
     tbb::parallel_for((size_t)0, numOfThreads, [=] (size_t i) {
                 cerr << "worker " << i << endl;
@@ -842,6 +852,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
+        operations.reserve(4096);
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
@@ -881,7 +892,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
                 }
-                // TODO - THIS HAS TO BE IN ORDER - each transaction will have its own transaction history from now on
+                // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
             }
         }
