@@ -72,6 +72,7 @@
 
 #include <tbb/tbb.h>
 #include <tbb/parallel_for.h>
+#include <tbb/task_scheduler_init.h>
 #include "include/TBBUtils.hpp"
 
 #include <omp.h>
@@ -759,6 +760,8 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 //#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
+    //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
+    //    for (uint32_t col=r.begin(); col<r.end(); ++col) {
 
         //uint32_t rel,col;
         //for (; colBegin!=colEnd; ++colBegin) {
@@ -783,7 +786,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         if(likely(!relation.transLogTuples.empty()))
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
-        //});
+      //      }});
     }
 }
 
@@ -957,11 +960,11 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending.store(0);
 
-    //pool.startAll(processPendingValidationsTask);
-    //pool.waitAll();
+    pool.startAll(processPendingValidationsTask);
+    pool.waitAll();
 
-    (void)pool;
-    processPendingValidationsTask(0, 0);
+    //(void)pool;
+    //processPendingValidationsTask(0, 0);
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
@@ -1086,7 +1089,6 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
 static bool isValidationConflict(LPValidation& v) {
     // no empty validation has none query - ONLY if we did the satisfiability check before
     //if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
-
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
@@ -1114,25 +1116,30 @@ static bool isValidationConflict(LPValidation& v) {
         
         auto trFidx = std::distance(transactions.begin(), transFrom);
         auto trTidx = std::distance(transactions.begin(), transTo);
-
-        if (trTidx - trFidx > 20) {
+       
+        //cerr << (trTidx - trFidx) << endl;
+        for(auto tri=trFidx; tri<trTidx; ++tri) {  
+            if (isTransactionConflict(q, tri)) { return true; }
+        } // end of all the transactions for this relation for this specific query
+        
+        // only do parallel transactions if more than a threashold
+        /*
+        if (trTidx - trFidx > 200) {
             for(auto tri=trFidx; tri<trTidx; ++tri) {  
                 if (isTransactionConflict(q, tri)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
+            // this variable will be used in the range as termination flag
             volatile bool conflict = false;
             //tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 1, conflict), [&] (const cancelable_range<uint64_t>& r) {
+            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 10, conflict), [&] (const cancelable_range<uint64_t>& r) {
                 for (uint64_t tri=r.begin(); tri<r.end(); ++tri) {
-                    // check if someone else found a conflict
-                    if (conflict) {
-                        r.cancel(); return;
-                    }
                     if (isTransactionConflict(q, tri)) { conflict = true; r.cancel(); }
                 }
             }); // tbb parallel for // end of all the transactions for this relation for this specific query
             if (conflict) return true;
         }
+        */
     }// end for all queries
     return false;
 }
@@ -1144,16 +1151,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     uint64_t totalPending = gPendingValidations.size();
     uint64_t resPos;
     // get a validation ID - atomic operation
-    //for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
-        //#pragma omp parallel for schedule(static, 1)
-        //for (uint64_t vi = 0; vi < totalPending; ++vi) {
-    tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
+    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
+    //#pragma omp parallel for schedule()
+    //for (uint64_t vi = 0; vi < totalPending; ++vi) {
+    //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         if(isValidationConflict(v)) { atoRes = true; }
         delete v.rawMsg;
     } // while true take more validations 
-    ); // for tbb::parallel_for
+    //); // for tbb::parallel_for
 }
 
