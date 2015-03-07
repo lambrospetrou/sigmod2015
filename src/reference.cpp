@@ -1030,6 +1030,57 @@ bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<Tu
 }
 
 
+static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
+    auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
+         cend = cbegin + q.colCountUniq;
+    auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+        
+    auto& relColumns = gRelColumns[q.relationId].columns;
+    auto& transactions = relColumns[pFirst.column].transactions;
+    
+    auto iter = &transactions[tri];
+    auto& transValues = iter->second;
+    decltype(transValues.begin()) tupFrom, tupTo,
+        tBegin = transValues.begin(), tEnd=transValues.end();
+    uint32_t pFrom = 1;
+    // find the valid tuples using range binary searches based on the first predicate
+    switch (pFirst.op) {
+        case Op::Equal: 
+            {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                tupFrom = tp.first; tupTo = tp.second;
+                break;}
+        case Op::Less: 
+            tupFrom = tBegin;                    
+            tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            break;
+        case Op::LessOrEqual: 
+            tupFrom = tBegin;                    
+            tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            break;
+        case Op::Greater: 
+            tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
+            tupTo = tEnd;                   
+            break;
+        case Op::GreaterOrEqual: 
+            tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
+            tupTo = tEnd;                   
+            break;
+        default: 
+            tupFrom = tBegin;
+            tupTo = tEnd;
+            pFrom = 0;
+    }
+
+    //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
+    //if (std::distance(tupFrom, tupTo) == 0) continue;
+    if (std::distance(tupFrom, tupTo) == 0) return false;
+
+    if (pFrom == 1) ++cbegin;
+    //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
+    if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
+    return false;
+}
+
 static bool isValidationConflict(LPValidation& v) {
     // no empty validation has none query - ONLY if we did the satisfiability check before
     //if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
@@ -1053,13 +1104,8 @@ static bool isValidationConflict(LPValidation& v) {
             }; 
         }
 
-
-        auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
-            cend = cbegin + q.colCountUniq;
-        auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-        
-        auto& relColumns = gRelColumns[q.relationId].columns;
-        auto& transactions = relColumns[pFirst.column].transactions;
+        // just find the range of transactions we want in this relation
+        auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
@@ -1067,53 +1113,13 @@ static bool isValidationConflict(LPValidation& v) {
         auto trFidx = std::distance(transactions.begin(), transFrom);
         auto trTidx = std::distance(transactions.begin(), transTo);
 
-        bool conflict = false;
+        volatile bool conflict = false;
         //for(auto iter=transFrom; iter!=transTo; ++iter) {  
         //for(auto tri=trFidx; trFidx<trTidx; ++trFidx) {  
         tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            auto iter = &transactions[tri];
-            auto& transValues = iter->second;
-            decltype(transValues.begin()) tupFrom, tupTo, tb, te,
-                tBegin = transValues.begin(), tEnd=transValues.end();
-            uint32_t pFrom = 1;
-            // find the valid tuples using range binary searches based on the first predicate
-            switch (pFirst.op) {
-                case Op::Equal: 
-                    {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
-                        tupFrom = tp.first; tupTo = tp.second;
-                        break;}
-                case Op::Less: 
-                    tupFrom = tBegin;                    
-                    tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-                    break;
-                case Op::LessOrEqual: 
-                    tupFrom = tBegin;                    
-                    tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-                    break;
-                case Op::Greater: 
-                    tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
-                    tupTo = tEnd;                   
-                    break;
-                case Op::GreaterOrEqual: 
-                    tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
-                    tupTo = tEnd;                   
-                    break;
-                default: 
-                    tupFrom = tBegin;
-                    tupTo = tEnd;
-                    pFrom = 0;
-            }
-
-            //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-            //if (std::distance(tupFrom, tupTo) == 0) continue;
-            if (std::distance(tupFrom, tupTo) == 0) return;
-
-            auto cpbegin = cbegin;
-            if (pFrom == 1) ++cpbegin;
-            //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
-            if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) conflict = true;
+            if (isTransactionConflict(q, tri)) conflict = true;
         } // end of all the transactions for this relation for this specific query
-        );
+        ); // tbb parallel for
         if (conflict) return true;
     }// end for all queries
     return false;
