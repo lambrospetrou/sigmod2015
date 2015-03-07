@@ -29,6 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 #include "include/LPUtils.hpp"
+#include "include/TBBUtils.hpp"
 #include "include/ReaderIO.hpp"
 
 #include <iostream>
@@ -70,10 +71,8 @@
 #include "include/LPQueryTypes.hpp"
 
 
-//#include "include/tbb/tbb.h"
-//#include "include/tbb/parallel_for.h"
 #include <tbb/tbb.h>
-//#include <tbb/parallel_for.h>
+#include <tbb/parallel_for.h>
 #include <omp.h>
 
 
@@ -528,12 +527,12 @@ void inline initOpenMP(uint32_t nThreads) {
     //omp_set_dynamic(0);           // Explicitly disable dynamic teams
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
-/*
-   void inline initTBB(uint32_t nThreads) {
+
+void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
    tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
-   }
- */
+}
+
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -546,7 +545,7 @@ int main(int argc, char**argv) {
     Globals.nThreads = numOfThreads;
 
     initOpenMP(numOfThreads);
-    //initTBB(numOfThreads);
+    initTBB(numOfThreads);
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -956,11 +955,11 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending.store(0);
 
-    pool.startAll(processPendingValidationsTask);
-    pool.waitAll();
+    //pool.startAll(processPendingValidationsTask);
+    //pool.waitAll();
 
-    //(void)pool;
-    //processPendingValidationsTask(0, 0);
+    (void)pool;
+    processPendingValidationsTask(0, 0);
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
@@ -1032,11 +1031,12 @@ bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<Tu
 
 
 static bool isValidationConflict(LPValidation& v) {
-    if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
+    // no empty validation has none query - ONLY if we did the satisfiability check before
+    //if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
 
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
-        if (!lp::query::satisfiable(q)) continue;
+        if (!lp::query::satisfiable(q)) continue; // go to the next query
 
         // protect from the case where there is no single predicate
         //if (q.predicates.empty()) { 
@@ -1046,51 +1046,56 @@ static bool isValidationConflict(LPValidation& v) {
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
             if (transFromCheck == transactionsCheck.end()) { 
                 // no transactions exist for this query
-                //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
                 continue;
             } else { 
-                // transactions exist for this query
+                // transactions exist for this query so it is a conflict
                 return true;
             }; 
         }
 
-        auto& relColumns = gRelColumns[q.relationId].columns;
 
-        auto& pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-        //auto& pFirst = q.predicates[0];
+        auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
+            cend = cbegin + q.colCountUniq;
+        auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+        
+        auto& relColumns = gRelColumns[q.relationId].columns;
         auto& transactions = relColumns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-
         //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
+        
+        auto trFidx = std::distance(transactions.begin(), transFrom);
+        auto trTidx = std::distance(transactions.begin(), transTo);
 
-        uint32_t pFrom = 0;
-        for(auto iter=transFrom; iter!=transTo; ++iter) {  
+        //for(auto iter=transFrom; iter!=transTo; ++iter) {  
+        for(; trFidx!=trTidx; ++trFidx) {  
+            auto iter = &transactions[trFidx];
             auto& transValues = iter->second;
-            decltype(transValues.begin()) tupFrom, tupTo, 
+            decltype(transValues.begin()) tupFrom, tupTo, tb, te,
                 tBegin = transValues.begin(), tEnd=transValues.end();
+            uint32_t pFrom = 1;
             // find the valid tuples using range binary searches based on the first predicate
             switch (pFirst.op) {
                 case Op::Equal: 
                     {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                         tupFrom = tp.first; tupTo = tp.second;
-                        pFrom = 1; break;}
+                        break;}
                 case Op::Less: 
                     tupFrom = tBegin;                    
                     tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-                    pFrom = 1; break;
+                    break;
                 case Op::LessOrEqual: 
                     tupFrom = tBegin;                    
                     tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-                    pFrom = 1; break;
+                    break;
                 case Op::Greater: 
                     tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
                     tupTo = tEnd;                   
-                    pFrom = 1; break;
+                    break;
                 case Op::GreaterOrEqual: 
                     tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
                     tupTo = tEnd;                   
-                    pFrom = 1; break;
+                    break;
                 default: 
                     tupFrom = tBegin;
                     tupTo = tEnd;
@@ -1098,12 +1103,11 @@ static bool isValidationConflict(LPValidation& v) {
             }
 
             //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-            //if (tupTo == tupFrom) continue;
+            if (std::distance(tupFrom, tupTo) == 0) continue;
 
-            auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
-                 cend = cbegin + q.colCountUniq;
-            if (pFrom == 1) ++cbegin;
-            if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
+            auto cpbegin = cbegin;
+            if (pFrom == 1) ++cpbegin;
+            if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
         } // end of all the transactions for this relation for this specific query
         //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
     }// end for all queries
@@ -1117,16 +1121,16 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     uint64_t totalPending = gPendingValidations.size();
     uint64_t resPos;
     // get a validation ID - atomic operation
-    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
+    //for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
         //#pragma omp parallel for schedule(static, 1)
         //for (uint64_t vi = 0; vi < totalPending; ++vi) {
-        //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
+    tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         if(isValidationConflict(v)) { atoRes = true; }
         delete v.rawMsg;
     } // while true take more validations 
-    //        ); // for tbb::parallel_for
+    ); // for tbb::parallel_for
 }
 
