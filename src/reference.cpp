@@ -230,39 +230,7 @@ typedef std::mutex RelTransLock;
 static unique_ptr<RelTransLock[]> gRelTransMutex;
 static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
 
-// TRANSACTION HISTORY STRUCTURES
-
-struct TransOperation {
-    uint32_t rel_id;
-    std::unique_ptr<uint64_t[]> tuple;
-    TransOperation(uint32_t relid, std::unique_ptr<uint64_t[]> t):
-        rel_id(relid), tuple(move(t)) {}
-};
-struct TransactionStruct {
-    uint64_t trans_id;
-    //vector<TransOperation> operations;
-    std::unique_ptr<uint64_t[]> tuples;
-    std::atomic<uint64_t> aliveTuples;
-    uint64_t rowCount;
-    TransactionStruct(uint64_t tid, uint64_t* tpl, uint64_t rowCount) : trans_id(tid) {
-        tuples.reset(tpl);
-        aliveTuples = rowCount;
-    } 
-};
-struct TSComp_t {
-    inline bool ByTrans(const TransactionStruct& l, const TransactionStruct& r) {
-        return l.trans_id < r.trans_id;
-    }
-    inline bool operator() (const std::unique_ptr<TransactionStruct>& l, const std::unique_ptr<TransactionStruct>& r) {
-        return l->trans_id < r->trans_id;
-    }
-    inline bool operator() (const std::unique_ptr<TransactionStruct>& o, uint64_t target) {
-        return o->trans_id < target;
-    }
-} TSComp;
-//static vector<std::unique_ptr<TransactionStruct>> gTransactionHistory;
-//static std::mutex gTransactionHistoryMutex;
-//static LPSpinLock gTransactionHistoryMutex;
+//////////////////////////////////////////////////////////////
 
 static uint32_t NUM_RELATIONS;
 static std::unique_ptr<uint32_t[]> gSchema;
@@ -270,14 +238,15 @@ static std::unique_ptr<uint32_t[]> gSchema;
 ///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
 static vector<LPValidation> gPendingValidations;
+static std::mutex gPendingValidationsMutex;
+//static LPSpinLock gPendingValidationsMutex;
+
 //typedef atomic_wrapper<bool> PendingResultType;
 typedef char PendingResultType;
 static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
-static std::mutex gPendingValidationsMutex;
-//static LPSpinLock gPendingValidationsMutex;
 
 
 /////////////////////////////////////////// STRUCTURES FOR STATS
@@ -597,7 +566,7 @@ int main(int argc, char**argv) {
     gPendingValidations.reserve(4096); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) gTransParseMapPhase[i].reserve(512);
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
-        gRelations[i].transLog.reserve(1024);
+        gRelations[i].transLog.reserve(512);
         gRelations[i].transLogTuples.reserve(1024);
     }
     // allocate global structures based on thread number
