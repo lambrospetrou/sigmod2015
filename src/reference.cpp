@@ -70,8 +70,11 @@
 
 
 //#include "include/tbb/tbb.h"
+//#include "include/tbb/parallel_for.h"
+#include <tbb/tbb.h>
+//#include <tbb/parallel_for.h>
 #include <omp.h>
-#include <cilk/cilk.h>
+
 
 //---------------------------------------------------------------------------
 using namespace std;
@@ -558,6 +561,9 @@ void inline initOpenMP(uint32_t nThreads) {
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
 
+void inline initTBB(uint32_t nThreads) {
+    tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
+}
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -570,6 +576,7 @@ int main(int argc, char**argv) {
     Globals.nThreads = numOfThreads;
 
     initOpenMP(numOfThreads);
+    initTBB(numOfThreads);
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -599,7 +606,11 @@ int main(int argc, char**argv) {
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     gPendingValidationMessages.reserve(1024);
-
+/*
+    tbb::parallel_for((size_t)0, numOfThreads, [=] (size_t i) {
+                cerr << "worker " << i << endl;
+            });
+*/
     try {
 
         //uint64_t msgs = 0;
@@ -766,8 +777,9 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(2)
-    for (uint32_t col=0; col<gSchema[ri]; ++col) {
+//#pragma omp parallel for schedule(static, 1) num_threads(2)
+    //for (uint32_t col=0; col<gSchema[ri]; ++col) {
+    tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //uint32_t rel,col;
     //for (; colBegin!=colEnd; ++colBegin) {
     //    lp::validation::unpackRelCol(colBegin->second, rel, col);
@@ -791,7 +803,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         if(likely(!relation.transLogDel.empty()))
             relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
-    }
+    });
 }
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
@@ -925,8 +937,11 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     //(void)pool;
     //processPendingIndexTask(4, 0);
     
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
-
+//#pragma omp parallel for schedule(static, 1) num_threads(2)
+    //for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    tbb::parallel_for ((uint32_t)0, NUM_RELATIONS, [&] (uint32_t r) {
+            gTransParseMapPhase[r].clear();
+        });
     // clear the 1st predicate columns 
     //cols->resize(0);
 
