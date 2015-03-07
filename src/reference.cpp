@@ -165,10 +165,15 @@ struct RelTransLog {
     uint64_t trans_id;
     uint64_t last_del_id;
     uint64_t aliveTuples;
-    std::unique_ptr<uint64_t[]> tuples;
+    //uint64_t *tuples;
     uint64_t rowCount;
-    RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
-        tuples.reset(tpl);
+    uint64_t *tuples;
+    //std::unique_ptr<uint64_t[]> tuples;
+    std::shared_ptr<ReceivedMessage> rawMsg;
+    
+    RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount, std::shared_ptr<ReceivedMessage> msg) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount), rawMsg(msg) {
+        tuples = tpl;
+        //if (tpl != nullptr) tuples.reset(tpl);
     } 
 };
 struct RTLComp_t {
@@ -208,11 +213,14 @@ static std::unique_ptr<RelationStruct[]> gRelations;
 struct TRMapPhase {
     uint64_t trans_id;
     uint64_t *values; // delete op => row keys to delete | insert => tuples
-    bool isDelOp;
     uint32_t rowCount;
+    bool isDelOp;
+    std::shared_ptr<ReceivedMessage> rawMsg; // delete op => nullptr (we still copy the numbers) | insert => the raw message of the transaction
 
-    TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
-        : trans_id(tid), values(vals), isDelOp(isdel), rowCount(rows) {}
+    TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals, std::shared_ptr<ReceivedMessage> msg)
+        : trans_id(tid), values(vals), rowCount(rows), isDelOp(isdel) {
+            if (msg != nullptr) rawMsg = msg;
+        }
 };
 struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
@@ -710,7 +718,7 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-
+    std::shared_ptr<ReceivedMessage> sptr_msg = std::shared_ptr<ReceivedMessage>(msg);
     const char* reader=t.operations;
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
@@ -722,7 +730,7 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
             const uint64_t *keys = o.keys;
             for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
             //gRelTransMutex[o.relationId].lock(); 
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount, nullptr);
             //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             gTotalTuples += o.rowCount; // contains more than the true
@@ -739,12 +747,13 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // TODO - lock here to make it to make all the deletions parallel naive locking first - 
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
-            uint64_t* tptr = new uint64_t[relCols*o.rowCount];
-            const uint64_t *vptr=o.values;
-            uint32_t sz = relCols*o.rowCount;
-            for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
+            //uint64_t* tptr = new uint64_t[relCols*o.rowCount];
+            //const uint64_t *vptr=o.values;
+            //uint32_t sz = relCols*o.rowCount;
+            //for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
             //gRelTransMutex[o.relationId].lock(); 
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, const_cast<tuple_t>(o.values), sptr_msg);
+            //gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz, sptr_msg);
             //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             ++gTotalTuples;
@@ -754,7 +763,7 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         reader+=sizeof(TransactionOperationInsert)+(sizeof(uint64_t)*o.rowCount*relCols);
     }
 
-    delete msg;
+    //delete msg;
 
 #ifdef LPDEBUG
     LPTimer.transactions += LPTimer.getChrono(start);
@@ -888,7 +897,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
-                relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
+                relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount, trans.rawMsg));
             }
         }
         // store the last transaction data
