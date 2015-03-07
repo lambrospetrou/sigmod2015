@@ -972,43 +972,24 @@ static void checkPendingValidations(SingleTaskPool &pool) {
 #endif
 }
 
+//////////////////////////////////////////////////////////
+// VALIDATION
+//////////////////////////////////////////////////////////
 
-static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
-    (void)tid; (void)nThreads;// to avoid unused warning
 
-    uint64_t totalPending = gPendingValidations.size();
-    uint64_t resPos;
-        // get a validation ID - atomic operation
-    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
-//#pragma omp parallel for schedule(static, 1)
-    //for (uint64_t vi = 0; vi < totalPending; ++vi) {
-    //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
+/*
+static bool isTupleConflict() {
+    
+}
+*/
 
-        auto& v = gPendingValidations[vi];
-        resPos = v.validationId - resIndexOffset;
-        auto& atoRes = gPendingResults[resPos];
-        // check if someone else found a conflict already for this validation ID
-        //if (atoRes) continue; // TODO not needed since now we do not split validaitons 
 
-        /*
-           for (auto it = v.queries.begin(); it!=v.queries.end();) {
-           std::sort(it->predicates.begin(), it->predicates.end(), );
-
-           it->predicates.resize(std::distance(it->predicates.begin(), std::unique(it->predicates.begin(), it->predicates.end())));
-           if (lp::validation::isQueryUnsolvable(*it)) {
-           it = v.queries.erase(it);
-           } else {
-           ++it;
-           }
-           }
-         */
-        //if (unlikely(v.queries.empty())) { continue; }
+static bool isValidationConflict(LPValidation& v) {
+        //if (unlikely(v.queries.empty())) { return false; }
         
         // sort the queries based on the number of the columns needed to check
         // small queries first in order to try finding a solution faster
         //std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
-
-        bool conflict = false, otherFinishedThis = false;
         /*
         ValidationQueries& rawv = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
         const char* qreader=rawv.queries;
@@ -1025,7 +1006,6 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
 
             //cerr << "q.relationId: " << q.relationId << " sz: " << q.predicates.size() << endl;
         */
-        // for each query in this validation         
         for (auto& q : v.queries) {
         
             lp::query::preprocess(q);
@@ -1043,7 +1023,8 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                     continue;
                 } else { 
                     // transactions exist for this query
-                    conflict=true;  break; 
+                    //conflict=true;  break; 
+                    return true;
                 }; 
             }
 
@@ -1133,19 +1114,33 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
                         if (!result) { match=false; break; }
                     } // end of single query predicates
                     //cerr << "match: " << match << " conflict: " << conflict << endl;
-                    if (match) { conflict=true; goto CONFLICT;  break; }    
+                    if (match) { /*conflict=true; goto CONFLICT;  break;*/ return true; }    
                 } // end of all tuples for this transaction
                 //if (conflict) { break; }
             } // end of all the transactions for this relation for this specific query
             //if (conflict) break;
             //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
         }// end for all queries
-CONFLICT:
-        // update the pending results to help other threads skip this validation 
-        // if it has other parts
-        if (conflict && !otherFinishedThis)  { /*cerr<< "c: " << v.validationId << endl;*/  atoRes = true;}
+    return false;
+}
+
+
+static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
+    (void)tid; (void)nThreads;// to avoid unused warning
+
+    uint64_t totalPending = gPendingValidations.size();
+    uint64_t resPos;
+        // get a validation ID - atomic operation
+    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
+//#pragma omp parallel for schedule(static, 1)
+    //for (uint64_t vi = 0; vi < totalPending; ++vi) {
+    //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
+        auto& v = gPendingValidations[vi];
+        resPos = v.validationId - resIndexOffset;
+        auto& atoRes = gPendingResults[resPos];
+        if(isValidationConflict(v)) { atoRes = true; }
         delete v.rawMsg;
     } // while true take more validations 
-//        );
+//        ); // for tbb::parallel_for
 }
 
