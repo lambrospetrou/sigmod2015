@@ -208,12 +208,12 @@ static std::unique_ptr<RelationStruct[]> gRelations;
 
 struct TRMapPhase {
     uint64_t trans_id;
+    uint64_t *values; // delete op => row keys to delete | insert => tuples
     bool isDelOp;
     uint32_t rowCount;
-    uint64_t *values; // delete op => row keys to delete | insert => tuples
 
     TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
-        : trans_id(tid), isDelOp(isdel), rowCount(rows), values(vals) {}
+        : trans_id(tid), values(vals), isDelOp(isdel), rowCount(rows) {}
 };
 struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
@@ -239,8 +239,8 @@ struct TransOperation {
 struct TransactionStruct {
     uint64_t trans_id;
     //vector<TransOperation> operations;
-    std::atomic<uint64_t> aliveTuples;
     std::unique_ptr<uint64_t[]> tuples;
+    std::atomic<uint64_t> aliveTuples;
     uint64_t rowCount;
     TransactionStruct(uint64_t tid, uint64_t* tpl, uint64_t rowCount) : trans_id(tid) {
         tuples.reset(tpl);
@@ -316,12 +316,6 @@ static vector<SColType> *gStatColumns;
 
 ////////////////////////////////////////////////////
 
-struct ParseMessageStruct {
-    ReceivedMessage *msg;
-    uint64_t refId;
-    BoundedQueue<ReceivedMessage> *msgQ;
-};
-
 LPTimer_t LPTimer;
 
 struct GlobalState {
@@ -336,7 +330,7 @@ struct GlobalState {
 static void checkPendingValidations(SingleTaskPool&);
 static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
 
-static void processTransactionMessage(const Transaction& t, vector<char>& data);
+static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg);
 static inline void checkPendingTransactions(SingleTaskPool& pool);
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid);
 
@@ -651,7 +645,7 @@ int main(int argc, char**argv) {
                     ++gTotalTransactions; 
 #endif
                     {Globals.state = GlobalState::TRANSACTION;
-                        processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg->data); 
+                        processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg); 
                         delete msg;
                         break;
                     }
@@ -713,11 +707,10 @@ int main(int argc, char**argv) {
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
 
-static void processTransactionMessage(const Transaction& t, vector<char>& data) {
+static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    (void)data;
 
     const char* reader=t.operations;
     // Delete all indicated tuples

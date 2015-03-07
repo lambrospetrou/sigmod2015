@@ -2,6 +2,7 @@
 #define __LP_TYPES__
 
 #include "ReferenceTypes.hpp"
+#include "LPUtils.hpp"
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -107,17 +108,15 @@ namespace lp {
     struct ReceivedMessage; // forward declaration - declared in the ReaderIO header
 
     struct LPValidation {
+        std::vector<LPQuery> queries;
+        ReceivedMessage *rawMsg;
+        
         uint64_t validationId;
         uint64_t from,to;
-       
-        ReceivedMessage *rawMsg;
-
-        // this needs to be removed to avoid more memory allocations
-        std::vector<LPQuery> queries;
         
         LPValidation() {}
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, ReceivedMessage* msg, std::vector<LPQuery> q)
-            : validationId(vid), from(fr), to(t), rawMsg(msg), queries(move(q)) {}
+            : queries(move(q)), rawMsg(msg), validationId(vid), from(fr), to(t) {}
 
         ~LPValidation() {}
     };
@@ -145,7 +144,7 @@ namespace lp {
             }
         };
 
-        inline bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
+        bool isQueryColumnUnsolvable(Column& p, Satisfiability& sat) {
             switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
@@ -190,7 +189,7 @@ namespace lp {
             return false;
         }
 
-        inline __attribute__((always_inline)) bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
+        bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
             if (colBegin == colEnd) return false;
             Satisfiability sat;
             uint64_t lastCol = UINT64_MAX;
