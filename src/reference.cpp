@@ -982,7 +982,7 @@ typedef vector<TupleType> TupleCont;
 //typedef vector<Query::Column>::iterator PredIter;
 typedef Query::Column* PredIter;
 
-bool isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
+bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     tuple_t& tuple = tup.tuple;
     //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
     bool match=true;
@@ -1021,7 +1021,7 @@ bool isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     return match;    
 }
 
-bool isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
+bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     //for(; tupFrom!=tupTo; ++tupFrom) {  
     //    if (isTupleConflict(cbegin, cend, tupFrom)) return true;
     //} // end of all tuples for this transaction
@@ -1032,27 +1032,8 @@ bool isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>
 
 
 static bool isValidationConflict(LPValidation& v) {
-    //if (unlikely(v.queries.empty())) { return false; }
+    if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
 
-    // sort the queries based on the number of the columns needed to check
-    // small queries first in order to try finding a solution faster
-    //std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
-    /*
-       ValidationQueries& rawv = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-       const char* qreader=rawv.queries;
-       const Query *rq;
-       for (unsigned int ii=0;ii<rawv.queryCount;++ii) {
-       rq=reinterpret_cast<const Query*>(qreader);
-       LPQuery q;
-    //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-    if (unlikely(!(lp::query::parse(rq, gSchema[rq->relationId], &q)))) {
-    qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
-    continue;
-    }
-    q.relationId = rq->relationId;
-
-    //cerr << "q.relationId: " << q.relationId << " sz: " << q.predicates.size() << endl;
-     */
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue;
