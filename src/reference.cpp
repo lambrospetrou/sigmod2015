@@ -29,7 +29,6 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 #include "include/LPUtils.hpp"
-#include "include/TBBUtils.hpp"
 #include "include/ReaderIO.hpp"
 
 #include <iostream>
@@ -73,6 +72,8 @@
 
 #include <tbb/tbb.h>
 #include <tbb/parallel_for.h>
+#include "include/TBBUtils.hpp"
+
 #include <omp.h>
 
 
@@ -530,7 +531,8 @@ void inline initOpenMP(uint32_t nThreads) {
 
 void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
-   tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
+   //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
+   tbb::task_scheduler_init init(nThreads); 
 }
 
 
@@ -754,7 +756,7 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(2)
+//#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
 
@@ -1113,14 +1115,24 @@ static bool isValidationConflict(LPValidation& v) {
         auto trFidx = std::distance(transactions.begin(), transFrom);
         auto trTidx = std::distance(transactions.begin(), transTo);
 
-        volatile bool conflict = false;
-        //for(auto iter=transFrom; iter!=transTo; ++iter) {  
-        //for(auto tri=trFidx; trFidx<trTidx; ++trFidx) {  
-        tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            if (isTransactionConflict(q, tri)) conflict = true;
-        } // end of all the transactions for this relation for this specific query
-        ); // tbb parallel for
-        if (conflict) return true;
+        if (trTidx - trFidx > 20) {
+            for(auto tri=trFidx; tri<trTidx; ++tri) {  
+                if (isTransactionConflict(q, tri)) { return true; }
+            } // end of all the transactions for this relation for this specific query
+        } else {
+            volatile bool conflict = false;
+            //tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
+            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 1, conflict), [&] (const cancelable_range<uint64_t>& r) {
+                for (uint64_t tri=r.begin(); tri<r.end(); ++tri) {
+                    // check if someone else found a conflict
+                    if (conflict) {
+                        r.cancel(); return;
+                    }
+                    if (isTransactionConflict(q, tri)) { conflict = true; r.cancel(); }
+                }
+            }); // tbb parallel for // end of all the transactions for this relation for this specific query
+            if (conflict) return true;
+        }
     }// end for all queries
     return false;
 }
