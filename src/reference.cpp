@@ -562,6 +562,7 @@ void inline initOpenMP(uint32_t nThreads) {
 }
 
 void inline initTBB(uint32_t nThreads) {
+    (void)nThreads;
     tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
 }
 
@@ -597,7 +598,7 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(numOfThreads-1);
     //MultiTaskPool multiPool(3);
     multiPool.initThreads();
     multiPool.startAll();
@@ -777,9 +778,10 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
 
     (void)colBegin; (void)colEnd;
     // for each column to be indexed
-//#pragma omp parallel for schedule(static, 1) num_threads(2)
-    //for (uint32_t col=0; col<gSchema[ri]; ++col) {
-    tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
+#pragma omp parallel for schedule(static, 1) num_threads(2)
+    for (uint32_t col=0; col<gSchema[ri]; ++col) {
+    //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
+    
     //uint32_t rel,col;
     //for (; colBegin!=colEnd; ++colBegin) {
     //    lp::validation::unpackRelCol(colBegin->second, rel, col);
@@ -803,7 +805,8 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         if(likely(!relation.transLogDel.empty()))
             relColumns[col].transTo = max(relation.transLogDel.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
-    });
+    //});
+    }
 }
 
 static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
@@ -811,7 +814,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     //cerr << "::: tid " << tid << "new" << endl;
 
     for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
-//#pragma omp parallel for schedule(static, 10)  
+//#pragma omp parallel for schedule(static, 1)  
     //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
         //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
@@ -938,10 +941,12 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     //processPendingIndexTask(4, 0);
     
 //#pragma omp parallel for schedule(static, 1) num_threads(2)
-    //for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    /*
     tbb::parallel_for ((uint32_t)0, NUM_RELATIONS, [&] (uint32_t r) {
             gTransParseMapPhase[r].clear();
         });
+    */
     // clear the 1st predicate columns 
     //cols->resize(0);
 
@@ -1000,6 +1005,7 @@ static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
     for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
 //#pragma omp parallel for schedule(static, 1)
     //for (uint64_t vi = 0; vi < totalPending; ++vi) {
+    //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
 
         auto& v = gPendingValidations[vi];
         resPos = v.validationId - resIndexOffset;
@@ -1163,5 +1169,6 @@ CONFLICT:
         if (conflict && !otherFinishedThis)  { /*cerr<< "c: " << v.validationId << endl;*/  atoRes = true;}
         delete v.rawMsg;
     } // while true take more validations 
+//        );
 }
 
