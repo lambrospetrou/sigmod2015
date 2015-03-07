@@ -153,7 +153,6 @@ class MultiTaskPool {
                 }// end of lock_guard
 
                 //std::cerr << "got job!" << std::endl;
-
                 // run the function passing the thread ID
                 cTask.func(mNumOfThreads, tid, cTask.args);
             }
