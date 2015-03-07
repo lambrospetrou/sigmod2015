@@ -1067,9 +1067,11 @@ static bool isValidationConflict(LPValidation& v) {
         auto trFidx = std::distance(transactions.begin(), transFrom);
         auto trTidx = std::distance(transactions.begin(), transTo);
 
+        bool conflict = false;
         //for(auto iter=transFrom; iter!=transTo; ++iter) {  
-        for(; trFidx!=trTidx; ++trFidx) {  
-            auto iter = &transactions[trFidx];
+        //for(auto tri=trFidx; trFidx<trTidx; ++trFidx) {  
+        tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
+            auto iter = &transactions[tri];
             auto& transValues = iter->second;
             decltype(transValues.begin()) tupFrom, tupTo, tb, te,
                 tBegin = transValues.begin(), tEnd=transValues.end();
@@ -1103,13 +1105,16 @@ static bool isValidationConflict(LPValidation& v) {
             }
 
             //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-            if (std::distance(tupFrom, tupTo) == 0) continue;
+            //if (std::distance(tupFrom, tupTo) == 0) continue;
+            if (std::distance(tupFrom, tupTo) == 0) return;
 
             auto cpbegin = cbegin;
             if (pFrom == 1) ++cpbegin;
-            if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
+            //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
+            if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) conflict = true;
         } // end of all the transactions for this relation for this specific query
-        //qreader+=sizeof(Query)+(sizeof(Query::Column)*rq->columnCount);
+        );
+        if (conflict) return true;
     }// end for all queries
     return false;
 }
