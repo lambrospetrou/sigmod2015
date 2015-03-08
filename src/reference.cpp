@@ -577,14 +577,14 @@ int main(int argc, char**argv) {
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //ISingleTaskPool *workerThreads = new SingleTaskPool(numOfThreads, processPendingValidationsTask);
-    ISingleTaskPool *workerThreads = new SingleTaskPool(1, processPendingValidationsTask);
-    workerThreads->initThreads();
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    workerThreads.initThreads();
     // leave two available workes - master - Reader
-    //IMultiTaskPool *multiPool = new MultiTaskPool(numOfThreads-2);
-    IMultiTaskPool *multiPool = new MultiTaskPool(1);
-    multiPool->initThreads();
-    multiPool->startAll();
+    //MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(1);
+    multiPool.initThreads();
+    multiPool.startAll();
 
     /*
        tbb::parallel_for((size_t)0, numOfThreads, [=] (size_t i) {
@@ -610,7 +610,7 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        multiPool->addTask(parseValidation, static_cast<void*>(msg)); 
+                        multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
                         //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
 
                         break;
@@ -627,10 +627,10 @@ int main(int argc, char**argv) {
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool->waitAll();
+                    multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    checkPendingValidations(workerThreads);
+                    checkPendingValidations(&workerThreads);
                     //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
@@ -640,10 +640,10 @@ int main(int argc, char**argv) {
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool->waitAll();
+                    multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    checkPendingValidations(workerThreads);
+                    checkPendingValidations(&workerThreads);
                     //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
@@ -660,10 +660,10 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        workerThreads->destroy();
-                        multiPool->destroy();
-                        delete workerThreads;
-                        delete multiPool;
+                        workerThreads.destroy();
+                        multiPool.destroy();
+                        //delete workerThreads;
+                        //delete multiPool;
                         delete msgReader;
                         return 0;
                     }
