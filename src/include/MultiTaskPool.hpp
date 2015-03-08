@@ -3,13 +3,13 @@
 
 #include <vector>
 #include <thread>
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <queue>
 #include <utility>
 //#include <iostream>
 
@@ -43,6 +43,7 @@ class MultiTaskPool {
             }
         }
 
+        // should be matched with a waitAll() in order to ensure that the tasks queue is empty
         inline void startAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mPoolRunning = true;
@@ -96,6 +97,10 @@ class MultiTaskPool {
         // SingleTask functionality
         ///////////////////////////////////////////////
 
+        // THESE TWO CALLS SHOULD BE MATCHED AS A PAIR EVERY TIME THEY ARE CALLED
+        // WHENEVER THERE IS A startSingleAll() YOU SHOULD 'NOT' USE THE OTHER startAll()/waitAll()
+        // UNTIL YOU CALLED waitSingleAll();
+
         void startSingleAll(LPFunc f, void *args = nullptr) {
             std::unique_lock<std::mutex> lk(mMutex);
             mSingleTask.func = f;
@@ -125,12 +130,12 @@ class MultiTaskPool {
         std::condition_variable mCondActive;
         std::condition_variable mCondMaster;
         std::mutex mMutex;
-        uint64_t mWaiting;
+        //uint64_t mWaiting;
+        std::atomic<uint64_t> mWaiting;
         bool mPoolStopped, mPoolRunning;
 
         std::atomic<uint32_t> mHelperId;
         
-        //std::queue<Task> mTasks;
         std::vector<Task> mTasks;
         uint64_t mTasksDeqIdx;
 
@@ -153,24 +158,25 @@ class MultiTaskPool {
             //cerr << tid << endl;
             uint64_t tMask = static_cast<uint64_t>(1)<<tid;
             while(true) {
-                std::unique_lock<std::mutex> lk(mMutex);
                 ++mWaiting;
+                std::unique_lock<std::mutex> lk(mMutex);
                 // signal for synchronization!!! - all threads are waiting
                 //std::cerr << "bw" << (tid+2);
                 if (mWaiting == mNumOfThreads && isTasksEmpty()) mCondMaster.notify_one();
                 if (!canProceed(tMask)) mCondActive.wait(lk, [tMask, this]{return canProceed(tMask);});
                 //std::cerr << "aw" << (tid+2);
-                --mWaiting;
                 if (mPoolStopped) { lk.unlock(); return; }
 
                 // priority to the single task
                 if (mSingleExists) {
                     mThreadsActivity |= tMask; // required by the SingleTask
                     lk.unlock();
+                    --mWaiting;
                     mSingleTask.func(mNumOfThreads, tid, mSingleTask.args);
                 } else {
                     auto cTask = mTasks[mTasksDeqIdx++];
                     lk.unlock();
+                    --mWaiting;
                     cTask.func(mNumOfThreads, tid, cTask.args); 
                 }
             }

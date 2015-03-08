@@ -580,7 +580,7 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     //workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads);
+    MultiTaskPool multiPool(numOfThreads-1);
     //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
