@@ -30,6 +30,9 @@
 //---------------------------------------------------------------------------
 #include "include/LPUtils.hpp"
 #include "include/ReaderIO.hpp"
+#include "include/LPThreadpool.hpp"
+#include "include/SingleTaskPool.hpp"
+#include "include/MultiTaskPool.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -60,8 +63,6 @@
 #include "include/atomicwrapper.hpp"
 #include "include/LPTimer.hpp"
 #include "include/BoundedQueue.hpp"
-#include "include/SingleTaskPool.hpp"
-#include "include/MultiTaskPool.hpp"
 #include "include/LPSpinLock.hpp"
 
 #include "include/cpp_btree/btree_map.h"
@@ -300,11 +301,11 @@ struct GlobalState {
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-static void checkPendingValidations(MultiTaskPool&);
+static void checkPendingValidations(ISingleTaskPool*);
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
-static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg);
-static inline void checkPendingTransactions(MultiTaskPool& pool);
+static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg); 
+static inline void checkPendingTransactions(ISingleTaskPool *pool);
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args);
 
 ///--------------------------------------------------------------------------
@@ -576,14 +577,14 @@ int main(int argc, char**argv) {
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
-    //workerThreads.initThreads();
+    //ISingleTaskPool *workerThreads = new SingleTaskPool(numOfThreads, processPendingValidationsTask);
+    ISingleTaskPool *workerThreads = new SingleTaskPool(1, processPendingValidationsTask);
+    workerThreads->initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-1);
-    //MultiTaskPool multiPool(1);
-    multiPool.initThreads();
-    multiPool.startAll();
+    //IMultiTaskPool *multiPool = new MultiTaskPool(numOfThreads-2);
+    IMultiTaskPool *multiPool = new MultiTaskPool(1);
+    multiPool->initThreads();
+    multiPool->startAll();
 
     /*
        tbb::parallel_for((size_t)0, numOfThreads, [=] (size_t i) {
@@ -609,7 +610,7 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
+                        multiPool->addTask(parseValidation, static_cast<void*>(msg)); 
                         //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
 
                         break;
@@ -626,11 +627,11 @@ int main(int argc, char**argv) {
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool.waitAll();
+                    multiPool->waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    //checkPendingValidations(workerThreads);
-                    checkPendingValidations(multiPool);
+                    checkPendingValidations(workerThreads);
+                    //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
@@ -639,11 +640,11 @@ int main(int argc, char**argv) {
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
-                    multiPool.waitAll();
+                    multiPool->waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    //checkPendingValidations(workerThreads);
-                    checkPendingValidations(multiPool);
+                    checkPendingValidations(workerThreads);
+                    //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
                     delete msg;
@@ -659,8 +660,10 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        //workerThreads.destroy();
-                        multiPool.destroy();
+                        workerThreads->destroy();
+                        multiPool->destroy();
+                        delete workerThreads;
+                        delete multiPool;
                         delete msgReader;
                         return 0;
                     }
@@ -825,7 +828,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
-        operations.reserve(4096);
+        operations.reserve(2048);
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
@@ -879,7 +882,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     } // end of while true
 }
 
-static inline void checkPendingTransactions(MultiTaskPool& pool) {
+static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
@@ -918,8 +921,8 @@ static inline void checkPendingTransactions(MultiTaskPool& pool) {
     //gStatColumns = cols;
     //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     gNextIndex = 0;
-    pool.startSingleAll(processPendingIndexTask);
-    pool.waitSingleAll();
+    pool->startSingleAll(processPendingIndexTask);
+    pool->waitSingleAll();
 
     //(void)pool;
     //processPendingIndexTask(4, 0);
@@ -943,7 +946,7 @@ static inline void checkPendingTransactions(MultiTaskPool& pool) {
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
-static void checkPendingValidations(MultiTaskPool &pool) {
+static void checkPendingValidations(ISingleTaskPool *pool) {
     if (unlikely(gPendingValidations.empty())) return;
 
     // check if there is any pending index creation to be made before checking validation
@@ -962,8 +965,8 @@ static void checkPendingValidations(MultiTaskPool &pool) {
     std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending.store(0);
 
-    pool.startSingleAll(processPendingValidationsTask);
-    pool.waitSingleAll();
+    pool->startSingleAll(processPendingValidationsTask);
+    pool->waitSingleAll();
 
     //(void)pool;
     //processPendingValidationsTask(0, 0);

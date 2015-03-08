@@ -1,6 +1,8 @@
 #ifndef __LP_SINGLETASKPOOL__
 #define __LP_SINGLETASKPOOL__
 
+#include "LPThreadpool.hpp"
+
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -9,9 +11,11 @@
 #include <cstdint>
 #include <cstring>
 
-class SingleTaskPool {
+class SingleTaskPool : public ISingleTaskPool {
     public:
-        SingleTaskPool(uint32_t tsz, void(*func)(uint32_t, uint32_t)) : mNumOfThreads(tsz), mThreadsActivity(0), 
+        //SingleTaskPool(uint32_t tsz, void(*func)(uint32_t, uint32_t)) : ISingleTaskPool(),
+        SingleTaskPool(uint32_t tsz, LPFunc func) : ISingleTaskPool(),
+            mNumOfThreads(tsz), mThreadsActivity(0), 
             mWaiting(0), mPoolStopped(false), mPoolRunning(false) {
             mMaskAll = (static_cast<uint64_t>(1) << mNumOfThreads) - 1;
             mFunc = func;
@@ -23,21 +27,23 @@ class SingleTaskPool {
             }
         }
 
-        void startAll() {
+        void startSingleAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mPoolRunning = true;
             lk.unlock();
             mCondActive.notify_all();
         }
-        void startAll(void (*func)(uint32_t, uint32_t)) {
+        //void startSingleAll(void (*func)(uint32_t, uint32_t)) {
+        void startSingleAll(LPFunc f, void *args = nullptr) {
             std::unique_lock<std::mutex> lk(mMutex);
-            mFunc = func;
+            mFunc = f;
+            mArgs = args;
             mPoolRunning = true;
             lk.unlock();
             mCondActive.notify_all();
         }
 
-        void waitAll() {
+        void waitSingleAll() {
             std::unique_lock<std::mutex> lk(mMutex);
             mCondMaster.wait(lk, [this]{
                     return (mThreadsActivity == mMaskAll) && (mWaiting == mNumOfThreads);
@@ -69,7 +75,9 @@ class SingleTaskPool {
         bool mPoolStopped, mPoolRunning;
 
         // the function to be called
-        void (*mFunc)(uint32_t, uint32_t);
+        //void (*mFunc)(uint32_t, uint32_t);
+        LPFunc mFunc;
+        void *mArgs;
 
         void worker(uint32_t tid) {
             uint64_t tMask = static_cast<uint64_t>(1)<<tid;
@@ -92,7 +100,7 @@ class SingleTaskPool {
                 //cerr << "-" << endl;
 
                 // run the function passing the thread ID
-                mFunc(mNumOfThreads, tid);
+                mFunc(mNumOfThreads, tid, mArgs);
                 // wait after the execution for the other threads
                 //cerr << "2" << endl;
             }

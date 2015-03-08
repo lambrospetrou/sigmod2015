@@ -1,5 +1,5 @@
-#ifndef __LP_MULTITASKPOOL__
-#define __LP_MULTITASKPOOL__
+#ifndef __LP_MULTISINGLETASKPOOL__
+#define __LP_MULTISINGLETASKPOOL__
 
 #include "LPThreadpool.hpp"
 
@@ -15,7 +15,9 @@
 #include <utility>
 //#include <iostream>
 
-class MultiTaskPool : public IMultiTaskPool {
+// This is the Threadpol that combines the functionality of the SingleTaskPool and the MultiTaskPool
+
+class MSTaskPool : public ISingleTaskPool, public IMultiTaskPool {
     private:
 
         const static uint64_t TASKS_FREE_THRESHOLD = 1<<14;
@@ -30,9 +32,13 @@ class MultiTaskPool : public IMultiTaskPool {
         };
 
     public:
-        MultiTaskPool(uint32_t tsz) : IMultiTaskPool(), mNumOfThreads(tsz), 
+        MSTaskPool(uint32_t tsz) : ISingleTaskPool(), IMultiTaskPool(), mNumOfThreads(tsz), 
         mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz), mTasksDeqIdx(0) {
             mTasks.reserve(1<<16);
+            // Single Task funcitonality
+            mMaskAll = (static_cast<uint64_t>(1) << mNumOfThreads) - 1;
+            mThreadsActivity = 0;
+            mSingleExists = false;
         }
 
         void initThreads() {
@@ -91,6 +97,36 @@ class MultiTaskPool : public IMultiTaskPool {
             mTasks.push_back(std::move(t));
         }
 
+        ///////////////////////////////////////////////
+        // SingleTask functionality
+        ///////////////////////////////////////////////
+
+        // THESE TWO CALLS SHOULD BE MATCHED AS A PAIR EVERY TIME THEY ARE CALLED
+        // WHENEVER THERE IS A startSingleAll() YOU SHOULD 'NOT' USE THE OTHER startAll()/waitAll()
+        // UNTIL YOU CALLED waitSingleAll();
+
+        void startSingleAll(LPFunc f, void *args = nullptr) {
+            std::unique_lock<std::mutex> lk(mMutex);
+            mSingleTask.func = f;
+            mSingleTask.args = args;
+            mSingleExists = true;
+            //mThreadsActivity = 0; // initializes this in order to identify all the threads 
+            mCondActive.notify_all();
+            lk.unlock();
+        }
+        void waitSingleAll() {
+            std::unique_lock<std::mutex> lk(mMutex);
+            //std::cerr << "mw" << std::endl;
+            mCondMaster.wait(lk, [this]{
+                    return (mThreadsActivity == mMaskAll) && (mWaiting == mNumOfThreads);
+                    });
+            // threads are waiting for this to become zero after they execute the function
+            //std::cerr << "ml" << std::endl;
+            mSingleExists = false;
+            mThreadsActivity = 0;
+            lk.unlock();
+        }
+
     private:
         uint64_t mNumOfThreads;
         std::vector<std::thread> mThreads;
@@ -107,10 +143,19 @@ class MultiTaskPool : public IMultiTaskPool {
         std::vector<Task> mTasks;
         uint64_t mTasksDeqIdx;
 
+        // required for the SingleTask functionality
+        uint64_t mMaskAll;
+        uint64_t mThreadsActivity;
+        bool mSingleExists;
+        Task mSingleTask;
+
         inline bool isTasksEmpty() { /*return mTasks.empty();*/ return mTasks.size() == mTasksDeqIdx; }
 
         bool inline canProceed() {
             return ((mPoolRunning && !isTasksEmpty()) || mPoolStopped);
+        }
+        bool inline canProceed(uint64_t tMask) {
+            return (canProceed() || (mSingleExists && (tMask&mThreadsActivity) == 0));
         }
 
         void worker(uint32_t tid) {
@@ -123,15 +168,23 @@ class MultiTaskPool : public IMultiTaskPool {
                 //std::cerr << "bw" << (tid+2);
                 //++mWaiting;
                 if (mWaiting == mNumOfThreads && isTasksEmpty()) mCondMaster.notify_one();
-                if (!canProceed()) mCondActive.wait(lk, [tMask, this]{return canProceed();});
+                if (!canProceed(tMask)) mCondActive.wait(lk, [tMask, this]{return canProceed(tMask);});
                 //--mWaiting;
                 //std::cerr << "aw" << (tid+2);
                 if (mPoolStopped) { lk.unlock(); return; }
 
-                auto cTask = mTasks[mTasksDeqIdx++];
-                lk.unlock();
-                --mWaiting;
-                cTask.func(mNumOfThreads, tid, cTask.args); 
+                // priority to the single task
+                if (mSingleExists) {
+                    mThreadsActivity |= tMask; // required by the SingleTask
+                    lk.unlock();
+                    --mWaiting;
+                    mSingleTask.func(mNumOfThreads, tid, mSingleTask.args);
+                } else {
+                    auto cTask = mTasks[mTasksDeqIdx++];
+                    lk.unlock();
+                    --mWaiting;
+                    cTask.func(mNumOfThreads, tid, cTask.args); 
+                }
             }
         }
 
