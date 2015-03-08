@@ -16,7 +16,7 @@
 class MultiTaskPool {
     private:
 
-        const static uint64_t TASKS_FREE_THRESHOLD = 1<<16;
+        const static uint64_t TASKS_FREE_THRESHOLD = 1<<14;
 
         //template<typename T> using LPFunc = std::function<void(uint32_t, uint32_t, T)>;
         typedef std::function<void(uint32_t, uint32_t, void*)> LPFunc;
@@ -51,6 +51,7 @@ class MultiTaskPool {
                     return (mWaiting == mNumOfThreads && isTasksEmpty());
                     });
             if (mTasksDeqIdx >= TASKS_FREE_THRESHOLD) {
+                //std::cerr << "emptying " << mTasks.size() << ":" << mTasksDeqIdx << std::endl;
                 mTasks.resize(0); mTasksDeqIdx = 0;
             }
             lk.unlock();
