@@ -577,12 +577,12 @@ int main(int argc, char**argv) {
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    //MultiTaskPool multiPool(numOfThreads-2);
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(numOfThreads-2);
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -626,12 +626,11 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
                     checkPendingValidations(&workerThreads);
-                    //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
@@ -639,12 +638,11 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
                     checkPendingValidations(&workerThreads);
-                    //checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
                     delete msg;
@@ -662,8 +660,6 @@ int main(int argc, char**argv) {
 #endif              
                         workerThreads.destroy();
                         multiPool.destroy();
-                        //delete workerThreads;
-                        //delete multiPool;
                         delete msgReader;
                         return 0;
                     }
@@ -698,10 +694,9 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t *ptr = new uint64_t[o.rowCount];
-            const uint64_t *keys = o.keys;
-            for (uint32_t c=0; c<o.rowCount; ++c) *ptr++ = *keys++;
+            for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c];
             //gRelTransMutex[o.relationId].lock(); 
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr-o.rowCount);
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
             //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             gTotalTuples += o.rowCount; // contains more than the true
@@ -719,11 +714,10 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t* tptr = new uint64_t[relCols*o.rowCount];
-            const uint64_t *vptr=o.values;
             uint32_t sz = relCols*o.rowCount;
-            for (uint32_t c=0; c<sz; ++c) *tptr++ = *vptr++;
+            for (uint32_t c=0; c<sz; ++c) tptr[c] = o.values[c];
             //gRelTransMutex[o.relationId].lock(); 
-            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr-sz);
+            gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr);
             //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             ++gTotalTuples;
@@ -1157,7 +1151,7 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     uint64_t resPos;
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
-    //#pragma omp parallel for schedule()
+    //#pragma omp parallel for schedule(static, 1)
     //for (uint64_t vi = 0; vi < totalPending; ++vi) {
     //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
         auto& v = gPendingValidations[vi];
