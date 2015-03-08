@@ -300,12 +300,12 @@ struct GlobalState {
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-static void checkPendingValidations(SingleTaskPool&);
-static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid);
+static void checkPendingValidations(MultiTaskPool&);
+void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
 static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg);
-static inline void checkPendingTransactions(SingleTaskPool& pool);
-static void processPendingIndexTask(uint32_t nThreads, uint32_t tid);
+static inline void checkPendingTransactions(MultiTaskPool& pool);
+void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args);
 
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
@@ -576,12 +576,12 @@ int main(int argc, char**argv) {
     gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
-    workerThreads.initThreads();
+    //workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-2);
-    //MultiTaskPool multiPool(3);
+    MultiTaskPool multiPool(numOfThreads);
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -625,11 +625,12 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    checkPendingValidations(workerThreads);
+                    //checkPendingValidations(workerThreads);
+                    checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
@@ -637,11 +638,12 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
-                    checkPendingValidations(workerThreads);
+                    //checkPendingValidations(workerThreads);
+                    checkPendingValidations(multiPool);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
                     delete msg;
@@ -657,7 +659,7 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-                        workerThreads.destroy();
+                        //workerThreads.destroy();
                         multiPool.destroy();
                         delete msgReader;
                         return 0;
@@ -790,8 +792,8 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
     }
 }
 
-static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
-    (void)tid; (void)nThreads;// to avoid unused warning
+void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
 
     for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
@@ -877,7 +879,7 @@ static void processPendingIndexTask(uint32_t nThreads, uint32_t tid) {
     } // end of while true
 }
 
-static inline void checkPendingTransactions(SingleTaskPool& pool) {
+static inline void checkPendingTransactions(MultiTaskPool& pool) {
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
@@ -916,8 +918,8 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
     //gStatColumns = cols;
     //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     gNextIndex = 0;
-    pool.startAll(processPendingIndexTask);
-    pool.waitAll();
+    pool.startSingleAll(processPendingIndexTask);
+    pool.waitSingleAll();
 
     //(void)pool;
     //processPendingIndexTask(4, 0);
@@ -941,7 +943,7 @@ static inline void checkPendingTransactions(SingleTaskPool& pool) {
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
-static void checkPendingValidations(SingleTaskPool &pool) {
+static void checkPendingValidations(MultiTaskPool &pool) {
     if (unlikely(gPendingValidations.empty())) return;
 
     // check if there is any pending index creation to be made before checking validation
@@ -960,8 +962,8 @@ static void checkPendingValidations(SingleTaskPool &pool) {
     std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending.store(0);
 
-    pool.startAll(processPendingValidationsTask);
-    pool.waitAll();
+    pool.startSingleAll(processPendingValidationsTask);
+    pool.waitSingleAll();
 
     //(void)pool;
     //processPendingValidationsTask(0, 0);
@@ -1145,8 +1147,8 @@ static bool isValidationConflict(LPValidation& v) {
 }
 
 
-static void processPendingValidationsTask(uint32_t nThreads, uint32_t tid) {
-    (void)tid; (void)nThreads;// to avoid unused warning
+void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
     uint64_t totalPending = gPendingValidations.size();
     uint64_t resPos;

@@ -24,12 +24,17 @@ class MultiTaskPool {
         struct Task {
             LPFunc func;
             void* args;
+            Task() : args(nullptr) {}
         };
 
     public:
         MultiTaskPool(uint32_t tsz) : mNumOfThreads(tsz), 
         mWaiting(0), mPoolStopped(false), mPoolRunning(false), mHelperId(tsz), mTasksDeqIdx(0) {
             mTasks.reserve(1<<20);
+            // Single Task funcitonality
+            mMaskAll = (static_cast<uint64_t>(1) << mNumOfThreads) - 1;
+            mThreadsActivity = 0;
+            mSingleExists = false;
         }
 
         void initThreads() {
@@ -66,9 +71,9 @@ class MultiTaskPool {
         inline void destroy() {
             std::unique_lock<std::mutex> lk(mMutex);
             mPoolStopped = true;
-            lk.unlock();
             mCondActive.notify_all();
             mCondMaster.notify_all();
+            lk.unlock();
             for(auto& t : mThreads) t.join();
         }
 
@@ -77,7 +82,6 @@ class MultiTaskPool {
             t.func = f;
             t.args = args;
             std::lock_guard<std::mutex> lk(mMutex);
-            //mTasks.push(std::move(t));
             mTasks.push_back(std::move(t));
             mCondActive.notify_one();
         }
@@ -85,8 +89,33 @@ class MultiTaskPool {
             Task t;
             t.func = f;
             t.args = args;
-            //mTasks.push(std::move(t));
             mTasks.push_back(std::move(t));
+        }
+
+        ///////////////////////////////////////////////
+        // SingleTask functionality
+        ///////////////////////////////////////////////
+
+        void startSingleAll(LPFunc f, void *args = nullptr) {
+            std::unique_lock<std::mutex> lk(mMutex);
+            mSingleTask.func = f;
+            mSingleTask.args = args;
+            mSingleExists = true;
+            //mThreadsActivity = 0; // initializes this in order to identify all the threads 
+            mCondActive.notify_all();
+            lk.unlock();
+        }
+        void waitSingleAll() {
+            std::unique_lock<std::mutex> lk(mMutex);
+            //std::cerr << "mw" << std::endl;
+            mCondMaster.wait(lk, [this]{
+                    return (mThreadsActivity == mMaskAll) && (mWaiting == mNumOfThreads);
+                    });
+            // threads are waiting for this to become zero after they execute the function
+            //std::cerr << "ml" << std::endl;
+            mSingleExists = false;
+            mThreadsActivity = 0;
+            lk.unlock();
         }
 
     private:
@@ -105,36 +134,45 @@ class MultiTaskPool {
         std::vector<Task> mTasks;
         uint64_t mTasksDeqIdx;
 
+        // required for the SingleTask functionality
+        uint64_t mMaskAll;
+        uint64_t mThreadsActivity;
+        bool mSingleExists;
+        Task mSingleTask;
 
         inline bool isTasksEmpty() { /*return mTasks.empty();*/ return mTasks.size() == mTasksDeqIdx; }
 
         bool inline canProceed() {
             return ((mPoolRunning && !isTasksEmpty()) || mPoolStopped);
         }
+        bool inline canProceed(uint64_t tMask) {
+            return (canProceed() || (mSingleExists && (tMask&mThreadsActivity) == 0));
+        }
 
         void worker(uint32_t tid) {
             //cerr << tid << endl;
+            uint64_t tMask = static_cast<uint64_t>(1)<<tid;
             while(true) {
                 std::unique_lock<std::mutex> lk(mMutex);
                 ++mWaiting;
-                //cerr << ">" << endl;
                 // signal for synchronization!!! - all threads are waiting
+                //std::cerr << "bw" << (tid+2);
                 if (mWaiting == mNumOfThreads && isTasksEmpty()) mCondMaster.notify_one();
-                if (!canProceed()) mCondActive.wait(lk, [this]{return canProceed();});
+                if (!canProceed(tMask)) mCondActive.wait(lk, [tMask, this]{return canProceed(tMask);});
+                //std::cerr << "aw" << (tid+2);
                 --mWaiting;
                 if (mPoolStopped) { lk.unlock(); return; }
 
-                //auto cTask = mTasks.front();
-                //mTasks.pop();
-                auto cTask = mTasks[mTasksDeqIdx++];
-                lk.unlock();
-                //cerr << "-" << endl;
-
-                // run the function passing the thread ID
-                //cTask.func(mNumOfThreads, tid, std::move(cTask.args));
-                cTask.func(mNumOfThreads, tid, cTask.args);
-                // wait after the execution for the other threads
-                //cerr << "2" << endl;
+                // priority to the single task
+                if (mSingleExists) {
+                    mThreadsActivity |= tMask; // required by the SingleTask
+                    lk.unlock();
+                    mSingleTask.func(mNumOfThreads, tid, mSingleTask.args);
+                } else {
+                    auto cTask = mTasks[mTasksDeqIdx++];
+                    lk.unlock();
+                    cTask.func(mNumOfThreads, tid, cTask.args); 
+                }
             }
         }
 
