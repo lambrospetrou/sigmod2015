@@ -589,11 +589,6 @@ int main(int argc, char**argv) {
     multiPool.initThreads();
     multiPool.startAll();
 
-    /*
-       tbb::parallel_for((size_t)0, numOfThreads, [=] (size_t i) {
-       cerr << "worker " << i << endl;
-       });
-     */
     try {
 
         //uint64_t msgs = 0;
