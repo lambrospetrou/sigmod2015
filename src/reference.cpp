@@ -565,8 +565,8 @@ int main(int argc, char**argv) {
         isTestdriver = true;
         msgReader = ReaderIOFactory::createAsync(ifs, true);
     } else { 
-        //msgReader = ReaderIOFactory::createAsync(stdin);
-        msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::createAsync(stdin);
+        //msgReader = ReaderIOFactory::create(stdin);
     }
 
     // do some initial reserves or initializations
@@ -584,7 +584,7 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(numOfThreads-2);
+    MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
     //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
