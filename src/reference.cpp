@@ -160,7 +160,7 @@ struct ColumnStruct {
     }
 };
 struct CMetaLess_t {
-    inline bool operator() (const Metadata_t& left, const Metada_t& right) {
+    inline bool operator() (const Metadata_t& left, const Metadata_t& right) {
         return left.first < right.first;
     }
     inline bool operator() (const Metadata_t& o, uint64_t target) {
@@ -170,6 +170,23 @@ struct CMetaLess_t {
         return target < o.first;
     }
 } CMetaLess;
+struct CMetaTupleLess_t {
+    uint32_t mCol;
+    CMetaTupleLess_t(uint32_t c) : mCol(c) {}
+
+    inline bool operator() (const Metadata_t& left, const Metadata_t& right) {
+        return left.second[mCol] < right.second[mCol];
+    }   
+    inline bool operator() (const Metadata_t& o, uint64_t target) {
+        return o.second[mCol] < target;
+    }
+    inline bool operator() (uint64_t target, const Metadata_t& o) {
+        return target < o.second[mCol];
+    }
+};
+
+typedef SIter<vector<Metadata_t>::iterator, vector<uint64_t>::iterator> SIter_t;
+/*
 struct CTRSLessThan_t {
     inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
@@ -181,7 +198,7 @@ struct CTRSLessThan_t {
         return target < o.first;
     }
 } CTRSLessThan;
-
+*/
 // transactions in each relation column - all tuples of same transaction in one vector
 
 struct RelationColumns {
@@ -445,6 +462,7 @@ static void processForget(const Forget& f) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
+        /*
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
@@ -455,6 +473,7 @@ static void processForget(const Forget& f) {
                         ));
 
         }
+        */
         // clean the transactions log
         auto& transLog = gRelations[i].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
@@ -751,16 +770,21 @@ static void updateRequiredColumns(uint64_t ri) {
             //colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
             //colTransactions.back().second.reserve(trp->second.size());
             auto szBefore = colValues.size();
-            colTransSizes[trp->first]=trp->second.size();
+            //colTransSizes[trp->first]=trp->second.size();
+            colTransSizes.insert(std::make_pair(trp->first, trp->second.size()));
             auto& trVec = trp->second;
             uint32_t csz = trVec.size();
             for (uint32_t ctpl=0; ctpl<csz; ++ctpl) {
                 auto& tpl = trVec[ctpl];
                 colMetadata.emplace_back(trp->first, tpl);
-                colValues.push_back(tpl[col]);
+                //colValues.push_back(tpl[col]);
             }
-            sort(SIter(colMetadata.begin()+szBefore, colValues.begin()+szBefore), 
-                    SIter(colMetadata.begin()+szBefore+csz, colValues.begin()+szBefore+csz), CMetadataLess);
+            //sort(SIter<vector<Metadata_t>::iterator, vector<uint64_t>::iterator>(colMetadata.begin()+szBefore, colValues.begin()+szBefore), 
+              //      SIter<vector<Metadata_t>::iterator, vector<uint64_t>::iterator>(colMetadata.begin()+szBefore+csz, colValues.begin()+szBefore+csz), CCombinedLess);
+            sort(colMetadata.begin()+szBefore, colMetadata.begin()+szBefore+csz, CMetaTupleLess_t(col));
+            for (uint32_t ctpl=szBefore; ctpl<szBefore+csz; ++ctpl) {
+                colValues.push_back(colMetadata[ctpl].second[col]);
+            }
         }
         if(likely(!relation.transLogTuples.empty()))
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
@@ -956,16 +980,14 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 // VALIDATION
 //////////////////////////////////////////////////////////
 
-typedef CTransStruct TupleType;
+//typedef CTransStruct TupleType;
+typedef Metadata_t TupleType;
 typedef vector<TupleType> TupleCont;
 //typedef vector<Query::Column>::iterator PredIter;
 typedef Query::Column* PredIter;
 
 bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
-    tuple_t& tuple = tup.tuple;
-    //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
-    //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
-    //auto& c = q.predicates[cp];
+    tuple_t& tuple = tup.second;
     for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
         //auto& c = q.predicates[cp];
         auto& c = *tbegin;
@@ -998,7 +1020,7 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     } // end of single query predicates
     return true;    
 }
-
+/*
 bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     //for(; tupFrom!=tupTo; ++tupFrom) {  
     //    if (isTupleConflict(cbegin, cend, tupFrom)) return true;
@@ -1007,41 +1029,54 @@ bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<Tu
     
     return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
+*/
+bool inline isTupleRangeConflict(uint64_t tupFromIdx, uint64_t tupToIdx, PredIter cbegin, PredIter cend, uint32_t rel, uint32_t col) {
+    auto& relColumns = gRelColumns[rel].columns;
+    auto& transMeta = relColumns[col].metadata;
+    //auto& transValues = relColumns[pFirst.column].values;
+    for(; tupFromIdx!=tupToIdx; ++tupFromIdx) {  
+        if (isTupleConflict(cbegin, cend, transMeta[tupFromIdx])) return true;
+    } // end of all tuples for this transaction
+    return false;
+}
 
 
-static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
+static bool isTransactionConflict(LPQuery& q, uint64_t tri, uint64_t triEnd) {
     auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
          cend = cbegin + q.colCountUniq;
     auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
         
     auto& relColumns = gRelColumns[q.relationId].columns;
-    auto& transactions = relColumns[pFirst.column].transactions;
-    
-    auto iter = &transactions[tri];
-    auto& transValues = iter->second;
+    auto& transMeta = relColumns[pFirst.column].metadata;
+    auto& transValues = relColumns[pFirst.column].values;
+   
+    //cerr << "---- printing values of transaction" << endl;
+    //for (auto v : transValues) cerr << v << " ";
+    //cerr << endl;
+
     decltype(transValues.begin()) tupFrom, tupTo,
-        tBegin = transValues.begin(), tEnd=transValues.end();
+        tBegin = transValues.begin()+tri, tEnd=transValues.begin()+triEnd;
     uint32_t pFrom = 1;
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
-            {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+            {auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
                 tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
             tupFrom = tBegin;                    
-            tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            tupTo = std::lower_bound(tBegin, tEnd, pFirst.value);                   
             break;
         case Op::LessOrEqual: 
             tupFrom = tBegin;                    
-            tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            tupTo = std::upper_bound(tBegin, tEnd, pFirst.value);                   
             break;
         case Op::Greater: 
-            tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
+            tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value);  
             tupTo = tEnd;                   
             break;
         case Op::GreaterOrEqual: 
-            tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
+            tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value);
             tupTo = tEnd;                   
             break;
         default: 
@@ -1055,8 +1090,10 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
     if (std::distance(tupFrom, tupTo) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
+    uint64_t tupFromIdx = std::distance(transValues.begin(), tupFrom);
+    uint64_t tupToIdx = std::distance(transValues.begin(), tupTo);
     //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
-    if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
+    if (isTupleRangeConflict(tupFromIdx, tupToIdx, cbegin, cend, q.relationId, pFirst.column)) return true;
     return false;
 }
 
@@ -1066,9 +1103,6 @@ static bool isValidationConflict(LPValidation& v) {
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
-
-        //if (v.validationId == 31206) return false;
-
         // protect from the case where there is no single predicate
         //if (q.predicates.empty()) { 
         if (q.colCountUniq == 0) { 
@@ -1084,40 +1118,24 @@ static bool isValidationConflict(LPValidation& v) {
                 return true;
             }; 
         }
-
         // just find the range of transactions we want in this relation
-        auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
-        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
+        auto& relCol0 = gRelColumns[q.relationId].columns[0];
+        auto& transMeta = relCol0.metadata;
+        auto transFrom = std::lower_bound(transMeta.begin(), transMeta.end(), v.from, CMetaLess);
+        auto transTo = std::upper_bound(transFrom, transMeta.end(), v.to, CMetaLess);
+        //cerr << "transTo-transFrom: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << endl;
         
-        auto trFidx = std::distance(transactions.begin(), transFrom);
-        auto trTidx = std::distance(transactions.begin(), transTo);
-       
-        //cerr << (trTidx - trFidx) << endl;
+        auto trFidx = std::distance(transMeta.begin(), transFrom);
+        auto trTidx = std::distance(transMeta.begin(), transTo);
+        //cerr << "trTidx-trFidx " << (trTidx - trFidx) << endl;
         
-        for(auto tri=trFidx; tri<trTidx; ++tri) {  
-            if (isTransactionConflict(q, tri)) { return true; }
+        //for(auto tri=trFidx; tri<trTidx; ++tri) {
+        for(auto tri=trFidx; tri<trTidx;) {
+            auto triEnd = tri + relCol0.transSizes[transMeta[tri].first];
+            //cerr << "trans_id: " << transMeta[tri].first << " tri " << tri << " triEnd " << triEnd << endl;
+            if (isTransactionConflict(q, tri, triEnd)) { return true; }
+            tri = triEnd;
         } // end of all the transactions for this relation for this specific query
-        
-        // only do parallel transactions if more than a threashold
-        /*
-        if (trTidx - trFidx < 100) {
-            for(auto tri=trFidx; tri<trTidx; ++tri) {  
-                if (isTransactionConflict(q, tri)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        } else {
-            // this variable will be used in the range as termination flag
-            volatile bool conflict = false;
-            //tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 20, conflict), [&] (const cancelable_range<uint64_t>& r) {
-                for (uint64_t tri=r.begin(); tri<r.end(); ++tri) {
-                    if (isTransactionConflict(q, tri)) { conflict = true; r.cancel(); }
-                }
-            }); // tbb parallel for // end of all the transactions for this relation for this specific query
-            if (conflict) return true;
-        }
-        */
     }// end for all queries
     return false;
 }

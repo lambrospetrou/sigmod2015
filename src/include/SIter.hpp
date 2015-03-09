@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <iostream>
 
+template<typename IterA, typename IterB>
 class SIter {
     public:
 
-        SIter(int* aIter, double* bIter) : aIter(aIter), bIter(bIter) {}
+        SIter(IterA aIter, IterB bIter) : aIter(aIter), bIter(bIter) {}
 
         // we move to next position is just moving both:
         SIter& operator ++() {
@@ -46,14 +47,14 @@ class SIter {
             return aIter - other.aIter;
         }
         struct value_type {
-            int a; double b;
+            typename IterA::value_type a; typename IterB::value_type b;
             bool operator < (const value_type& other) const {
                 return a < other.a; // this is the place where way of sorting is defined!!!!
             }
         };
         struct reference {
-            int* a;
-            double* b;
+            IterA a;
+            IterB b;
             reference& operator = (const value_type& o) 
             {
                 *a = o.a;
@@ -101,6 +102,6 @@ class SIter {
 
 
     private:
-        int* aIter; 
-        double* bIter;
+        IterA aIter; 
+        IterB bIter;
 };
