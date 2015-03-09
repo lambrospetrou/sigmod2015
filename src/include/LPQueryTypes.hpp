@@ -80,10 +80,10 @@ namespace lp {
 
         LPQuery() : relationId(-1), columnCount(0), rawQuery(nullptr), colCountUniq(0) {}
         LPQuery(Query *q) : relationId(q->relationId), columnCount(q->columnCount), rawQuery(q), colCountUniq(q->columnCount) {
-            if (q->columnCount == 0) return;
-            std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
-            auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
-            colCountUniq = std::distance(q->columns, colEnd);
+            //if (q->columnCount == 0) return;
+            //std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
+            //auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
+            //colCountUniq = std::distance(q->columns, colEnd);
         }
     };
 
@@ -126,11 +126,11 @@ namespace lp {
     namespace query {
 
         inline void __attribute__((always_inline)) preprocess(LPQuery& lpq) {
-            (void)lpq;
-            //auto q = lpq.rawQuery;
-            //std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
-            //auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
-            //lpq.colCountUniq = std::distance(q->columns, colEnd);
+            //(void)lpq;
+            auto q = lpq.rawQuery;
+            std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
+            auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
+            lpq.colCountUniq = std::distance(q->columns, colEnd);
         }
 
         struct Satisfiability {

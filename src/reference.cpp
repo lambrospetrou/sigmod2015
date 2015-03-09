@@ -287,7 +287,7 @@ struct StatComp2_t {
     }
 } StatCompRel;
 static unique_ptr<StatStruct[]> gStats;
-static vector<SColType> *gStatColumns;
+//static vector<SColType> *gStatColumns;
 
 ////////////////////////////////////////////////////
 
@@ -323,7 +323,9 @@ static void processDefineSchema(const DefineSchema& d) {
 
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
+    //cerr << endl << "relations: " << NUM_RELATIONS << endl;
     for(uint32_t ci=0; ci<d.relationCount; ++ci) {
+        //cerr << " " << gSchema[ci];
         gRelColumns[ci].columns.reset(new ColumnStruct[gSchema[ci]]);
     }
 }
@@ -578,15 +580,15 @@ int main(int argc, char**argv) {
         gRelations[i].transLogTuples.reserve(1024);
     }
     // allocate global structures based on thread number
-    gStats.reset(new StatStruct[numOfThreads+1]);
+    //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
-    //MultiTaskPool multiPool(1);
+    //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -625,7 +627,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
@@ -637,7 +639,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
+                    //multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
@@ -745,7 +747,8 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
  */
 static std::atomic<uint64_t> gNextIndex;
 
-static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
+//static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
+static void updateRequiredColumns(uint64_t ri) {
     // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
     // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
     // FOLOWING VALIDATION SESSION - 1st predicates only for now
@@ -753,9 +756,9 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
     auto& relation = gRelations[ri];
     auto& relColumns = gRelColumns[ri].columns;
 
-    (void)colBegin; (void)colEnd;
+    //(void)colBegin; (void)colEnd;
     // for each column to be indexed
-//#pragma omp parallel for schedule(static, 1) num_threads(2)
+//#pragma omp parallel for schedule(static, 1) num_threads(4)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -771,12 +774,11 @@ static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBeg
         // Use lower_bound to automatically jump to the transaction to start
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
         // for all the transactions in the relation
-        for(auto tEnd=relation.transLogTuples.end(); transFrom!=tEnd; ++transFrom) {
-            auto& trp = *transFrom;
+        for(auto tEnd=relation.transLogTuples.end(), trp=transFrom; trp!=tEnd; ++trp) {
             // allocate vectors for the current new transaction to put its data
-            colTransactions.emplace_back(trp.first, move(vector<CTransStruct>()));
-            colTransactions.back().second.reserve(trp.second.size());
-            for (auto tpl : trp.second) {
+            colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            colTransactions.back().second.reserve(trp->second.size());
+            for (auto tpl : trp->second) {
                 colTransactions.back().second.emplace_back(tpl[col], tpl);
             }
             sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
@@ -798,14 +800,14 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
         //auto colBegin = colpair.first, colEnd = colpair.second; 
-        auto colBegin = gStatColumns->begin(), colEnd = gStatColumns->end(); 
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (relTrans.empty()) { 
             // TODO - we have to run this regardless of transactions since some
             // columns might have to use previous transactions and be called for the first time
-            updateRequiredColumns(ri, colBegin, colEnd);
+            //updateRequiredColumns(ri, colBegin, colEnd);
+            updateRequiredColumns(ri);
             continue; 
         }
 
@@ -871,7 +873,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
         // update with new transactions
-        updateRequiredColumns(ri, colBegin, colEnd);
+        //updateRequiredColumns(ri, colBegin, colEnd);
+        updateRequiredColumns(ri);
     } // end of while true
 }
 
@@ -1118,13 +1121,14 @@ static bool isValidationConflict(LPValidation& v) {
         auto trTidx = std::distance(transactions.begin(), transTo);
        
         //cerr << (trTidx - trFidx) << endl;
+        
         for(auto tri=trFidx; tri<trTidx; ++tri) {  
             if (isTransactionConflict(q, tri)) { return true; }
         } // end of all the transactions for this relation for this specific query
         
         // only do parallel transactions if more than a threashold
         /*
-        if (trTidx - trFidx > 200) {
+        if (trTidx - trFidx < 100) {
             for(auto tri=trFidx; tri<trTidx; ++tri) {  
                 if (isTransactionConflict(q, tri)) { return true; }
             } // end of all the transactions for this relation for this specific query
@@ -1132,7 +1136,7 @@ static bool isValidationConflict(LPValidation& v) {
             // this variable will be used in the range as termination flag
             volatile bool conflict = false;
             //tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 10, conflict), [&] (const cancelable_range<uint64_t>& r) {
+            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 20, conflict), [&] (const cancelable_range<uint64_t>& r) {
                 for (uint64_t tri=r.begin(); tri<r.end(); ++tri) {
                     if (isTransactionConflict(q, tri)) { conflict = true; r.cancel(); }
                 }

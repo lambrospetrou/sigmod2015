@@ -177,7 +177,7 @@ namespace lp {
                 while (true) {
                     //ReceivedMessage *msg = ReaderIO::readInput(stdin);
                     ReceivedMessage *msg = msgReader->nextMsg();
-                    if (lp::unlikely(msg->head.type == MessageHead::Done)) {
+                    if (unlikely(msg->head.type == MessageHead::Done)) {
                         // exit the loop since the reader has finished its job
                         //while (!msgQ.push(msg)) { lp_spin_sleep(); }
                         while (!msgQ->enqueue(msg)) { lp::lp_spin_sleep(); }

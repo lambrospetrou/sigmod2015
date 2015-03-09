@@ -8,13 +8,13 @@
 
 namespace lp {
 
-#define _likely(x)       __builtin_expect(!!(x), 1)
-#define _unlikely(x)     __builtin_expect(!!(x), 0)
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
 
-    inline bool __attribute__((always_inline)) unlikely(bool cond) {
+    inline bool __attribute__((always_inline)) funlikely(bool cond) {
         return (__builtin_expect(cond, 0));
     }
-    inline bool __attribute__((always_inline)) likely(bool cond) {
+    inline bool __attribute__((always_inline)) flikely(bool cond) {
         return (__builtin_expect(cond, 1));
     }
 
