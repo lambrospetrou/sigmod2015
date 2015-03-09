@@ -346,6 +346,8 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
     const char* qreader=v.queries;
     for (uint32_t i=0;i<v.queryCount;++i) {
         const Query *q=reinterpret_cast<const Query*>(qreader);
+        //if (q->columnCount == 0) continue;
+        //if (v.validationId == 31206) cerr << "r: " << q->relationId << ":" << q->columnCount << endl;
         /*
            LPQuery nQ;
         //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
@@ -563,7 +565,8 @@ int main(int argc, char**argv) {
         isTestdriver = true;
         msgReader = ReaderIOFactory::createAsync(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
     }
 
     // do some initial reserves or initializations
@@ -988,7 +991,6 @@ typedef Query::Column* PredIter;
 bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     tuple_t& tuple = tup.tuple;
     //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
-    bool match=true;
     //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
     //auto& c = q.predicates[cp];
     for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
@@ -1018,10 +1020,10 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
                 result=(tupleValue!=queryValue); 
                 break;
         } 
-        // there is one predicate not true so this whole query on this relation is false
+        // there is one predicate not true so this cannot be conflict 
         if (!result) { return false; }
     } // end of single query predicates
-    return match;    
+    return true;    
 }
 
 bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
@@ -1092,13 +1094,16 @@ static bool isValidationConflict(LPValidation& v) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
 
+        //if (v.validationId == 31206) return false;
+
         // protect from the case where there is no single predicate
         //if (q.predicates.empty()) { 
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
-            if (transFromCheck == transactionsCheck.end()) { 
+            auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
+            if (transFromCheck == transToCheck) { 
                 // no transactions exist for this query
                 continue;
             } else { 
