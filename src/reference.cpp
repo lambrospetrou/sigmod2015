@@ -34,6 +34,8 @@
 #include "include/SingleTaskPool.hpp"
 #include "include/MultiTaskPool.hpp"
 
+#include "include/SIter.hpp"
+
 #include <iostream>
 #include <fstream>
 #include <ios>
@@ -114,6 +116,8 @@ std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
 ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////
 
+template <typename K, typename V> using SortedMap = btree::btree_map<K, V>;
+
 typedef uint64_t* tuple_t;
 typedef Query::Column::Op  Op;
 
@@ -138,13 +142,34 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     os << "{" << "-" << o.value << "}";
     return os;
 }
-typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
+
+//typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
+typedef pair<uint64_t, tuple_t> Metadata_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     uint64_t transTo;
-    vector<ColumnTransaction_t> transactions;
-    ColumnStruct() : transTo(0) {}
+    //vector<ColumnTransaction_t> transactions;
+    
+    SortedMap<uint64_t, uint64_t> transSizes;
+    // the following two arrays are symmetric and they should always contain the same amount of elements
+    vector<Metadata_t> metadata;
+    vector<uint64_t> values;
+    ColumnStruct() : transTo(0) {
+        metadata.reserve(64);
+        values.reserve(64);
+    }
 };
+struct CMetaLess_t {
+    inline bool operator() (const Metadata_t& left, const Metada_t& right) {
+        return left.first < right.first;
+    }
+    inline bool operator() (const Metadata_t& o, uint64_t target) {
+        return o.first < target;
+    }
+    inline bool operator() (uint64_t target, const Metadata_t& o) {
+        return target < o.first;
+    }
+} CMetaLess;
 struct CTRSLessThan_t {
     inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
@@ -195,7 +220,7 @@ struct RTLComp_t {
 struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
-    btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
+    SortedMap<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 };
 
 struct TransLogComp_t {
@@ -478,70 +503,24 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
 #endif
 }
 
-//static vector<ParseMessageStruct*> gPendingValidationMessages;
-static vector<ReceivedMessage*> gPendingValidationMessages;
-static std::atomic<uint64_t> gPVMCnt;
-/*
-   static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid) {
-   (void)tid; (void)nThreads;// to avoid unused warning
-//cerr << "::: tid " << tid << "new" << endl;
-const uint64_t pvmsz = gPendingValidationMessages.size();
-for (uint64_t vmi = gPVMCnt++; likely(vmi < pvmsz); vmi=gPVMCnt++) {
-//cerr << tid << ":" << vmi << " ";
-ReceivedMessage *msg = gPendingValidationMessages[vmi];
-processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-delete msg;
-}
-}
-
-static void omp_processPendingValidationMessagesTask(uint32_t nThreads) {
-(void)nThreads;// to avoid unused warning
-//cerr << "::: tid " << tid << "new" << endl;
-const uint64_t pvmsz = gPendingValidationMessages.size();
-for (uint64_t vmi = 0; likely(vmi < pvmsz); ++vmi) {
-uint32_t tid = omp_get_thread_num();
-//cerr << tid << "/" << omp_get_num_threads() << ":" << vmi << endl;
-ReceivedMessage *msg = gPendingValidationMessages[vmi];
-processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-delete msg;
-}
-}
-
-static void parsePendingValidationMessages(SingleTaskPool &pool, uint32_t nThreads = 4) {
-if (unlikely(gPendingValidationMessages.empty())) return;
-#ifdef LPDEBUG
-auto start = LPTimer.getChrono();
-#endif
-//cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
-(void)nThreads;
-pool.startAll(processPendingValidationMessagesTask);
-pool.waitAll();
-
-//(void)pool;
-//omp_processPendingValidationMessagesTask(nThreads);
-
-gPendingValidationMessages.clear();
-gPVMCnt = 0;
-
-#ifdef LPDEBUG
-LPTimer.validations += LPTimer.getChrono(start);
-#endif
-}
- */
 
 
+/////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
 void inline initOpenMP(uint32_t nThreads) {
     //omp_set_dynamic(0);           // Explicitly disable dynamic teams
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
-
+#ifdef LPTBB
 void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
    //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
    //tbb::task_scheduler_init init(nThreads); 
 }
-
+#endif
+/////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -554,7 +533,9 @@ int main(int argc, char**argv) {
     Globals.nThreads = numOfThreads;
 
     initOpenMP(numOfThreads);
+#ifdef LPTBB
     initTBB(numOfThreads);
+#endif
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -747,46 +728,43 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
  */
 static std::atomic<uint64_t> gNextIndex;
 
-//static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
 static void updateRequiredColumns(uint64_t ri) {
-    // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
-    // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
-    // FOLOWING VALIDATION SESSION - 1st predicates only for now
-    //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
     auto& relation = gRelations[ri];
     auto& relColumns = gRelColumns[ri].columns;
 
-    //(void)colBegin; (void)colEnd;
     // for each column to be indexed
 //#pragma omp parallel for schedule(static, 1) num_threads(4)
+    // TODO - reverting this FOR with the inner for the transactions might give speedup - TODO
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
-        //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
-    //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
-    //    for (uint32_t col=r.begin(); col<r.end(); ++col) {
-
-        //uint32_t rel,col;
-        //for (; colBegin!=colEnd; ++colBegin) {
-        //    lp::validation::unpackRelCol(colBegin->second, rel, col);
         //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
-        auto& colTransactions = relColumns[col].transactions;
+        //auto& colTransactions = relColumns[col].transactions;
+        auto& colValues = relColumns[col].values;
+        auto& colMetadata = relColumns[col].metadata;
+        auto& colTransSizes = relColumns[col].transSizes;
         uint64_t updatedUntil = relColumns[col].transTo;
 
         // Use lower_bound to automatically jump to the transaction to start
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-        // for all the transactions in the relation
+        // for all the transactions in the relation - TODO - Update this to use indexing in order to MAYBE allow auto vectorization
         for(auto tEnd=relation.transLogTuples.end(), trp=transFrom; trp!=tEnd; ++trp) {
             // allocate vectors for the current new transaction to put its data
-            colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
-            colTransactions.back().second.reserve(trp->second.size());
-            for (auto tpl : trp->second) {
-                colTransactions.back().second.emplace_back(tpl[col], tpl);
+            //colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            //colTransactions.back().second.reserve(trp->second.size());
+            auto szBefore = colValues.size();
+            colTransSizes[trp->first]=trp->second.size();
+            auto& trVec = trp->second;
+            uint32_t csz = trVec.size();
+            for (uint32_t ctpl=0; ctpl<csz; ++ctpl) {
+                auto& tpl = trVec[ctpl];
+                colMetadata.emplace_back(trp->first, tpl);
+                colValues.push_back(tpl[col]);
             }
-            sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
+            sort(SIter(colMetadata.begin()+szBefore, colValues.begin()+szBefore), 
+                    SIter(colMetadata.begin()+szBefore+csz, colValues.begin()+szBefore+csz), CMetadataLess);
         }
         if(likely(!relation.transLogTuples.empty()))
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
-      //      }});
     }
 }
 
@@ -798,21 +776,17 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         //#pragma omp parallel for schedule(static, 1)  
         //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
-        //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
-        //auto colBegin = colpair.first, colEnd = colpair.second; 
-
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (relTrans.empty()) { 
             // TODO - we have to run this regardless of transactions since some
             // columns might have to use previous transactions and be called for the first time
-            //updateRequiredColumns(ri, colBegin, colEnd);
             updateRequiredColumns(ri);
             continue; 
         }
 
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
-
+        // already sorted since only main sends them now
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
@@ -823,7 +797,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
-        operations.reserve(2048);
+        operations.reserve(1024);
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
@@ -923,7 +897,7 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     //(void)pool;
     //processPendingIndexTask(4, 0);
 
-    //#pragma omp parallel for schedule(static, 1) num_threads(2)
+    // TODO - TRANSFER THIS COMMAND INTO THE ProcessIndexTask above at the end of each relation processing
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     /*
        tbb::parallel_for ((uint32_t)0, NUM_RELATIONS, [&] (uint32_t r) {
