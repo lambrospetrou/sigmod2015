@@ -755,7 +755,7 @@ static void updateRequiredColumns(uint64_t ri) {
         auto& colMetadata = relColumns[col].metadata;
         uint64_t updatedUntil = relColumns[col].transTo;
 
-        // Use lower_bound to automatically jump to the transaction to start
+        // Use lower_bound to automatically jump to the transaction to start - TODO - this should go out of the loop now that we are doing all the columns
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
         // for all the transactions in the relation - TODO - Update this to use indexing in order to MAYBE allow auto vectorization
         for(auto tEnd=relation.transLogTuples.end(), trp=transFrom; trp!=tEnd; ++trp) {
@@ -983,7 +983,6 @@ typedef Query::Column* PredIter;
 bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     tuple_t& tuple = tup.second;
     for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
-        //auto& c = q.predicates[cp];
         auto& c = *tbegin;
         // make the actual check
         uint64_t tupleValue = tuple[c.column]; 
@@ -1014,7 +1013,7 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     } // end of single query predicates
     return true;    
 }
-/*
+//bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
 bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     //for(; tupFrom!=tupTo; ++tupFrom) {  
     //    if (isTupleConflict(cbegin, cend, tupFrom)) return true;
@@ -1023,19 +1022,9 @@ bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<Tu
     
     return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
-*/
-bool inline isTupleRangeConflict(uint64_t tupFromIdx, uint64_t tupToIdx, PredIter cbegin, PredIter cend, uint32_t rel, uint32_t col) {
-    auto& relColumns = gRelColumns[rel].columns;
-    auto& transMeta = relColumns[col].metadata;
-    //auto& transValues = relColumns[pFirst.column].values;
-    for(; tupFromIdx!=tupToIdx; ++tupFromIdx) {  
-        if (isTupleConflict(cbegin, cend, transMeta[tupFromIdx])) return true;
-    } // end of all tuples for this transaction
-    return false;
-}
 
 
-static bool isTransactionConflict(LPQuery& q, uint64_t tri, uint64_t triEnd) {
+static bool inline isTransactionConflict(LPQuery& q, uint64_t tri, uint64_t triEnd) {
     auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
          cend = cbegin + q.colCountUniq;
     auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
@@ -1080,10 +1069,10 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri, uint64_t triEnd) {
     if (std::distance(tupFrom, tupTo) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
-    uint64_t tupFromIdx = std::distance(transValues.begin(), tupFrom);
-    uint64_t tupToIdx = std::distance(transValues.begin(), tupTo);
-    //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
-    if (isTupleRangeConflict(tupFromIdx, tupToIdx, cbegin, cend, q.relationId, pFirst.column)) return true;
+    uint64_t tupFromIdx = tupFrom - transValues.begin();
+    uint64_t tupToIdx = tupTo - transValues.begin();
+    if (isTupleRangeConflict(transMeta.begin()+tupFromIdx, transMeta.begin()+tupToIdx, cbegin, cend)) return true;
+    //if (isTupleRangeConflict(tupFromIdx, tupToIdx, cbegin, cend, q.relationId, pFirst.column)) return true;
     return false;
 }
 
@@ -1109,8 +1098,8 @@ static bool isValidationConflict(LPValidation& v) {
             }; 
         }
         // just find the range of transactions we want in this relation
-        auto& relCol0 = gRelColumns[q.relationId].columns[0];
-        auto& transMeta = relCol0.metadata;
+        auto& relIndex = gRelColumns[q.relationId];
+        auto& transMeta = relIndex.columns[0].metadata;
         auto transFrom = std::lower_bound(transMeta.begin(), transMeta.end(), v.from, CMetaLess);
         auto transTo = std::upper_bound(transFrom, transMeta.end(), v.to, CMetaLess);
         //cerr << "transTo-transFrom: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << endl;
@@ -1121,7 +1110,7 @@ static bool isValidationConflict(LPValidation& v) {
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {
         for(auto tri=trFidx; tri<trTidx;) {
-            auto triEnd = tri + gRelColumns[q.relationId].transSizes[transMeta[tri].first];
+            auto triEnd = tri + relIndex.transSizes[transMeta[tri].first];
             //cerr << "trans_id: " << transMeta[tri].first << " tri " << tri << " triEnd " << triEnd << endl;
             if (isTransactionConflict(q, tri, triEnd)) { return true; }
             tri = triEnd;
