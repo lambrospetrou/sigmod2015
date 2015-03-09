@@ -70,11 +70,12 @@
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
 
-
+/*
 #include <tbb/tbb.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include "include/TBBUtils.hpp"
+*/
 
 #include <omp.h>
 
@@ -536,7 +537,7 @@ void inline initOpenMP(uint32_t nThreads) {
 void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
    //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
-   tbb::task_scheduler_init init(nThreads); 
+   //tbb::task_scheduler_init init(nThreads); 
 }
 
 

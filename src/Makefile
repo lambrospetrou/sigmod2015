@@ -6,8 +6,8 @@ RELEASE_CFLAGS=-march=corei7-avx -msse4.2 -std=c++11 -O3 -W -Wall -Wextra -DNDBG
 
 all: reference
 
-reference: reference.cpp; g++ $(RELEASE_CFLAGS) -I/usr/local/lib/tbb/include  -L/usr/local/lib/tbb/lib/intel64/gcc4.4 -fopenmp -o$@ reference.cpp -lpthread -ltbb
-#	g++ -fcilkplus -fopenmp $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread 
+reference: reference.cpp; g++ $(RELEASE_CFLAGS) -fopenmp -o$@ reference.cpp -lpthread
+#reference: reference.cpp; g++ $(RELEASE_CFLAGS) -I/usr/local/lib/tbb/include  -L/usr/local/lib/tbb/lib/intel64/gcc4.4 -fopenmp -o$@ reference.cpp -lpthread -ltbb
 
 clean:
 	rm reference
