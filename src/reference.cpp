@@ -150,7 +150,6 @@ struct ColumnStruct {
     uint64_t transTo;
     //vector<ColumnTransaction_t> transactions;
     
-    SortedMap<uint64_t, uint64_t> transSizes;
     // the following two arrays are symmetric and they should always contain the same amount of elements
     vector<Metadata_t> metadata;
     vector<uint64_t> values;
@@ -203,6 +202,7 @@ struct CTRSLessThan_t {
 
 struct RelationColumns {
     std::unique_ptr<ColumnStruct[]> columns;
+    map<uint64_t, uint64_t> transSizes;
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 
@@ -462,18 +462,19 @@ static void processForget(const Forget& f) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
-        /*
+        
+        auto ub = upper_bound(cRelCol.columns[0].metadata.begin(), cRelCol.columns[0].metadata.end(), f.transactionId, CMetaLess);
+        uint64_t upto = std::distance(cRelCol.columns[0].metadata.begin(), ub);
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
-            cCol.transactions.erase(cCol.transactions.begin(),
-                    upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
-                        f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; }
-                        ));
-
+            cCol.metadata.erase(cCol.metadata.begin(), cCol.metadata.begin()+upto);
+            cCol.values.erase(cCol.values.begin(), cCol.values.begin()+upto);
         }
-        */
+        cRelCol.transSizes.erase(cRelCol.transSizes.begin(), 
+                upper_bound(cRelCol.transSizes.begin(), cRelCol.transSizes.end(), f.transactionId, 
+                    [](uint64_t target, const pair<uint64_t, uint64_t>& right) { return target < right.first; }));
+
         // clean the transactions log
         auto& transLog = gRelations[i].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
@@ -490,14 +491,6 @@ static void processForget(const Forget& f) {
                 );
         //cerr << "size after: " << transLog.size() << endl;
     }
-    /*
-    // then delete the transactions from the transaction history 
-    auto ub = upper_bound(gTransactionHistory.begin(), 
-    gTransactionHistory.end(), 
-    f.transactionId,
-    [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-     */
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -750,6 +743,7 @@ static std::atomic<uint64_t> gNextIndex;
 static void updateRequiredColumns(uint64_t ri) {
     auto& relation = gRelations[ri];
     auto& relColumns = gRelColumns[ri].columns;
+    auto& transSizes = gRelColumns[ri].transSizes;
 
     // for each column to be indexed
 //#pragma omp parallel for schedule(static, 1) num_threads(4)
@@ -759,7 +753,6 @@ static void updateRequiredColumns(uint64_t ri) {
         //auto& colTransactions = relColumns[col].transactions;
         auto& colValues = relColumns[col].values;
         auto& colMetadata = relColumns[col].metadata;
-        auto& colTransSizes = relColumns[col].transSizes;
         uint64_t updatedUntil = relColumns[col].transTo;
 
         // Use lower_bound to automatically jump to the transaction to start
@@ -771,7 +764,8 @@ static void updateRequiredColumns(uint64_t ri) {
             //colTransactions.back().second.reserve(trp->second.size());
             auto szBefore = colValues.size();
             //colTransSizes[trp->first]=trp->second.size();
-            colTransSizes.insert(std::make_pair(trp->first, trp->second.size()));
+            // only insert the transaction sizes once
+            if (col == 0) transSizes.insert(std::make_pair(trp->first, trp->second.size()));
             auto& trVec = trp->second;
             uint32_t csz = trVec.size();
             for (uint32_t ctpl=0; ctpl<csz; ++ctpl) {
@@ -1050,10 +1044,6 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri, uint64_t triEnd) {
     auto& transMeta = relColumns[pFirst.column].metadata;
     auto& transValues = relColumns[pFirst.column].values;
    
-    //cerr << "---- printing values of transaction" << endl;
-    //for (auto v : transValues) cerr << v << " ";
-    //cerr << endl;
-
     decltype(transValues.begin()) tupFrom, tupTo,
         tBegin = transValues.begin()+tri, tEnd=transValues.begin()+triEnd;
     uint32_t pFrom = 1;
@@ -1131,7 +1121,7 @@ static bool isValidationConflict(LPValidation& v) {
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {
         for(auto tri=trFidx; tri<trTidx;) {
-            auto triEnd = tri + relCol0.transSizes[transMeta[tri].first];
+            auto triEnd = tri + gRelColumns[q.relationId].transSizes[transMeta[tri].first];
             //cerr << "trans_id: " << transMeta[tri].first << " tri " << tri << " triEnd " << triEnd << endl;
             if (isTransactionConflict(q, tri, triEnd)) { return true; }
             tri = triEnd;
