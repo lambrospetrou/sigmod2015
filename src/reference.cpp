@@ -592,7 +592,7 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
+    //MultiTaskPool multiPool(std::max(numOfThreads-2, (uint64_t)2));
     MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
@@ -763,7 +763,7 @@ static void updateRequiredColumns(uint64_t ri) {
 
     //(void)colBegin; (void)colEnd;
     // for each column to be indexed
-//#pragma omp parallel for schedule(static, 1) num_threads(4)
+//#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -1107,11 +1107,12 @@ static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues,
 }
 
 static bool isValidationConflict(LPValidation& v) {
+    // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
+    
     // no empty validation has none query - ONLY if we did the satisfiability check before
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
-
 
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
