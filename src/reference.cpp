@@ -766,7 +766,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(2)
+//#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -1109,12 +1109,18 @@ static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues,
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    
-    // no empty validation has none query - ONLY if we did the satisfiability check before
+    /*
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
-        if (!lp::query::satisfiable(q)) continue; // go to the next query
-
+        if (!lp::query::satisfiable(q)) { q.rawQuery = nullptr; q.colCountUniq = UINT32_MAX; continue; } 
+    }
+    std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
+    */
+    // no empty validation has none query - ONLY if we did the satisfiability check before
+    for (auto& q : v.queries) {
+        //lp::query::preprocess(q);
+        //if (!lp::query::satisfiable(q)) continue; // go to the next query
+        if (q.rawQuery == nullptr) return false;
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
