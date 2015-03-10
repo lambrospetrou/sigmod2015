@@ -764,7 +764,7 @@ static void updateRequiredColumns(uint64_t ri) {
     uint64_t updatedUntil = relColumns[0].transTo;
     // Use lower_bound to automatically jump to the transaction to start
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-    
+    auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
 //#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
@@ -779,7 +779,7 @@ static void updateRequiredColumns(uint64_t ri) {
         auto& colTransactions = relColumns[col].transactions;
 
         // for all the transactions in the relation
-        for(auto tEnd=relation.transLogTuples.end(), trp=transFrom; trp!=tEnd; ++trp) {
+        for(auto trp=transFrom; trp!=tEnd; ++trp) {
             // allocate vectors for the current new transaction to put its data
             colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
