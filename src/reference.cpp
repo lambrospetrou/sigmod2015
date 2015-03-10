@@ -1040,7 +1040,7 @@ struct TupleComp_t {
     }
 };
 
-bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
+bool inline __attribute__((always_inline)) isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
     } // end of all tuples for this transaction
