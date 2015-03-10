@@ -760,8 +760,30 @@ static void updateRequiredColumns(uint64_t ri) {
     //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
     auto& relation = gRelations[ri];
     auto& relColumns = gRelColumns[ri].columns;
+    uint64_t updatedUntil = relColumns[0].transTo;
 
-    //(void)colBegin; (void)colEnd;
+    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+        // for all the transactions in the relation
+    
+    for(auto tEnd=relation.transLogTuples.end(), trp=transFrom; trp!=tEnd; ++trp) {
+        for (uint32_t col=0; col<gSchema[ri]; ++col) {
+            relColumns[col].transactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            relColumns[col].transactions.back().second.reserve(trp->second.size());
+        }
+        for (uint32_t col=0; col<gSchema[ri]; ++col) {
+            for (auto tpl : trp->second) {
+                relColumns[col].transactions.back().second.emplace_back(tpl[col], tpl);
+            }
+        }
+        for (uint32_t col=0; col<gSchema[ri]; ++col) {
+            sort(relColumns[col].transactions.back().second.begin(), relColumns[col].transactions.back().second.end(), ColTransValueLess);
+        }
+    }
+    for (uint32_t col=0; col<gSchema[ri]; ++col) {
+        if(likely(!relation.transLogTuples.empty()))
+            relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+    }
+    /*
     // for each column to be indexed
 //#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
@@ -793,6 +815,7 @@ static void updateRequiredColumns(uint64_t ri) {
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
       //      }});
     }
+    */
 }
 
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
