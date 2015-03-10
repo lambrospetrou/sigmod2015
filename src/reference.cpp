@@ -988,8 +988,8 @@ typedef vector<TupleType> TupleCont;
 typedef Query::Column* PredIter;
 
 bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
-    for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
-        auto& c = *tbegin;
+    for (; cbegin<cend; ++cbegin) {
+        auto& c = *cbegin;
         // make the actual check
         uint64_t tupleValue = tup.tuple[c.column]; 
         uint64_t queryValue = c.value;
