@@ -1051,18 +1051,19 @@ bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<Tu
 }
 
 
-static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
+//static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
+static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     //auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
     //    cend = cbegin + q.colCountUniq;
     //auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-    auto& relColumns = gRelColumns[q.relationId].columns;
-    auto& transactions = relColumns[pFirst.column].transactions;
-    
-    auto iter = &transactions[tri];
-    auto& transValues = iter->second;
+    //auto& relColumns = gRelColumns[q.relationId].columns;
+    //auto& transactions = relColumns[pFirst.column].transactions;
+    (void)q;
+    //auto iter = &transactions[tri];
+    //auto& transValues = iter->second;
     decltype(transValues.begin()) tupFrom, tupTo,
         tBegin = transValues.begin(), tEnd=transValues.end();
-    uint32_t pFrom = 1;
+    uint32_t pFrom{1};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
@@ -1092,8 +1093,8 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredI
     }
 
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-    //if (std::distance(tupFrom, tupTo) == 0) continue;
-    if (std::distance(tupFrom, tupTo) == 0) return false;
+    //if (std::distance(tupFrom, tupTo) == 0) return false;
+    if ((tupTo-tupFrom) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
     if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
@@ -1102,15 +1103,12 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredI
 
 static bool isValidationConflict(LPValidation& v) {
     // no empty validation has none query - ONLY if we did the satisfiability check before
-    //if (unlikely(v.queries.empty())) { cerr << "e "; return false; }
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
 
-        //if (v.validationId == 31206) return false;
 
         // protect from the case where there is no single predicate
-        //if (q.predicates.empty()) { 
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
@@ -1126,23 +1124,25 @@ static bool isValidationConflict(LPValidation& v) {
         }
 
         // just find the range of transactions we want in this relation
-        auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
-        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
-        
-        //auto trFidx = std::distance(transactions.begin(), transFrom);
-        //auto trTidx = std::distance(transactions.begin(), transTo);
-        auto trFidx = transFrom - transactions.begin();
-        auto trTidx = transTo - transactions.begin();
-       
+        //auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
+        //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+        //auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
+        //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;   
+        //auto trFidx = transFrom - transactions.begin();
+        //auto trTidx = transTo - transactions.begin();
         //cerr << (trTidx - trFidx) << endl;
+        
         auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
             cend = cbegin + q.colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+        // just find the range of transactions we want in this relation
+        auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
-        for(auto tri=trFidx; tri<trTidx; ++tri) {  
-            if (isTransactionConflict(q, tri, pFirst, cbegin, cend)) { return true; }
+        //for(auto tri=trFidx; tri<trTidx; ++tri) {  
+        for(; transFrom<transTo; ++transFrom) {  
+            if (isTransactionConflict(q, transFrom->second, pFirst, cbegin, cend)) { return true; }
         } // end of all the transactions for this relation for this specific query
         
         // only do parallel transactions if more than a threashold
@@ -1172,14 +1172,13 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
     uint64_t totalPending = gPendingValidations.size();
-    uint64_t resPos;
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
     //#pragma omp parallel for schedule(static, 1)
     //for (uint64_t vi = 0; vi < totalPending; ++vi) {
     //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
         auto& v = gPendingValidations[vi];
-        resPos = v.validationId - resIndexOffset;
+        uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         if(isValidationConflict(v)) { atoRes = true; }
         delete v.rawMsg;
