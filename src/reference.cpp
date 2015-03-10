@@ -993,29 +993,34 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
         // make the actual check
         uint64_t tupleValue = tup.tuple[c.column]; 
         uint64_t queryValue = c.value;
-        bool result=false;
         switch (c.op) {
             case Op::Equal: 
-                result=(tupleValue==queryValue); 
+                //result=(tupleValue==queryValue); 
+                if(!(tupleValue==queryValue)) return false; 
                 break;
             case Op::Less: 
-                result=(tupleValue<queryValue); 
+                //result=(tupleValue<queryValue); 
+                if(!(tupleValue<queryValue)) return false; 
                 break;
             case Op::LessOrEqual: 
-                result=(tupleValue<=queryValue); 
+                //result=(tupleValue<=queryValue); 
+                if(!(tupleValue<=queryValue)) return false; 
                 break;
             case Op::Greater: 
-                result=(tupleValue>queryValue); 
+                //result=(tupleValue>queryValue); 
+                if(!(tupleValue>queryValue)) return false; 
                 break;
             case Op::GreaterOrEqual: 
-                result=(tupleValue>=queryValue); 
+                //result=(tupleValue>=queryValue); 
+                if(!(tupleValue>=queryValue)) return false; 
                 break;
             case Op::NotEqual: 
-                result=(tupleValue!=queryValue); 
+                //result=(tupleValue!=queryValue); 
+                if(!(tupleValue!=queryValue)) return false; 
                 break;
         } 
         // there is one predicate not true so this cannot be conflict 
-        if (!result) { return false; }
+        //if (!result) { return false; }
     } // end of single query predicates
     return true;    
 }
