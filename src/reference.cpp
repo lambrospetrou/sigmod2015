@@ -1120,7 +1120,6 @@ static bool isValidationConflict(LPValidation& v) {
     for (auto& q : v.queries) {
         //lp::query::preprocess(q);
         //if (!lp::query::satisfiable(q)) continue; // go to the next query
-        if (q.rawQuery == nullptr) return false;
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
