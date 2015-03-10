@@ -988,15 +988,10 @@ typedef vector<TupleType> TupleCont;
 typedef Query::Column* PredIter;
 
 bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
-    tuple_t& tuple = tup.tuple;
-    //if (v.validationId == 4) cerr << "next tuple: " << tuple << endl;
-    //for (uint32_t cp=pFrom, sz=q.predicates.size(); cp<sz; ++cp) {
-    //auto& c = q.predicates[cp];
     for (auto tbegin = cbegin; tbegin<cend; ++tbegin) {
-        //auto& c = q.predicates[cp];
         auto& c = *tbegin;
         // make the actual check
-        uint64_t tupleValue = tuple[c.column]; 
+        uint64_t tupleValue = tup.tuple[c.column]; 
         uint64_t queryValue = c.value;
         bool result=false;
         switch (c.op) {
@@ -1025,21 +1020,29 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     return true;    
 }
 
+struct TupleComp_t {
+    PredIter cbegin, cend;
+    TupleComp_t(PredIter cb, PredIter ce) : cbegin(cb), cend(ce) {}
+    bool operator() (TupleType& tup) {
+        return isTupleConflict(cbegin, cend, tup);
+    }
+};
+
 bool inline  isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
-    //for(; tupFrom!=tupTo; ++tupFrom) {  
-    //    if (isTupleConflict(cbegin, cend, tupFrom)) return true;
-    //} // end of all tuples for this transaction
-    //return false;
+    for(; tupFrom!=tupTo; ++tupFrom) {  
+        if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
+    } // end of all tuples for this transaction
+    return false;
     
-    return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
+    //return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
+    //return std::find_if(tupFrom, tupTo, TupleComp_t(cbegin, cend)) != tupTo;
 }
 
 
-static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
-    auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
-         cend = cbegin + q.colCountUniq;
-    auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-        
+static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
+    //auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
+    //    cend = cbegin + q.colCountUniq;
+    //auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
     auto& relColumns = gRelColumns[q.relationId].columns;
     auto& transactions = relColumns[pFirst.column].transactions;
     
@@ -1081,7 +1084,6 @@ static bool isTransactionConflict(LPQuery& q, uint64_t tri) {
     if (std::distance(tupFrom, tupTo) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
-    //if (isTupleRangeConflict(tupFrom, tupTo, cpbegin, cend)) return true;
     if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
     return false;
 }
@@ -1117,13 +1119,18 @@ static bool isValidationConflict(LPValidation& v) {
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;
         
-        auto trFidx = std::distance(transactions.begin(), transFrom);
-        auto trTidx = std::distance(transactions.begin(), transTo);
+        //auto trFidx = std::distance(transactions.begin(), transFrom);
+        //auto trTidx = std::distance(transactions.begin(), transTo);
+        auto trFidx = transFrom - transactions.begin();
+        auto trTidx = transTo - transactions.begin();
        
         //cerr << (trTidx - trFidx) << endl;
+        auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
+            cend = cbegin + q.colCountUniq;
+        auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
         
         for(auto tri=trFidx; tri<trTidx; ++tri) {  
-            if (isTransactionConflict(q, tri)) { return true; }
+            if (isTransactionConflict(q, tri, pFirst, cbegin, cend)) { return true; }
         } // end of all the transactions for this relation for this specific query
         
         // only do parallel transactions if more than a threashold
