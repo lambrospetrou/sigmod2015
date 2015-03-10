@@ -991,32 +991,39 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
         // make the actual check
-        uint64_t tupleValue = tup.tuple[c.column]; 
-        uint64_t queryValue = c.value;
+        //uint64_t tupleValue = tup.tuple[c.column]; 
+        //uint64_t queryValue = c.value;
+        //bool result = false;
         switch (c.op) {
             case Op::Equal: 
                 //result=(tupleValue==queryValue); 
-                if(!(tupleValue==queryValue)) return false; 
+                //if(!(tupleValue==queryValue)) return false; 
+                if(!(tup.tuple[c.column]==c.value)) return false; 
                 break;
             case Op::Less: 
                 //result=(tupleValue<queryValue); 
-                if(!(tupleValue<queryValue)) return false; 
+                //if(!(tupleValue<queryValue)) return false; 
+                if(!(tup.tuple[c.column]<c.value)) return false; 
                 break;
             case Op::LessOrEqual: 
                 //result=(tupleValue<=queryValue); 
-                if(!(tupleValue<=queryValue)) return false; 
+                //if(!(tupleValue<=queryValue)) return false; 
+                if(!(tup.tuple[c.column]<=c.value)) return false; 
                 break;
             case Op::Greater: 
                 //result=(tupleValue>queryValue); 
-                if(!(tupleValue>queryValue)) return false; 
+                //if(!(tupleValue>queryValue)) return false; 
+                if(!(tup.tuple[c.column]>c.value)) return false; 
                 break;
             case Op::GreaterOrEqual: 
                 //result=(tupleValue>=queryValue); 
-                if(!(tupleValue>=queryValue)) return false; 
+                //if(!(tupleValue>=queryValue)) return false; 
+                if(!(tup.tuple[c.column]>=c.value)) return false; 
                 break;
             case Op::NotEqual: 
                 //result=(tupleValue!=queryValue); 
-                if(!(tupleValue!=queryValue)) return false; 
+                //if(!(tupleValue!=queryValue)) return false; 
+                if(!(tup.tuple[c.column]!=c.value)) return false; 
                 break;
         } 
         // there is one predicate not true so this cannot be conflict 
