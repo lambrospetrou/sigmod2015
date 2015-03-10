@@ -592,7 +592,7 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(std::max(numOfThreads-2, (uint64_t)2));
+    MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
     //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
@@ -1057,6 +1057,25 @@ bool inline __attribute__((always_inline)) isTupleRangeConflict(vector<TupleType
 }
 
 
+static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst) {
+    //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
+    switch (pFirst.op) {
+        case Op::Equal: 
+            return std::binary_search(transValues.begin(), transValues.end(), pFirst.value, ColTransValueLess); 
+        case Op::Less: 
+            return transValues[0].value < pFirst.value;                   
+        case Op::LessOrEqual: 
+            return transValues[0].value <= pFirst.value;                   
+        case Op::Greater: 
+            return transValues.back().value > pFirst.value;                   
+        case Op::GreaterOrEqual: 
+            return transValues.back().value >= pFirst.value;                   
+        default: 
+            return transValues.back().value != pFirst.value || transValues[0].value != pFirst.value;
+    }
+    return false;
+}
+
 //static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
 static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     //auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
@@ -1157,10 +1176,16 @@ static bool isValidationConflict(LPValidation& v) {
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
+        if (q.colCountUniq > 1) {
         for(; transFrom<transTo; ++transFrom) {  
             if (isTransactionConflict(q, transFrom->second, pFirst, cbegin, cend)) { return true; }
         } // end of all the transactions for this relation for this specific query
-        
+        } else {
+            //cerr << ":: val " << v.validationId << endl;
+        for(; transFrom<transTo; ++transFrom) {  
+            if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+        } // end of all the transactions for this relation for this specific query
+        }
         // only do parallel transactions if more than a threashold
         /*
         if (trTidx - trFidx < 100) {
