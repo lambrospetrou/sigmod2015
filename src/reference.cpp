@@ -1067,40 +1067,44 @@ static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues,
     (void)q;
     //auto iter = &transactions[tri];
     //auto& transValues = iter->second;
-    decltype(transValues.begin()) tupFrom, tupTo,
-        tBegin = transValues.begin(), tEnd=transValues.end();
+    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+    decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     uint32_t pFrom{1};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
             {auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
-            tupFrom = tBegin;                    
+            //tupFrom = tBegin;                    
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+    if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            tupFrom = tBegin;                    
+            //tupFrom = tBegin;                    
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+    if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
-            tupTo = tEnd;                   
+            //tupTo = tEnd;                   
+    if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
-            tupTo = tEnd;                   
+            //tupTo = tEnd;                   
+    if (tupTo == tupFrom) return false;
             break;
         default: 
-            tupFrom = tBegin;
-            tupTo = tEnd;
+            //tupFrom = tBegin;
+            //tupTo = tEnd;
             pFrom = 0;
     }
 
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
-    if ((tupTo-tupFrom) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
     if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
@@ -1118,8 +1122,8 @@ static bool isValidationConflict(LPValidation& v) {
     */
     // no empty validation has none query - ONLY if we did the satisfiability check before
     for (auto& q : v.queries) {
-        //lp::query::preprocess(q);
-        //if (!lp::query::satisfiable(q)) continue; // go to the next query
+        lp::query::preprocess(q);
+        if (!lp::query::satisfiable(q)) continue; // go to the next query
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
