@@ -588,12 +588,12 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    //MultiTaskPool multiPool(std::max(numOfThreads-2, (uint64_t)2));
-    MultiTaskPool multiPool(1);
+    MultiTaskPool multiPool(std::max(numOfThreads-2, (uint64_t)2));
+    //MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -632,7 +632,7 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
@@ -644,7 +644,7 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
+                    multiPool.helpExecution();
                     multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
@@ -766,7 +766,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
-//#pragma omp parallel for schedule(static, 1) num_threads(2)
+#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -783,10 +783,11 @@ static void updateRequiredColumns(uint64_t ri) {
             // allocate vectors for the current new transaction to put its data
             colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
+            auto& vecBack = colTransactions.back().second;
             for (auto tpl : trp->second) {
-                colTransactions.back().second.emplace_back(tpl[col], tpl);
+                vecBack.emplace_back(tpl[col], tpl);
             }
-            sort(colTransactions.back().second.begin(), colTransactions.back().second.end(), ColTransValueLess);
+            sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
         }
         if(likely(!relation.transLogTuples.empty()))
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
