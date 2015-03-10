@@ -70,12 +70,14 @@
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
 
-/*
+
+#ifdef LPTBB
 #include <tbb/tbb.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include "include/TBBUtils.hpp"
-*/
+#endif
+
 
 #include <omp.h>
 
@@ -371,7 +373,7 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
         queries.emplace_back(const_cast<Query*>(q));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
-    //  cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << "=" << queries << endl;
+    //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
     gPendingValidationsMutex.lock();
     gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
     // update the global pending validations to reflect this new one
@@ -536,12 +538,13 @@ void inline initOpenMP(uint32_t nThreads) {
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
 
+#ifdef LPTBB
 void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
    //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
    //tbb::task_scheduler_init init(nThreads); 
 }
-
+#endif 
 
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
@@ -554,7 +557,9 @@ int main(int argc, char**argv) {
     Globals.nThreads = numOfThreads;
 
     initOpenMP(numOfThreads);
+#ifdef LPTBB
     initTBB(numOfThreads);
+#endif
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
