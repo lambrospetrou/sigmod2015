@@ -588,12 +588,12 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
-    MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
-    //MultiTaskPool multiPool(1);
+    //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
+    MultiTaskPool multiPool(1);
     multiPool.initThreads();
     multiPool.startAll();
 
@@ -1132,17 +1132,18 @@ static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues,
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    /*
+    
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
-        if (!lp::query::satisfiable(q)) { q.rawQuery = nullptr; q.colCountUniq = UINT32_MAX; continue; } 
+        //if (!lp::query::satisfiable(q)) { q.rawQuery = nullptr; q.colCountUniq = UINT32_MAX; continue; } 
     }
     std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
-    */
+       
     // no empty validation has none query - ONLY if we did the satisfiability check before
     for (auto& q : v.queries) {
-        lp::query::preprocess(q);
+        //lp::query::preprocess(q);
         if (!lp::query::satisfiable(q)) continue; // go to the next query
+        //if (q.rawQuery == nullptr) break; // go to the next query
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
