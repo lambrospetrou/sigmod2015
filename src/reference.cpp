@@ -1066,6 +1066,7 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     uint32_t pFrom{1};
+    //++cbegin; // TODO - we increment the cbegin from outside so avoid doing it twice
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
@@ -1076,30 +1077,33 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
         case Op::Less: 
             //tupFrom = tBegin;                    
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
             //tupFrom = tBegin;                    
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
             //tupTo = tEnd;                   
+            if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             //tupTo = tEnd;                   
+            if (tupTo == tupFrom) return false;
             break;
         default: 
             //tupFrom = tBegin;
             //tupTo = tEnd;
-            pFrom = 0;
+            pFrom = 0; cbegin = std::prev(cbegin);
     }
 
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-    if (tupTo == tupFrom) return false;
     //if (std::distance(tupFrom, tupTo) == 0) return false;
 
-    if (pFrom == 1) ++cbegin;
+    //if (likely(pFrom == 1)) ++cbegin; 
     if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
     return false;
 }
@@ -1185,6 +1189,8 @@ static bool isValidationConflict(LPValidation& v) {
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
         //if (colCountUniq > 1) {
+            // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
+            ++cbegin;
             for(; transFrom<transTo; ++transFrom) {  
                 if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
