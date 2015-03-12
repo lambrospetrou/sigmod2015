@@ -563,7 +563,7 @@ int main(int argc, char**argv) {
     }
 
     // do some initial reserves or initializations
-    gPendingValidations.reserve(4096); 
+    gPendingValidations.reserve(2048); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) gTransParseMapPhase[i].reserve(512);
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         gRelations[i].transLog.reserve(512);
@@ -573,14 +573,14 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
-    MultiTaskPool multiPool(1);
-    multiPool.initThreads();
-    multiPool.startAll();
+    //MultiTaskPool multiPool(1);
+    //multiPool.initThreads();
+    //multiPool.startAll();
 
     try {
 
@@ -650,7 +650,7 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
                         workerThreads.destroy();
-                        multiPool.destroy();
+                        //multiPool.destroy();
                         delete msgReader;
                         return 0;
                     }
