@@ -1132,18 +1132,16 @@ static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues,
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    
+    /*
     for (auto& q : v.queries) {
         lp::query::preprocess(q);
         //if (!lp::query::satisfiable(q)) { q.rawQuery = nullptr; q.colCountUniq = UINT32_MAX; continue; } 
     }
     std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
-       
+    */ 
     // no empty validation has none query - ONLY if we did the satisfiability check before
     for (auto& q : v.queries) {
-        //lp::query::preprocess(q);
-        if (!lp::query::satisfiable(q)) continue; // go to the next query
-        //if (q.rawQuery == nullptr) break; // go to the next query
+        lp::query::preprocess(q);
         // protect from the case where there is no single predicate
         if (q.colCountUniq == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
@@ -1157,8 +1155,20 @@ static bool isValidationConflict(LPValidation& v) {
                 // transactions exist for this query so it is a conflict
                 return true;
             }; 
+        } else if (q.colCountUniq == 1) {
+            auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+            // just find the range of transactions we want in this relation
+            auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+            auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
+            for(; transFrom<transTo; ++transFrom) {  
+                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+            } // end of all the transactions for this relation for this specific query
+            continue;
         }
 
+        if (!lp::query::satisfiable(q)) continue; // go to the next query
+        
         // just find the range of transactions we want in this relation
         //auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
         //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
@@ -1177,16 +1187,18 @@ static bool isValidationConflict(LPValidation& v) {
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
-        if (q.colCountUniq > 1) {
-        for(; transFrom<transTo; ++transFrom) {  
-            if (isTransactionConflict(q, transFrom->second, pFirst, cbegin, cend)) { return true; }
-        } // end of all the transactions for this relation for this specific query
+        //if (q.colCountUniq > 1) {
+            for(; transFrom<transTo; ++transFrom) {  
+                if (isTransactionConflict(q, transFrom->second, pFirst, cbegin, cend)) { return true; }
+            } // end of all the transactions for this relation for this specific query
+        /*
         } else {
             //cerr << ":: val " << v.validationId << endl;
-        for(; transFrom<transTo; ++transFrom) {  
-            if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
-        } // end of all the transactions for this relation for this specific query
+            for(; transFrom<transTo; ++transFrom) {  
+                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+            } // end of all the transactions for this relation for this specific query
         }
+        */
         // only do parallel transactions if more than a threashold
         /*
         if (trTidx - trFidx < 100) {
