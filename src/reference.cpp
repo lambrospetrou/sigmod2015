@@ -1189,17 +1189,18 @@ static bool isValidationConflict(LPValidation& v) {
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
-        if (colCountUniq > 1) {
+        //if (colCountUniq > 1) {
             for(; transFrom<transTo; ++transFrom) {  
                 if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
+        /*
         } else {
             //cerr << ":: val " << v.validationId << endl;
             for(; transFrom<transTo; ++transFrom) {  
                 if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
             } // end of all the transactions for this relation for this specific query
         }
-        
+        */
         // only do parallel transactions if more than a threashold
         /*
         if (trTidx - trFidx < 100) {
