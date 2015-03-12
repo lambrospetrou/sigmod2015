@@ -340,48 +340,32 @@ static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 static void processValidationQueries(const ValidationQueries& v, ReceivedMessage *msg, uint64_t tid = 0) {
 
 #ifdef LPDEBUG
-    //auto start = LPTimer.getChrono();    
+    auto start = LPTimer.getChrono();    
 #endif 
     (void)tid;
 
     // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
+    /*
     vector<LPQuery> queries;
     queries.reserve(v.queryCount);
     const char* qreader=v.queries;
     for (uint32_t i=0;i<v.queryCount;++i) {
         const Query *q=reinterpret_cast<const Query*>(qreader);
-        //if (q->columnCount == 0) continue;
-        //if (v.validationId == 31206) cerr << "r: " << q->relationId << ":" << q->columnCount << endl;
-        /*
-           LPQuery nQ;
-        //cerr << v.validationId << "====" << v.from << ":" << v.to << nQ << endl;
-        if (likely(lp::query::parse(q, gSchema[q->relationId], &nQ))) {
-        // this is a valid query
-        nQ.relationId = q->relationId;
-
-        //if (likely(!nQ.predicates.empty())) {
-        //    // gather statistics    
-        //    auto& p = nQ.predicates[0];
-        //    uint32_t rc = lp::validation::packRelCol(nQ.relationId, p.column);
-        //    gStats[tid].reqCols.emplace_back((p.op == Op::Equal), rc);
-        //}
-
-        queries.push_back(move(nQ));
-        }
-         */
         queries.emplace_back(const_cast<Query*>(q));
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
+    */
     //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
-    gPendingValidationsMutex.lock();
-    gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
+    //gPendingValidationsMutex.lock();
+    //gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
+    gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, vector<LPQuery>());    
     // update the global pending validations to reflect this new one
     ++gPVunique;
-    gPendingValidationsMutex.unlock();
+    //gPendingValidationsMutex.unlock();
 
 #ifdef LPDEBUG
-    //LPTimer.validations += LPTimer.getChrono(start);
+    LPTimer.validations += LPTimer.getChrono(start);
 #endif
     return;
 }
@@ -571,10 +555,11 @@ int main(int argc, char**argv) {
             abort();
         }
         isTestdriver = true;
-        msgReader = ReaderIOFactory::createAsync(ifs, true);
+        //msgReader = ReaderIOFactory::createAsync(ifs, true);
+        msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
     }
 
     // do some initial reserves or initializations
@@ -588,8 +573,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -616,8 +601,8 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
-                        //processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
+                        //multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
+                        processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
 
                         break;
                     }
@@ -632,8 +617,8 @@ int main(int argc, char**argv) {
                     }
                 case MessageHead::Flush:  
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.helpExecution();
+                    //multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
                     checkPendingValidations(&workerThreads);
@@ -644,8 +629,8 @@ int main(int argc, char**argv) {
 
                 case MessageHead::Forget: 
                     // check if we have pending transactions to be processed
-                    multiPool.helpExecution();
-                    multiPool.waitAll();
+                    //multiPool.helpExecution();
+                    //multiPool.waitAll();
                     //parsePendingValidationMessages(workerThreads, numOfThreads);
 
                     checkPendingValidations(&workerThreads);
@@ -1077,15 +1062,7 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 }
 
 //static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
-static bool isTransactionConflict(LPQuery& q, vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
-    //auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
-    //    cend = cbegin + q.colCountUniq;
-    //auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-    //auto& relColumns = gRelColumns[q.relationId].columns;
-    //auto& transactions = relColumns[pFirst.column].transactions;
-    (void)q;
-    //auto iter = &transactions[tri];
-    //auto& transValues = iter->second;
+static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     uint32_t pFrom{1};
@@ -1139,13 +1116,26 @@ static bool isValidationConflict(LPValidation& v) {
     }
     std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
     */ 
-    // no empty validation has none query - ONLY if we did the satisfiability check before
-    for (auto& q : v.queries) {
-        lp::query::preprocess(q);
+   
+    const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+    const char* qreader = vq.queries;
+    uint32_t columnCount;
+    for (uint32_t i=0;i<vq.queryCount;++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq.columnCount;
+        //cerr << rq.relationId << " " << rq.columnCount << endl;
+        //queries.emplace_back(const_cast<Query*>(q));
+    //}
+    
+    //for (auto& q : v.queries) {
+        //auto rq = q.rawQuery;
+        //lp::query::preprocess(q);
         // protect from the case where there is no single predicate
-        if (q.colCountUniq == 0) { 
+        //if (q.colCountUniq == 0) { 
+        if (rq.columnCount == 0) { 
             //cerr << "empty: " << v.validationId << endl; 
-            auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
+            //auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
+            auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
             auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
             if (transFromCheck == transToCheck) { 
@@ -1155,10 +1145,18 @@ static bool isValidationConflict(LPValidation& v) {
                 // transactions exist for this query so it is a conflict
                 return true;
             }; 
-        } else if (q.colCountUniq == 1) {
-            auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+        //} else if (q.colCountUniq == 1) {
+        }
+        
+        uint32_t colCountUniq = lp::query::preprocess(&rq); 
+        /* 
+        if (colCountUniq == 1) {
+            //cerr << "uniq 1" << endl;
+            //auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+            auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
             // just find the range of transactions we want in this relation
-            auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+            //auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+            auto& transactions = gRelColumns[rq.relationId].columns[pFirst.column].transactions;
             auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
             auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
             for(; transFrom<transTo; ++transFrom) {  
@@ -1166,8 +1164,10 @@ static bool isValidationConflict(LPValidation& v) {
             } // end of all the transactions for this relation for this specific query
             continue;
         }
-
-        if (!lp::query::satisfiable(q)) continue; // go to the next query
+        */
+        //cerr << "> 1" << endl;
+        if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
+        //cerr << "passed" << endl;
         
         // just find the range of transactions we want in this relation
         //auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
@@ -1178,27 +1178,28 @@ static bool isValidationConflict(LPValidation& v) {
         //auto trTidx = transTo - transactions.begin();
         //cerr << (trTidx - trFidx) << endl;
         
-        auto cbegin = reinterpret_cast<Query::Column*>(q.rawQuery->columns),
-            cend = cbegin + q.colCountUniq;
-        auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
+        auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
+            //cend = cbegin + q.colCountUniq;
+            cend = cbegin + colCountUniq;
+        auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
-        auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+        //auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
+        auto& transactions = gRelColumns[rq.relationId].columns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
-        //if (q.colCountUniq > 1) {
+        if (colCountUniq > 1) {
             for(; transFrom<transTo; ++transFrom) {  
-                if (isTransactionConflict(q, transFrom->second, pFirst, cbegin, cend)) { return true; }
+                if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        /*
         } else {
             //cerr << ":: val " << v.validationId << endl;
             for(; transFrom<transTo; ++transFrom) {  
                 if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
             } // end of all the transactions for this relation for this specific query
         }
-        */
+        
         // only do parallel transactions if more than a threashold
         /*
         if (trTidx - trFidx < 100) {

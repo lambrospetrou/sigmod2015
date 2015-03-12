@@ -79,7 +79,7 @@ namespace lp {
         //bool satisfiable;
 
         LPQuery() : relationId(-1), columnCount(0), rawQuery(nullptr), colCountUniq(0) {}
-        LPQuery(Query *q) : relationId(q->relationId), columnCount(q->columnCount), rawQuery(q), colCountUniq(q->columnCount) {
+        explicit LPQuery(Query *q) : relationId(q->relationId), columnCount(q->columnCount), rawQuery(q), colCountUniq(q->columnCount) {
             //if (q->columnCount == 0) return;
             //std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
             //auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
@@ -125,12 +125,18 @@ namespace lp {
 
     namespace query {
 
-        inline void __attribute__((always_inline)) preprocess(LPQuery& lpq) {
-            //(void)lpq;
+        // return the new number of valid predicates
+        inline uint32_t __attribute__((always_inline)) preprocess(Query *rq) {
+            std::sort(rq->columns, rq->columns+rq->columnCount, ColumnCompCol);
+            auto colEnd = std::unique(rq->columns, rq->columns+rq->columnCount, ColumnCompColEq);
+            return std::distance(rq->columns, colEnd);
+        }
+        inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;
             std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
             auto colEnd = std::unique(q->columns, q->columns+q->columnCount, ColumnCompColEq);
             lpq.colCountUniq = std::distance(q->columns, colEnd);
+            return lpq.colCountUniq;
         }
 
         struct Satisfiability {
@@ -201,7 +207,19 @@ namespace lp {
             return false;
         }
 
-        bool satisfiable(LPQuery& q) { 
+        bool inline satisfiable(Query* q, uint32_t colCountUniq) { 
+            Column * qc = const_cast<Column*>(q->columns);
+            auto colBegin = qc, colEnd = qc + colCountUniq; //colEnd = qc + q->columnCount;
+            if (isQueryUnsolvable(colBegin, colEnd)) {
+                // the query is not-satisfiable so it should be skipped-pruned
+                return false;
+            }
+            //std::partial_sort(colBegin, colBegin+std::min(q->columnCount, (uint32_t)2), colEnd, ColumnCompQuality);
+            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)2), colEnd, ColumnCompQuality);
+            return true;
+        }
+        bool inline satisfiable(LPQuery& q) { 
+            /*
             Column * qc = const_cast<Column*>(q.rawQuery->columns);
             auto colBegin = qc, colEnd = qc + q.colCountUniq;
             if (isQueryUnsolvable(colBegin, colEnd)) {
@@ -210,6 +228,8 @@ namespace lp {
             }
             std::partial_sort(colBegin, colBegin+std::min(q.colCountUniq, (uint32_t)4), colEnd, ColumnCompQuality);
             return true;
+            */
+            return satisfiable(q.rawQuery, q.colCountUniq);
         }
 /*
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ, uint32_t tid = 0) {
