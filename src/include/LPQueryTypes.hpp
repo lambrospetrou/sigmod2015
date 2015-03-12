@@ -206,7 +206,6 @@ namespace lp {
             auto colBegin = qc, colEnd = qc + q.colCountUniq;
             if (isQueryUnsolvable(colBegin, colEnd)) {
                 // the query is not-satisfiable so it should be skipped-pruned
-                q.colCountUniq = 0;
                 return false;
             }
             std::partial_sort(colBegin, colBegin+std::min(q.colCountUniq, (uint32_t)4), colEnd, ColumnCompQuality);
