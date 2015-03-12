@@ -573,8 +573,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1109,17 +1109,24 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-   
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-    const char* qreader = vq.queries;
-    uint32_t columnCount;
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
-        //cerr << rq.relationId << " " << rq.columnCount << endl;
-        //queries.emplace_back(const_cast<Query*>(q));
-    //}
+    vector<Query*> queries; queries.reserve(vq.queryCount);
     
+    const char* qreader = vq.queries;
+    //Query *q;
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*queries.back()->columnCount)) {
+        //q = const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        //if (q->columnCount == 0) queries.insert(queries.begin(), q);
+        //else queries.push_back(q);
+        queries.push_back(const_cast<Query*>(reinterpret_cast<const Query*>(qreader)));
+    }
+    //uint32_t columnCount;
+    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        //Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        //columnCount = rq.columnCount;
+    //cerr << vq.queryCount << endl; 
+    for (auto& q : queries) {
+        Query& rq=*q;
     //for (auto& q : v.queries) {
         //auto rq = q.rawQuery;
         //lp::query::preprocess(q);
