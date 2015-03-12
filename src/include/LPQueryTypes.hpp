@@ -126,10 +126,11 @@ namespace lp {
     namespace query {
 
         // return the new number of valid predicates
-        inline uint32_t __attribute__((always_inline)) preprocess(Query *rq) {
-            std::sort(rq->columns, rq->columns+rq->columnCount, ColumnCompCol);
-            auto colEnd = std::unique(rq->columns, rq->columns+rq->columnCount, ColumnCompColEq);
-            return std::distance(rq->columns, colEnd);
+        inline uint32_t __attribute__((always_inline)) preprocess(Query& rq) {
+            if (unlikely(rq.columnCount == 0)) return 0;
+            std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
+            auto colEnd = std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq);
+            return std::distance(rq.columns, colEnd);
         }
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;
@@ -207,8 +208,9 @@ namespace lp {
             return false;
         }
 
-        bool inline satisfiable(Query* q, uint32_t colCountUniq) { 
-            Column * qc = const_cast<Column*>(q->columns);
+        bool inline satisfiable(Query* q, uint32_t colCountUniq) {
+            if (0 == colCountUniq) return true;
+            Column *qc = const_cast<Column*>(q->columns);
             auto colBegin = qc, colEnd = qc + colCountUniq; //colEnd = qc + q->columnCount;
             if (isQueryUnsolvable(colBegin, colEnd)) {
                 // the query is not-satisfiable so it should be skipped-pruned

@@ -573,8 +573,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1109,20 +1109,13 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    /*
-    for (auto& q : v.queries) {
-        lp::query::preprocess(q);
-        //if (!lp::query::satisfiable(q)) { q.rawQuery = nullptr; q.colCountUniq = UINT32_MAX; continue; } 
-    }
-    std::sort(v.queries.begin(), v.queries.end(), LPQueryCompUniqSize);
-    */ 
    
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
     const char* qreader = vq.queries;
-    uint32_t columnCount;
-    for (uint32_t i=0;i<vq.queryCount;++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+    //uint32_t columnCount;
+    for (uint32_t i=0; i<vq.queryCount; ++i) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
+        //columnCount = rq.columnCount;
         //cerr << rq.relationId << " " << rq.columnCount << endl;
         //queries.emplace_back(const_cast<Query*>(q));
     //}
@@ -1132,7 +1125,7 @@ static bool isValidationConflict(LPValidation& v) {
         //lp::query::preprocess(q);
         // protect from the case where there is no single predicate
         //if (q.colCountUniq == 0) { 
-        if (rq.columnCount == 0) { 
+        if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             //auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
@@ -1140,6 +1133,7 @@ static bool isValidationConflict(LPValidation& v) {
             auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
             if (transFromCheck == transToCheck) { 
                 // no transactions exist for this query
+                qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
                 continue;
             } else { 
                 // transactions exist for this query so it is a conflict
@@ -1148,7 +1142,7 @@ static bool isValidationConflict(LPValidation& v) {
         //} else if (q.colCountUniq == 1) {
         }
         
-        uint32_t colCountUniq = lp::query::preprocess(&rq); 
+        uint32_t colCountUniq = lp::query::preprocess(rq); 
         /* 
         if (colCountUniq == 1) {
             //cerr << "uniq 1" << endl;
@@ -1166,7 +1160,11 @@ static bool isValidationConflict(LPValidation& v) {
         }
         */
         //cerr << "> 1" << endl;
-        if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
+        if (unlikely(!lp::query::satisfiable(&rq, colCountUniq))) { 
+            qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
+            /*cerr << "rej" << endl;*/ 
+            continue; 
+        } // go to the next query
         //cerr << "passed" << endl;
         
         // just find the range of transactions we want in this relation
@@ -1219,6 +1217,7 @@ static bool isValidationConflict(LPValidation& v) {
             if (conflict) return true;
         }
         */
+        qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
     }// end for all queries
     return false;
 }

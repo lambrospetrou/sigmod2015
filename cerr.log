@@ -1,1 +1,74 @@
-make: *** [reference] Interrupt
+In file included from include/cpp_btree/btree_map.h:31:0,
+                 from reference.cpp:68:
+include/cpp_btree/btree.h: In instantiation of ‘btree::btree_node<Params>::reference btree::btree_node<Params>::value(int) [with Params = btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256>; btree::btree_node<Params>::reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&]’:
+include/cpp_btree/btree.h:809:12:   required from ‘btree::btree_iterator<Node, Reference, Pointer>::pointer btree::btree_iterator<Node, Reference, Pointer>::operator->() const [with Node = btree::btree_node<btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256> >; Reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&; Pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*; btree::btree_iterator<Node, Reference, Pointer>::pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*]’
+reference.cpp:834:102:   required from here
+include/cpp_btree/btree.h:557:57: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
+     return reinterpret_cast<reference>(fields_.values[i]);
+                                                         ^
+empty: 1739
+empty: 2240
+empty: 2290
+empty: 2367
+empty: 2781
+empty: 3887
+empty: 3942
+empty: 10678
+empty: 11004
+empty: 11841
+empty: 12129
+empty: 12331
+empty: 12539
+empty: 12677
+empty: 16279
+empty: 17608
+empty: 19540
+empty: 22347
+empty: 22581
+empty: 23230
+empty: 23545
+empty: 25385
+empty: 29886
+empty: 31122
+empty: 31206
+empty: 31596
+empty: 31813
+empty: 32168
+empty: 33786
+empty: 35661
+empty: 36190
+empty: 36429
+empty: 36522
+empty: 36901
+empty: 37134
+empty: 37330
+empty: 38314
+empty: 43565
+empty: 43934
+empty: 44489
+empty: 45726
+empty: 48396
+empty: 49799
+empty: 51905
+empty: 56124
+empty: 56284
+empty: 56651
+empty: 58274
+empty: 61176
+empty: 62839
+empty: 66510
+empty: 67129
+empty: 67179
+empty: 67432
+empty: 69703
+empty: 70493
+empty: 71697
+empty: 72548
+empty: 73581
+empty: 73653
+empty: 74899
+empty: 75142
+empty: 75465
+  :::: LPTimer [val: 2876 val-proc: 5092155 trans: 41683 trans-index: 802624 flush: 3887 forget: 132118 reads: 505737/0]
+
+total validations: 80908 trans: 19656 tuples: 424515
