@@ -1110,23 +1110,21 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-    vector<Query*> queries; queries.reserve(vq.queryCount);
+    //vector<Query*> queries; queries.reserve(vq.queryCount);
     
     const char* qreader = vq.queries;
-    //Query *q;
+    /*
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*queries.back()->columnCount)) {
-        //q = const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //if (q->columnCount == 0) queries.insert(queries.begin(), q);
-        //else queries.push_back(q);
         queries.push_back(const_cast<Query*>(reinterpret_cast<const Query*>(qreader)));
     }
-    //uint32_t columnCount;
-    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        //Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //columnCount = rq.columnCount;
-    //cerr << vq.queryCount << endl; 
     for (auto& q : queries) {
         Query& rq=*q;
+    */
+    uint32_t columnCount;
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq.columnCount;
+    //cerr << vq.queryCount << endl; 
     //for (auto& q : v.queries) {
         //auto rq = q.rawQuery;
         //lp::query::preprocess(q);
