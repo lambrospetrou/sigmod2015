@@ -1112,10 +1112,10 @@ static bool isValidationConflict(LPValidation& v) {
    
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
     const char* qreader = vq.queries;
-    //uint32_t columnCount;
-    for (uint32_t i=0; i<vq.queryCount; ++i) {
+    uint32_t columnCount;
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //columnCount = rq.columnCount;
+        columnCount = rq.columnCount;
         //cerr << rq.relationId << " " << rq.columnCount << endl;
         //queries.emplace_back(const_cast<Query*>(q));
     //}
@@ -1133,7 +1133,6 @@ static bool isValidationConflict(LPValidation& v) {
             auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
             if (transFromCheck == transToCheck) { 
                 // no transactions exist for this query
-                qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
                 continue;
             } else { 
                 // transactions exist for this query so it is a conflict
@@ -1160,11 +1159,7 @@ static bool isValidationConflict(LPValidation& v) {
         }
         */
         //cerr << "> 1" << endl;
-        if (unlikely(!lp::query::satisfiable(&rq, colCountUniq))) { 
-            qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
-            /*cerr << "rej" << endl;*/ 
-            continue; 
-        } // go to the next query
+        if (unlikely(!lp::query::satisfiable(&rq, colCountUniq))) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
         //cerr << "passed" << endl;
         
         // just find the range of transactions we want in this relation
@@ -1217,7 +1212,6 @@ static bool isValidationConflict(LPValidation& v) {
             if (conflict) return true;
         }
         */
-        qreader+=sizeof(Query)+(sizeof(Query::Column)*rq.columnCount);
     }// end for all queries
     return false;
 }
