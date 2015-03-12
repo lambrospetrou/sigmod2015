@@ -464,10 +464,10 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
 #endif
 }
 
+/*
 //static vector<ParseMessageStruct*> gPendingValidationMessages;
 static vector<ReceivedMessage*> gPendingValidationMessages;
 static std::atomic<uint64_t> gPVMCnt;
-/*
    static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid) {
    (void)tid; (void)nThreads;// to avoid unused warning
 //cerr << "::: tid " << tid << "new" << endl;
@@ -1076,22 +1076,18 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
         case Op::Less: 
             //tupFrom = tBegin;                    
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-    if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
             //tupFrom = tBegin;                    
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
-    if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
             //tupTo = tEnd;                   
-    if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             //tupTo = tEnd;                   
-    if (tupTo == tupFrom) return false;
             break;
         default: 
             //tupFrom = tBegin;
@@ -1100,6 +1096,7 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     }
 
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
+    if (tupTo == tupFrom) return false;
     //if (std::distance(tupFrom, tupTo) == 0) return false;
 
     if (pFrom == 1) ++cbegin;
