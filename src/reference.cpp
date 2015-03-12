@@ -530,8 +530,6 @@ void inline initTBB(uint32_t nThreads) {
 }
 #endif 
 
-std::unordered_map<uint32_t, uint32_t> TransValues;
-
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -651,12 +649,6 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
 #endif              
-            for (auto& vp : TransValues) {
-                cerr << vp.first << " " << vp.second << endl;
-            }
-            TransValues.clear();
-            
-            
                         workerThreads.destroy();
                         //multiPool.destroy();
                         delete msgReader;
@@ -782,7 +774,7 @@ static void updateRequiredColumns(uint64_t ri) {
             }
             sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
             // add the sentinel value
-            vecBack.emplace_back(UINT64_MAX, nullptr);
+            //vecBack.emplace_back(UINT64_MAX, nullptr);
         }
         if(likely(!relation.transLogTuples.empty()))
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
@@ -1074,25 +1066,17 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 
 //static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
 static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
-    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end()-1;
+    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     //uint32_t pFrom{1};
     //++cbegin; // TODO - we increment the cbegin from outside so avoid doing it twice
     // find the valid tuples using range binary searches based on the first predicate
-    uint32_t fromI, toI;
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (transValues.size() < 50) {
-                for (fromI=0; transValues[fromI].value<pFirst.value; ++fromI);
-                if (fromI == transValues.size()-1 || transValues[fromI].value != pFirst.value) return false;
-                for (toI=fromI; transValues[toI].value == pFirst.value; ++toI);
-                tupFrom = tBegin + fromI; tupTo = tBegin + toI;
-                } else {
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
-                }
                 break;}
         case Op::Less: 
             //tupFrom = tBegin;                    
