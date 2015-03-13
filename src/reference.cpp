@@ -874,9 +874,9 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     if (lb != relation.insertedRows.end()) {
                         // lb->second is a pair<uint64_t, uint64_t*> - trans_id/tuple
                         // decrease counter of trans tuples
-                        auto tit = lower_bound(relation.transLog.begin(), relation.transLog.end(), lb->second.first, RTLComp);
-                        (*tit)->last_del_id = trans.trans_id;
-                        --(*tit)->aliveTuples;
+                        //auto tit = lower_bound(relation.transLog.begin(), relation.transLog.end(), lb->second.first, RTLComp);
+                        //(*tit)->last_del_id = trans.trans_id;
+                        //--(*tit)->aliveTuples;
 
                         // update the relation transactions - transfer ownership of the tuple
                         //tuple_t tpl = lb->second.second;

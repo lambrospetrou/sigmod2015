@@ -129,7 +129,7 @@ namespace lp {
 
         // return the new number of valid predicates
         inline uint32_t __attribute__((always_inline)) preprocess(Query& rq) {
-            if (unlikely(rq.columnCount == 0)) return 0;
+            if (rq.columnCount == 0) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
             return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
