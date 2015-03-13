@@ -145,7 +145,11 @@ struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     uint64_t transTo;
     vector<ColumnTransaction_t> transactions;
-    ColumnStruct() : transTo(0) {}
+    vector<uint64_t> transactionsORs;
+    ColumnStruct() : transTo(0) {
+        //transactions.reserve(128);
+        //transactionsORs.reserve(128);
+    }
 };
 struct CTRSLessThan_t {
     inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -409,21 +413,22 @@ static void processForget(const Forget& f) {
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
-            cCol.transactions.erase(cCol.transactions.begin(),
-                    upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
+            auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
                         f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; }
-                        ));
-
+                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; });
+            
+            cCol.transactions.erase(cCol.transactions.begin(), ub);
+            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
         // clean the transactions log
         auto& transLog = gRelations[i].transLog; 
+        
         //cerr << "size bef: " << transLog.size() << endl;
         for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
             if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
             else ++it;
         }
-
+        
         // delete the transLogTuples
         auto& transLogTuples = gRelations[i].transLogTuples;
         transLogTuples.erase(transLogTuples.begin(), 
@@ -751,7 +756,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
-//#pragma omp parallel for schedule(static, 1) num_threads(2)
+#pragma omp parallel for schedule(static, 1) num_threads(4)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -762,17 +767,21 @@ static void updateRequiredColumns(uint64_t ri) {
         //    lp::validation::unpackRelCol(colBegin->second, rel, col);
         //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
         auto& colTransactions = relColumns[col].transactions;
+        auto& colTransactionsORs = relColumns[col].transactionsORs;
 
         // for all the transactions in the relation
         for(auto trp=transFrom; trp!=tEnd; ++trp) {
+            colTransactionsORs.push_back(0);
             // allocate vectors for the current new transaction to put its data
             colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
             auto& vecBack = colTransactions.back().second;
             for (auto tpl : trp->second) {
                 vecBack.emplace_back(tpl[col], tpl);
+                colTransactionsORs.back() |= tpl[col];
             }
             sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+            //cerr << "OR: " << colTransactionsORs.back() << endl;
             // add the sentinel value
             //vecBack.emplace_back(UINT64_MAX, nullptr);
         }
@@ -1065,7 +1074,7 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 
 
 //static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
-static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
+static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     //uint32_t pFrom{1};
@@ -1074,6 +1083,7 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     switch (pFirst.op) {
         case Op::Equal: 
             {
+                if (likely((ORed & pFirst.value) != pFirst.value)) {/*cerr << "m";*/ return false;}
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
@@ -1195,12 +1205,15 @@ static bool isValidationConflict(LPValidation& v) {
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
+        auto& transactionsORs = gRelColumns[rq.relationId].columns[pFirst.column].transactionsORs;
+        uint32_t pos = std::distance(transactions.begin(), transFrom);
+
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
         //if (colCountUniq > 1) {
             // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
             ++cbegin;
-            for(; transFrom<transTo; ++transFrom) {  
-                if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend)) { return true; }
+            for(; transFrom<transTo; ++transFrom, ++pos) {  
+                if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend, transactionsORs[pos])) { return true; }
             } // end of all the transactions for this relation for this specific query
 
 
