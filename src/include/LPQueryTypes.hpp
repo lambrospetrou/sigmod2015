@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <memory>
 
+#include "asm/asmlib.h"
+
 namespace lp {
 
     typedef Query::Column::Op Op;
@@ -129,8 +131,7 @@ namespace lp {
         inline uint32_t __attribute__((always_inline)) preprocess(Query& rq) {
             if (unlikely(rq.columnCount == 0)) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
-            auto colEnd = std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq);
-            return std::distance(rq.columns, colEnd);
+            return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;
@@ -144,11 +145,11 @@ namespace lp {
             bool pastOps[6];
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
             Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
-                memset(pastOps, 0, 6);
+                A_memset(pastOps, 0, 6);
             }
             inline void reset() {
                 eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
-                memset(pastOps, 0, 6);
+                A_memset(pastOps, 0, 6);
             }
         };
 
@@ -169,21 +170,25 @@ namespace lp {
                     if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
                     sat.pastOps[Op::Less] = true;
                     if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
+                    //else { p.value = sat.lt; }
                     break;
                 case Op::LessOrEqual:
                     if (sat.pastOps[Op::Equal] && sat.eq > p.value) return true;
                     sat.pastOps[Op::LessOrEqual] = true;
                     if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
+                    //else { p.value = sat.leq; }
                     break;
                 case Op::Greater:
                     if (sat.pastOps[Op::Equal] && sat.eq <= p.value) return true;
                     sat.pastOps[Op::Greater] = true;
                     if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
+                    //else { p.value = sat.gt; }
                     break;
                 case Op::GreaterOrEqual:
                     if (sat.pastOps[Op::Equal] && sat.eq < p.value) return true;
                     sat.pastOps[Op::GreaterOrEqual] = true;
                     if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
+                    //else { p.value = sat.geq; }
                     break;
             }
 
