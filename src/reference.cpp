@@ -1031,34 +1031,22 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
         //bool result = false;
         switch (c.op) {
             case Op::Equal: 
-                //result=(tupleValue==queryValue); 
-                //if(!(tupleValue==queryValue)) return false; 
-                if(!(tup.tuple[c.column]==c.value)) return false; 
+                if((tup.tuple[c.column]!=c.value)) return false; 
                 break;
             case Op::Less: 
-                //result=(tupleValue<queryValue); 
-                //if(!(tupleValue<queryValue)) return false; 
-                if(!(tup.tuple[c.column]<c.value)) return false; 
+                if((tup.tuple[c.column]>=c.value)) return false; 
                 break;
             case Op::LessOrEqual: 
-                //result=(tupleValue<=queryValue); 
-                //if(!(tupleValue<=queryValue)) return false; 
-                if(!(tup.tuple[c.column]<=c.value)) return false; 
+                if((tup.tuple[c.column]>c.value)) return false; 
                 break;
             case Op::Greater: 
-                //result=(tupleValue>queryValue); 
-                //if(!(tupleValue>queryValue)) return false; 
-                if(!(tup.tuple[c.column]>c.value)) return false; 
+                if((tup.tuple[c.column]<=c.value)) return false; 
                 break;
             case Op::GreaterOrEqual: 
-                //result=(tupleValue>=queryValue); 
-                //if(!(tupleValue>=queryValue)) return false; 
-                if(!(tup.tuple[c.column]>=c.value)) return false; 
+                if((tup.tuple[c.column]<c.value)) return false; 
                 break;
             case Op::NotEqual: 
-                //result=(tupleValue!=queryValue); 
-                //if(!(tupleValue!=queryValue)) return false; 
-                if(!(tup.tuple[c.column]!=c.value)) return false; 
+                if(tup.tuple[c.column]==c.value) return false; 
                 break;
         } 
         // there is one predicate not true so this cannot be conflict 
@@ -1107,7 +1095,8 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 
 
 //static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
-static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
+//static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
+static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     //uint32_t pFrom{1};
@@ -1116,7 +1105,7 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (likely((ORed & pFirst.value) != pFirst.value)) {/*cerr << "m";*/ return false;}
+                //if (likely((ORed & pFirst.value) != pFirst.value)) {/*cerr << "m";*/ return false;}
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
@@ -1234,19 +1223,37 @@ static bool isValidationConflict(LPValidation& v) {
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
         //auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
-        auto& transactions = gRelColumns[rq.relationId].columns[pFirst.column].transactions;
+        auto& relColumns = gRelColumns[rq.relationId].columns;
+        auto& transactions = relColumns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
         
-        auto& transactionsORs = gRelColumns[rq.relationId].columns[pFirst.column].transactionsORs;
         uint32_t pos = std::distance(transactions.begin(), transFrom);
 
         //for(auto tri=trFidx; tri<trTidx; ++tri) {  
         //if (colCountUniq > 1) {
             // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
-            ++cbegin;
+            auto cbSecond = cbegin+1;
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (isTransactionConflict(transFrom->second, pFirst, cbegin, cend, transactionsORs[pos])) { return true; }
+                /*
+                if (colCountUniq > 2) {
+                    auto& cb = cbegin[0];
+                    if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    auto& cb1 = cbegin[1];
+                    if (cb1.op==Op::Equal && (relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                    auto& cb2 = cbegin[2];
+                    if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
+                } else if (colCountUniq > 1) {
+                    auto& cb = cbegin[0];
+                    if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    auto& cb1 = cbegin[1];
+                    if (cb1.op==Op::Equal && (relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                } else {
+                */
+                    auto& cb = cbegin[0];
+                    if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                //}
+                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
 
 

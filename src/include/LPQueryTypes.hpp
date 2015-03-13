@@ -222,7 +222,7 @@ namespace lp {
                 return false;
             }
             //std::partial_sort(colBegin, colBegin+std::min(q->columnCount, (uint32_t)2), colEnd, ColumnCompQuality);
-            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)2), colEnd, ColumnCompQuality);
+            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)4), colEnd, ColumnCompQuality);
             return true;
         }
         bool inline satisfiable(LPQuery& q) { 
