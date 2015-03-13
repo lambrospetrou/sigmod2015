@@ -842,7 +842,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             // TODO - we have to run this regardless of transactions since some
             // columns might have to use previous transactions and be called for the first time
             //updateRequiredColumns(ri, colBegin, colEnd);
-            updateRequiredColumns(ri);
+            //updateRequiredColumns(ri);
             continue; 
         }
 
