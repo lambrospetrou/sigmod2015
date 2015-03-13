@@ -402,11 +402,51 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 }
 //---------------------------------------------------------------------------
 
-static void processForget(const Forget& f) {
+static atomic<uint64_t> gNextFRel;
+void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+    //cerr << "::: tid " << tid << "new" << endl;
+    //auto& f = gF;
+    auto f = *reinterpret_cast<Forget*>(args);
+    for (uint64_t ri = gNextFRel++; likely(ri < NUM_RELATIONS); ri=gNextFRel++) { 
+        auto& cRelCol = gRelColumns[ri];
+        // clean the index columns
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            auto& cCol = cRelCol.columns[ci];
+            auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
+                        f.transactionId,
+                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; });
+            
+            cCol.transactions.erase(cCol.transactions.begin(), ub);
+            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
+        }
+        // clean the transactions log
+        auto& transLog = gRelations[ri].transLog; 
+        /* 
+        //cerr << "size bef: " << transLog.size() << endl;
+        for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
+            if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
+            else ++it;
+        }
+        */
+        
+        // delete the transLogTuples
+        auto& transLogTuples = gRelations[ri].transLogTuples;
+        transLogTuples.erase(transLogTuples.begin(), 
+                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
+                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
+                );
+    }
+}
+        
+static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-
+    gNextFRel = 0; 
+    pool->startSingleAll(processForgetThreaded, (void*)&f);
+    pool->waitSingleAll();
+/*
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
@@ -437,19 +477,11 @@ static void processForget(const Forget& f) {
                 );
         //cerr << "size after: " << transLog.size() << endl;
     }
-    /*
-    // then delete the transactions from the transaction history 
-    auto ub = upper_bound(gTransactionHistory.begin(), 
-    gTransactionHistory.end(), 
-    f.transactionId,
-    [](const uint64_t target, const TransactionStruct& ts){ return target < ts.trans_id; });
-    gTransactionHistory.erase(gTransactionHistory.begin(), ub);
-     */
+*/
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
 }
-
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
@@ -640,7 +672,7 @@ int main(int argc, char**argv) {
 
                     checkPendingValidations(&workerThreads);
                     Globals.state = GlobalState::FORGET;
-                    processForget(*reinterpret_cast<const Forget*>(msg->data.data())); 
+                    processForget(*reinterpret_cast<const Forget*>(msg->data.data()), &workerThreads); 
                     delete msg;
                     break;
 
@@ -756,7 +788,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
-#pragma omp parallel for schedule(static, 1) num_threads(4)
+#pragma omp parallel for schedule(static, 1) num_threads(3)
     for (uint32_t col=0; col<gSchema[ri]; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
