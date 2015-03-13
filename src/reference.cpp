@@ -408,7 +408,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     //cerr << "::: tid " << tid << "new" << endl;
     //auto& f = gF;
     auto f = *reinterpret_cast<Forget*>(args);
-    for (uint64_t ri = gNextFRel++; likely(ri < NUM_RELATIONS); ri=gNextFRel++) { 
+    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
         auto& cRelCol = gRelColumns[ri];
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
@@ -789,7 +789,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
     uint32_t colsz=gSchema[ri];
-#pragma omp parallel for schedule(static, 1) num_threads(3)
+#pragma omp parallel for schedule(static, 1) num_threads(4)
     for (uint32_t col=0; col<colsz; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -829,7 +829,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
 
-    for (uint64_t ri = gNextIndex++; likely(ri < NUM_RELATIONS); ri=gNextIndex++) {
+    for (uint64_t ri = gNextIndex++; ri < NUM_RELATIONS; ri=gNextIndex++) {
         //#pragma omp parallel for schedule(static, 1)  
         //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
@@ -1205,7 +1205,7 @@ static bool isValidationConflict(LPValidation& v) {
         }
         */
         //cerr << "> 1" << endl;
-        if (unlikely(!lp::query::satisfiable(&rq, colCountUniq))) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
+        if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
         //cerr << "passed" << endl;
         
         // just find the range of transactions we want in this relation
@@ -1303,7 +1303,7 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
-    for (uint64_t vi = gNextPending++; likely(vi < totalPending); vi=gNextPending++) {
+    for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
     //#pragma omp parallel for schedule(static, 1)
     //for (uint64_t vi = 0; vi < totalPending; ++vi) {
     //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
