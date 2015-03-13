@@ -443,10 +443,12 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    gNextFRel = 0; 
-    pool->startSingleAll(processForgetThreaded, (void*)&f);
-    pool->waitSingleAll();
-/*
+    if (false) {
+        gNextFRel = 0; 
+        pool->startSingleAll(processForgetThreaded, (void*)&f);
+        pool->waitSingleAll();
+    }
+
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
@@ -460,15 +462,15 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
+/*
         // clean the transactions log
-        auto& transLog = gRelations[i].transLog; 
-        
+        auto& transLog = gRelations[i].transLog;         
         //cerr << "size bef: " << transLog.size() << endl;
         for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
             if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
             else ++it;
         }
-        
+*/      
         // delete the transLogTuples
         auto& transLogTuples = gRelations[i].transLogTuples;
         transLogTuples.erase(transLogTuples.begin(), 
@@ -477,7 +479,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
                 );
         //cerr << "size after: " << transLog.size() << endl;
     }
-*/
+
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -610,8 +612,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -789,7 +791,7 @@ static void updateRequiredColumns(uint64_t ri) {
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
     uint32_t colsz=gSchema[ri];
-#pragma omp parallel for schedule(static, 1) num_threads(4)
+//#pragma omp parallel for schedule(static, 1) num_threads(4)
     for (uint32_t col=0; col<colsz; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
@@ -909,7 +911,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // update with new transactions
         //updateRequiredColumns(ri, colBegin, colEnd);
-        //updateRequiredColumns(ri);
+        updateRequiredColumns(ri);
     } // end of while true
 }
 
@@ -996,9 +998,10 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
-    processUpdateIndexTask(0, 0, nullptr);
     //(void)pool;
     //processPendingIndexTask(4, 0);
+
+    //processUpdateIndexTask(0, 0, nullptr);
 
     //#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
