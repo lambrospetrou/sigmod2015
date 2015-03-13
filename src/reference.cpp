@@ -421,8 +421,8 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
         // clean the transactions log
-        auto& transLog = gRelations[ri].transLog; 
         /* 
+        auto& transLog = gRelations[ri].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
         for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
             if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
