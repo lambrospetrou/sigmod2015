@@ -788,8 +788,9 @@ static void updateRequiredColumns(uint64_t ri) {
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
     // for each column to be indexed
+    uint32_t colsz=gSchema[ri];
 #pragma omp parallel for schedule(static, 1) num_threads(3)
-    for (uint32_t col=0; col<gSchema[ri]; ++col) {
+    for (uint32_t col=0; col<colsz; ++col) {
         //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
     //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
     //    for (uint32_t col=r.begin(); col<r.end(); ++col) {
@@ -817,7 +818,7 @@ static void updateRequiredColumns(uint64_t ri) {
             // add the sentinel value
             //vecBack.emplace_back(UINT64_MAX, nullptr);
         }
-        if(likely(!relation.transLogTuples.empty()))
+        if(!relation.transLogTuples.empty())
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
         //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
       //      }});
@@ -837,7 +838,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
-        if (relTrans.empty()) { 
+        if (unlikely(relTrans.empty())) { 
             // TODO - we have to run this regardless of transactions since some
             // columns might have to use previous transactions and be called for the first time
             //updateRequiredColumns(ri, colBegin, colEnd);
