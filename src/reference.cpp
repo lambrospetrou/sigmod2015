@@ -909,8 +909,49 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // update with new transactions
         //updateRequiredColumns(ri, colBegin, colEnd);
-        updateRequiredColumns(ri);
+        //updateRequiredColumns(ri);
     } // end of while true
+}
+
+
+void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+//#pragma omp parallel for collapse(2)
+#pragma omp parallel for schedule(static,1) num_threads(2)
+    for (uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {    
+        auto& relation = gRelations[ri];
+        auto& relColumns = gRelColumns[ri].columns;
+        
+        uint64_t updatedUntil = relColumns[0].transTo;
+        // Use lower_bound to automatically jump to the transaction to start
+        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+        auto tEnd=relation.transLogTuples.end();
+        uint32_t colsz = gSchema[ri];
+#pragma omp parallel for shared(updatedUntil, transFrom, tEnd)//schedule(static,1)
+        for (uint32_t col=0; col<colsz; ++col) {
+            auto& colTransactions = relColumns[col].transactions;
+            auto& colTransactionsORs = relColumns[col].transactionsORs;
+
+            // for all the transactions in the relation
+            for(auto trp=transFrom; trp!=tEnd; ++trp) {
+                colTransactionsORs.push_back(0);
+                // allocate vectors for the current new transaction to put its data
+                colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+                colTransactions.back().second.reserve(trp->second.size());
+                auto& vecBack = colTransactions.back().second;
+                for (auto tpl : trp->second) {
+                    vecBack.emplace_back(tpl[col], tpl);
+                    colTransactionsORs.back() |= tpl[col];
+                }
+                sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+                //cerr << "OR: " << colTransactionsORs.back() << endl;
+                // add the sentinel value
+                //vecBack.emplace_back(UINT64_MAX, nullptr);
+            }
+            if(!relation.transLogTuples.empty())
+                relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+        }
+    }
 }
 
 static inline void checkPendingTransactions(ISingleTaskPool *pool) {
@@ -955,6 +996,7 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
+    processUpdateIndexTask(0, 0, nullptr);
     //(void)pool;
     //processPendingIndexTask(4, 0);
 
