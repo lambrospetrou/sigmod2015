@@ -1282,9 +1282,6 @@ static bool isValidationConflict(LPValidation& v) {
                 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
-            //short eqval = (((uint32_t)cb.op)==0)<<2;
-            //eqval |= (((uint32_t)cb1.op)==0)<<1;
-            //eqval |= (((uint32_t)cb2.op)==0);
             short eqval = (lp_EQUAL(((uint32_t)cb.op), 0))<<2;
             eqval |= (lp_EQUAL((uint32_t)cb1.op, 0))<<1;
             eqval |= lp_EQUAL(((uint32_t)cb2.op), 0);
@@ -1317,18 +1314,6 @@ static bool isValidationConflict(LPValidation& v) {
                     if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 }
             }
-            /*
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (cb.op==Op::Equal) { 
-                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (cb1.op==Op::Equal) { 
-                        if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                        if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
-                    }
-                }
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-            */
         } else if (colCountUniq == 2) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             if (cb.op==Op::Equal) { 
