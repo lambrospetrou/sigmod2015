@@ -11,6 +11,10 @@ namespace lp {
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#define lp_EQUAL(x, y) (!((x)^(y)))
+#define lp_EQUAL2(x, y) (!(1 + ~(x) + (y)))
+
+
     inline bool __attribute__((always_inline)) funlikely(bool cond) {
         return (__builtin_expect(cond, 0));
     }

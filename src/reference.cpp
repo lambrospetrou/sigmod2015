@@ -1282,30 +1282,37 @@ static bool isValidationConflict(LPValidation& v) {
                 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
-            if (cb.op==Op::Equal) { 
-                if (cb1.op==Op::Equal) { 
-                    if (cb2.op==Op::Equal) { 
-                        for(; transFrom<transTo; ++transFrom, ++pos) {  
-                            if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                            if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                            if ((relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
-                            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                        }
-                    } else {
-                        for(; transFrom<transTo; ++transFrom, ++pos) {  
-                            if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                            if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                        }
-                    }
-                } else {
-                    for(; transFrom<transTo; ++transFrom, ++pos) {  
-                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                    } // end of all the transactions for this relation for this specific query
+            //short eqval = (((uint32_t)cb.op)==0)<<2;
+            //eqval |= (((uint32_t)cb1.op)==0)<<1;
+            //eqval |= (((uint32_t)cb2.op)==0);
+            short eqval = (lp_EQUAL(((uint32_t)cb.op), 0))<<2;
+            eqval |= (lp_EQUAL((uint32_t)cb1.op,0))<<1;
+            eqval |= lp_EQUAL(((uint32_t)cb2.op), 0);
+            if (eqval == 7) {
+                auto& or0 = relColumns[cb.column].transactionsORs;
+                auto& or1 = relColumns[cb1.column].transactionsORs;
+                auto& or2 = relColumns[cb2.column].transactionsORs;
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((or0[pos] & cb.value) != cb.value) {continue;}
+                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
+                    if ((or2[pos] & cb2.value) != cb2.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 }
-            } // end of all the transactions for this relation for this specific query
-            else {
+            } else if (eqval == 6) {
+                auto& or0 = relColumns[cb.column].transactionsORs;
+                auto& or1 = relColumns[cb1.column].transactionsORs;
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((or0[pos] & cb.value) != cb.value) {continue;}
+                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                }
+            } else if (eqval == 4) {
+                auto& or0 = relColumns[cb.column].transactionsORs;
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((or0[pos] & cb.value) != cb.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 } // end of all the transactions for this relation for this specific query
