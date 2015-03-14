@@ -1288,7 +1288,22 @@ static bool isValidationConflict(LPValidation& v) {
             short eqval = (lp_EQUAL(((uint32_t)cb.op), 0))<<2;
             eqval |= (lp_EQUAL((uint32_t)cb1.op,0))<<1;
             eqval |= lp_EQUAL(((uint32_t)cb2.op), 0);
-            if (eqval == 7) {
+            switch (eqval) {
+            case 4: {
+                auto& or0 = relColumns[cb.column].transactionsORs;
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((or0[pos] & cb.value) != cb.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            } case 6: {
+                auto& or0 = relColumns[cb.column].transactionsORs;
+                auto& or1 = relColumns[cb1.column].transactionsORs;
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((or0[pos] & cb.value) != cb.value) {continue;}
+                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                }
+            } case 7: {
                 auto& or0 = relColumns[cb.column].transactionsORs;
                 auto& or1 = relColumns[cb1.column].transactionsORs;
                 auto& or2 = relColumns[cb2.column].transactionsORs;
@@ -1298,25 +1313,12 @@ static bool isValidationConflict(LPValidation& v) {
                     if ((or2[pos] & cb2.value) != cb2.value) {continue;}
                     if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 }
-            } else if (eqval == 6) {
-                auto& or0 = relColumns[cb.column].transactionsORs;
-                auto& or1 = relColumns[cb1.column].transactionsORs;
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((or0[pos] & cb.value) != cb.value) {continue;}
-                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                }
-            } else if (eqval == 4) {
-                auto& or0 = relColumns[cb.column].transactionsORs;
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((or0[pos] & cb.value) != cb.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                } // end of all the transactions for this relation for this specific query
-            } else {
+            } default: {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
+            } // end of switch
             /*
             for(; transFrom<transTo; ++transFrom, ++pos) {  
                 if (cb.op==Op::Equal) { 
