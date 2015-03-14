@@ -1282,6 +1282,35 @@ static bool isValidationConflict(LPValidation& v) {
                 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
+            if (cb.op==Op::Equal) { 
+                if (cb1.op==Op::Equal) { 
+                    if (cb2.op==Op::Equal) { 
+                        for(; transFrom<transTo; ++transFrom, ++pos) {  
+                            if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                            if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                            if ((relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
+                            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                        }
+                    } else {
+                        for(; transFrom<transTo; ++transFrom, ++pos) {  
+                            if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                            if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                        }
+                    }
+                } else {
+                    for(; transFrom<transTo; ++transFrom, ++pos) {  
+                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    } // end of all the transactions for this relation for this specific query
+                }
+            } // end of all the transactions for this relation for this specific query
+            else {
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            }
+            /*
             for(; transFrom<transTo; ++transFrom, ++pos) {  
                 if (cb.op==Op::Equal) { 
                     if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
@@ -1292,23 +1321,40 @@ static bool isValidationConflict(LPValidation& v) {
                 }
                 if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else if (colCountUniq > 1) {
+            */
+        } else if (colCountUniq == 2) {
             auto& cb=cbegin[0], cb1=cbegin[1];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (cb.op==Op::Equal) { 
-                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (cb1.op==Op::Equal) { 
+            if (cb.op==Op::Equal) { 
+                if (cb1.op==Op::Equal) { 
+                    for(; transFrom<transTo; ++transFrom, ++pos) {  
+                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
                         if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                     }
+                } else {
+                    for(; transFrom<transTo; ++transFrom, ++pos) {  
+                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    } // end of all the transactions for this relation for this specific query
                 }
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
+            else {
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            }
         } else {
             auto& cb = cbegin[0];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-            } // end of all the transactions for this relation for this specific query
+            if (cb.op == Op::Equal) {
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            } else {
+                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            }
         }
 
 
