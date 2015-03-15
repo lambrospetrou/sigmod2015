@@ -1148,7 +1148,7 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
         case Op::GreaterOrEqual: 
             return transValues.back().value >= pFirst.value;                   
         default: 
-            return transValues.back().value != pFirst.value || transValues[0].value != pFirst.value;
+            return !lp_EQUAL(transValues.back().value, pFirst.value) || !lp_EQUAL(transValues[0].value, pFirst.value);
     }
     return false;
 }
@@ -1224,8 +1224,7 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
 
-    if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
-    return false;
+    return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
 }
 
 static bool isValidationConflict(LPValidation& v) {
@@ -1352,7 +1351,6 @@ static bool isValidationConflict(LPValidation& v) {
     return false;
 }
 
-
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
@@ -1365,7 +1363,8 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
-        if(isValidationConflict(v)) { atoRes = true; }
+        //if(isValidationConflict(v)) { atoRes = true; }
+        atoRes = isValidationConflict(v);
         delete v.rawMsg;
     } // while true take more validations 
     //); // for tbb::parallel_for
