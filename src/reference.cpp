@@ -1331,7 +1331,7 @@ static bool isValidationConflict(LPValidation& v) {
             } // end of all the transactions for this relation for this specific query
         } else {
             auto& cb = cbegin[0];
-            if (cb.op==Op::Equal) { 
+            if (!cb.op) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (!lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value)) continue;
                     if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
