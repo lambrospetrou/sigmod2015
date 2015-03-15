@@ -1060,7 +1060,9 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     gNextPending = 0;
 
     // sort the validations by query count in order to start the heavy ones earlier
-    std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
+    //std::sort(gPendingValidations.begin(), gPendingValidations.end(), 
+      //      [](const LPValidation& left, const LPValidation& right){ return left.queryCount > right.queryCount; });
+    //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
     pool->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();
