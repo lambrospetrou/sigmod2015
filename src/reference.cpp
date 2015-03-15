@@ -940,7 +940,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         auto& relColumns = gRelColumns[ri].columns;
         
         uint64_t updatedUntil = relColumns[col].transTo;
-        if (relation.transLogTuples.empty() || updatedUntil == relation.transLogTuples.back().first) continue;
+        if (relation.transLogTuples.empty() | lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) continue;
         
         // Use lower_bound to automatically jump to the transaction to start
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
@@ -1086,12 +1086,9 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
         // make the actual check
-        //uint64_t tupleValue = tup.tuple[c.column]; 
-        //uint64_t queryValue = c.value;
-        //bool result = false;
         switch (c.op) {
             case Op::Equal: 
-                if((tup.tuple[c.column]!=c.value)) return false; 
+                if(!lp_EQUAL(tup.tuple[c.column], c.value)) return false; 
                 break;
             case Op::Less: 
                 if((tup.tuple[c.column]>=c.value)) return false; 
@@ -1106,11 +1103,9 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
                 if((tup.tuple[c.column]<c.value)) return false; 
                 break;
             case Op::NotEqual: 
-                if(tup.tuple[c.column]==c.value) return false; 
+                if(lp_EQUAL(tup.tuple[c.column], c.value)) return false; 
                 break;
         } 
-        // there is one predicate not true so this cannot be conflict 
-        //if (!result) { return false; }
     } // end of single query predicates
     return true;    
 }

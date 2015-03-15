@@ -129,7 +129,7 @@ namespace lp {
 
         // return the new number of valid predicates
         inline uint32_t __attribute__((always_inline)) preprocess(Query& rq) {
-            if (rq.columnCount == 0) return 0;
+            if (!rq.columnCount) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
             return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
@@ -163,29 +163,29 @@ namespace lp {
                     break;
                 case Op::NotEqual:
                     // both equality and inequality with same value
-                    if (sat.pastOps[Op::Equal] && sat.eq == p.value) return true;
+                    if (sat.pastOps[Op::Equal] & (sat.eq == p.value)) return true;
                     //sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
                     break;
                 case Op::Less:
-                    if (sat.pastOps[Op::Equal] && sat.eq >= p.value) return true;
+                    if (sat.pastOps[Op::Equal] & (sat.eq >= p.value)) return true;
                     sat.pastOps[Op::Less] = true;
                     if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
                     //else { p.value = sat.lt; }
                     break;
                 case Op::LessOrEqual:
-                    if (sat.pastOps[Op::Equal] && sat.eq > p.value) return true;
+                    if (sat.pastOps[Op::Equal] & (sat.eq > p.value)) return true;
                     sat.pastOps[Op::LessOrEqual] = true;
                     if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
                     //else { p.value = sat.leq; }
                     break;
                 case Op::Greater:
-                    if (sat.pastOps[Op::Equal] && sat.eq <= p.value) return true;
+                    if (sat.pastOps[Op::Equal] & (sat.eq <= p.value)) return true;
                     sat.pastOps[Op::Greater] = true;
                     if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
                     //else { p.value = sat.gt; }
                     break;
                 case Op::GreaterOrEqual:
-                    if (sat.pastOps[Op::Equal] && sat.eq < p.value) return true;
+                    if (sat.pastOps[Op::Equal] & (sat.eq < p.value)) return true;
                     sat.pastOps[Op::GreaterOrEqual] = true;
                     if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
                     //else { p.value = sat.geq; }
@@ -214,7 +214,7 @@ namespace lp {
         }
 
         bool inline satisfiable(Query* q, uint32_t colCountUniq) {
-            if (0 == colCountUniq) return true;
+            if (!colCountUniq) return true;
             Column *qc = const_cast<Column*>(q->columns);
             auto colBegin = qc, colEnd = qc + colCountUniq; //colEnd = qc + q->columnCount;
             if (isQueryUnsolvable(colBegin, colEnd)) {
@@ -222,7 +222,7 @@ namespace lp {
                 return false;
             }
             //std::partial_sort(colBegin, colBegin+std::min(q->columnCount, (uint32_t)2), colEnd, ColumnCompQuality);
-            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)4), colEnd, ColumnCompQuality);
+            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)3), colEnd, ColumnCompQuality);
             return true;
         }
         bool inline satisfiable(LPQuery& q) { 
