@@ -1175,8 +1175,7 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
             case Op::GreaterOrEqual: 
                 if (transValues.back().value < c.value) return true;
                 break;
-            case Op::NotEqual: 
-                if (transValues[0].value == transValues.back().value && transValues.back().value == c.value) return true;
+            default: 
                 break;
         } 
     } // end of single query predicates
@@ -1191,28 +1190,28 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                //if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
+                if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
-            //if (transValues[0].value >= pFirst.value) return false;
+            if (transValues[0].value >= pFirst.value) return false;
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            //if (transValues[0].value > pFirst.value) return false;
+            if (transValues[0].value > pFirst.value) return false;
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
-            //if (transValues.back().value <= pFirst.value) return false;
+            if (transValues.back().value <= pFirst.value) return false;
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
             if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
-            //if (transValues.back().value < pFirst.value) return false;
+            if (transValues.back().value < pFirst.value) return false;
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             if (tupTo == tupFrom) return false;
             break;
@@ -1314,7 +1313,7 @@ static bool isValidationConflict(LPValidation& v) {
         //if (colCountUniq > 1) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
-        /*         
+                 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
@@ -1325,7 +1324,6 @@ static bool isValidationConflict(LPValidation& v) {
                         if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
                     }
                 }
-                if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                 if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else if (colCountUniq > 1) {
@@ -1337,7 +1335,6 @@ static bool isValidationConflict(LPValidation& v) {
                         if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
                     }
                 }
-                if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                 if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
@@ -1345,46 +1342,37 @@ static bool isValidationConflict(LPValidation& v) {
             if (cb.op==Op::Equal) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                     if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                     if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
         }
+        
+        /*
+        if (colCountUniq > 1) {
+            auto& cb = cbegin[0], cb1 = cbegin[1];
+            for(; transFrom<transTo; ++transFrom, ++pos) {  
+                if ((!(uint32_t)cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value)) {continue;}
+                if ((!(uint32_t)cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)) {continue;}
+                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+            } // end of all the transactions for this relation for this specific query
+        } else {
+            auto& cb = cbegin[0];
+            for(; transFrom<transTo; ++transFrom, ++pos) {  
+                if ((cb.op==Op::Equal) & ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value)) {continue;}
+                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+            } // end of all the transactions for this relation for this specific query
+        }
         */
-        for(; transFrom<transTo; ++transFrom, ++pos) {  
-            if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
-            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-        } // end of all the transactions for this relation for this specific query
-
         /*
         } else {
             //cerr << ":: val " << v.validationId << endl;
             for(; transFrom<transTo; ++transFrom) {  
                 if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        }
-        */
-        // only do parallel transactions if more than a threashold
-        /*
-        if (trTidx - trFidx < 100) {
-            for(auto tri=trFidx; tri<trTidx; ++tri) {  
-                if (isTransactionConflict(q, tri)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        } else {
-            // this variable will be used in the range as termination flag
-            volatile bool conflict = false;
-            //tbb::parallel_for ((uint64_t)trFidx, (uint64_t)trTidx, [&] (uint64_t tri) {
-            tbb::parallel_for (cancelable_range<uint64_t>(trFidx, trTidx, 20, conflict), [&] (const cancelable_range<uint64_t>& r) {
-                for (uint64_t tri=r.begin(); tri<r.end(); ++tri) {
-                    if (isTransactionConflict(q, tri)) { conflict = true; r.cancel(); }
-                }
-            }); // tbb parallel for // end of all the transactions for this relation for this specific query
-            if (conflict) return true;
         }
         */
     }// end for all queries
