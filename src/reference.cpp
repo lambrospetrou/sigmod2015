@@ -974,7 +974,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
-
     //cerr << "::: session start ::::" << endl;
     //vector<SColType>* cols = &gStats[0].reqCols;
     /*
