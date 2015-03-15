@@ -1159,51 +1159,44 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
-    //uint32_t pFrom{1};
-    //++cbegin; // TODO - we increment the cbegin from outside so avoid doing it twice
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                //if (likely((ORed & pFirst.value) != pFirst.value)) {/*cerr << "m";*/ return false;}
+                if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
-            //tupFrom = tBegin;                    
+            if (transValues[0].value >= pFirst.value) return false;
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            //tupFrom = tBegin;                    
+            if (transValues[0].value > pFirst.value) return false;
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
+            if (transValues.back().value <= pFirst.value) return false;
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
-            //tupTo = tEnd;                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
+            if (transValues.back().value < pFirst.value) return false;
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
-            //tupTo = tEnd;                   
             if (tupTo == tupFrom) return false;
             break;
         default: 
-            //tupFrom = tBegin;
-            //tupTo = tEnd;
-            //pFrom = 0; 
             cbegin = std::prev(cbegin);
     }
 
     //cerr << transValues.size() << endl;
-    //++TransValues[transValues.size()];
 
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
 
-    //if (likely(pFrom == 1)) ++cbegin; 
     if (isTupleRangeConflict(tupFrom, tupTo, cbegin, cend)) return true;
     return false;
 }
@@ -1233,7 +1226,6 @@ static bool isValidationConflict(LPValidation& v) {
         //if (q.colCountUniq == 0) { 
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
-            //auto& transactionsCheck = gRelations[q.relationId].transLogTuples;
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
             auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
@@ -1323,11 +1315,13 @@ static bool isValidationConflict(LPValidation& v) {
             if (cb.op==Op::Equal) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    //if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    //if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
         }
