@@ -146,11 +146,15 @@ struct ColumnStruct {
     uint64_t transTo;
     vector<ColumnTransaction_t> transactions;
     vector<uint64_t> transactionsORs;
+    
+    char padding[8]; //for false sharing
+    
     ColumnStruct() : transTo(0) {
         //transactions.reserve(128);
         //transactionsORs.reserve(128);
     }
-};
+}__attribute__((align(64)));
+
 struct CTRSLessThan_t {
     inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
@@ -178,11 +182,14 @@ struct RelTransLog {
     uint64_t rowCount;
     //uint64_t *tuples;
     std::unique_ptr<uint64_t[]> tuples;
+    
+    char padding[22]; //for false sharing
 
     RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
         if (tpl != nullptr) tuples.reset(tpl);
     } 
-};
+}__attribute__((align(64)));
+
 struct RTLComp_t {
     inline bool operator() (const RelTransLog& l, const RelTransLog& r) {
         return l.trans_id < r.trans_id;
@@ -202,8 +209,9 @@ struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
-};
-
+    
+    char padding[8]; //for false sharing
+}__attribute__((align(64)));
 struct TransLogComp_t {
     inline bool operator()(const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
         return l.first < target;
@@ -215,7 +223,6 @@ struct TransLogComp_t {
 
 // general relations
 static std::unique_ptr<RelationStruct[]> gRelations;
-
 
 struct TRMapPhase {
     uint64_t trans_id;
@@ -622,6 +629,8 @@ int main(int argc, char**argv) {
     //MultiTaskPool multiPool(1);
     //multiPool.initThreads();
     //multiPool.startAll();
+
+    cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << endl;
 
     try {
 
