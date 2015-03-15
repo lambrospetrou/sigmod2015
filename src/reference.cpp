@@ -169,7 +169,7 @@ struct RelationColumns {
     std::unique_ptr<ColumnStruct[]> columns;
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
-
+static vector<uint32_t> gRequiredColumns;
 
 struct RelTransLog {
     uint64_t trans_id;
@@ -330,9 +330,11 @@ static void processDefineSchema(const DefineSchema& d) {
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
     //cerr << endl << "relations: " << NUM_RELATIONS << endl;
-    for(uint32_t ci=0; ci<d.relationCount; ++ci) {
+    for(uint32_t ri=0; ri<d.relationCount; ++ri) {
         //cerr << " " << gSchema[ci];
-        gRelColumns[ci].columns.reset(new ColumnStruct[gSchema[ci]]);
+        gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
+        for (uint32_t ci=0, csz=gSchema[ri]; ci<csz; ++ci)
+            gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
     }
 }
 //---------------------------------------------------------------------------
@@ -612,8 +614,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -910,50 +912,56 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
         // update with new transactions
-        //updateRequiredColumns(ri, colBegin, colEnd);
-        updateRequiredColumns(ri);
+        //updateRequiredColumns(ri);
     } // end of while true
 }
 
+static std::atomic<uint32_t> gNextReqCol;
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-//#pragma omp parallel for collapse(2)
-#pragma omp parallel for schedule(static,1) num_threads(2)
-    for (uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {    
-        auto& relation = gRelations[ri];
-        auto& relColumns = gRelColumns[ri].columns;
-        
-        uint64_t updatedUntil = relColumns[0].transTo;
-        // Use lower_bound to automatically jump to the transaction to start
-        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-        auto tEnd=relation.transLogTuples.end();
-        uint32_t colsz = gSchema[ri];
-#pragma omp parallel for shared(updatedUntil, transFrom, tEnd)//schedule(static,1)
-        for (uint32_t col=0; col<colsz; ++col) {
-            auto& colTransactions = relColumns[col].transactions;
-            auto& colTransactionsORs = relColumns[col].transactionsORs;
+    uint64_t totalCols = gRequiredColumns.size();
+    for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
+        //for (uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
-            // for all the transactions in the relation
-            for(auto trp=transFrom; trp!=tEnd; ++trp) {
-                colTransactionsORs.push_back(0);
-                // allocate vectors for the current new transaction to put its data
-                colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
-                colTransactions.back().second.reserve(trp->second.size());
-                auto& vecBack = colTransactions.back().second;
-                for (auto tpl : trp->second) {
-                    vecBack.emplace_back(tpl[col], tpl);
-                    colTransactionsORs.back() |= tpl[col];
+        uint32_t ri, col;
+        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+
+        //cerr << "rel: " << ri << " col: " << col << endl;
+
+            auto& relation = gRelations[ri];
+            auto& relColumns = gRelColumns[ri].columns;
+            
+            uint64_t updatedUntil = relColumns[col].transTo;
+            // Use lower_bound to automatically jump to the transaction to start
+            auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+            auto tEnd=relation.transLogTuples.end();
+            //uint32_t colsz = gSchema[ri];
+            //for (uint32_t col=0; col<colsz; ++col) {
+                auto& colTransactions = relColumns[col].transactions;
+                auto& colTransactionsORs = relColumns[col].transactionsORs;
+
+                // for all the transactions in the relation
+                for(auto trp=transFrom; trp!=tEnd; ++trp) {
+                    colTransactionsORs.push_back(0);
+                    // allocate vectors for the current new transaction to put its data
+                    colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+                    colTransactions.back().second.reserve(trp->second.size());
+                    auto& vecBack = colTransactions.back().second;
+                    for (auto tpl : trp->second) {
+                        vecBack.emplace_back(tpl[col], tpl);
+                        colTransactionsORs.back() |= tpl[col];
+                    }
+                    sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+                    //cerr << "OR: " << colTransactionsORs.back() << endl;
+                    // add the sentinel value
+                    //vecBack.emplace_back(UINT64_MAX, nullptr);
                 }
-                sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
-                //cerr << "OR: " << colTransactionsORs.back() << endl;
-                // add the sentinel value
-                //vecBack.emplace_back(UINT64_MAX, nullptr);
-            }
-            if(!relation.transLogTuples.empty())
-                relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
-        }
-    }
+                if(!relation.transLogTuples.empty())
+                    relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+            //} // end for cols
+        //} // end for relations
+    } // end of while columns to update
 }
 
 static inline void checkPendingTransactions(ISingleTaskPool *pool) {
@@ -1000,8 +1008,12 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 
     //(void)pool;
     //processPendingIndexTask(4, 0);
-
+    
+    gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
+    if (false) updateRequiredColumns(0);
+    pool->startSingleAll(processUpdateIndexTask);
+    pool->waitSingleAll();
 
     //#pragma omp parallel for schedule(static, 1) num_threads(2)
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
@@ -1282,64 +1294,32 @@ static bool isValidationConflict(LPValidation& v) {
                 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
-            short eqval = (lp_EQUAL(((uint32_t)cb.op), 0))<<2;
-            eqval |= (lp_EQUAL((uint32_t)cb1.op, 0))<<1;
-            eqval |= lp_EQUAL(((uint32_t)cb2.op), 0);
-            if (lp_EQUAL(eqval, 4)) {
-                auto& or0 = relColumns[cb.column].transactionsORs;
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((or0[pos] & cb.value) != cb.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                } // end of all the transactions for this relation for this specific query
-            } else if (lp_EQUAL(eqval, 6)) {
-                auto& or0 = relColumns[cb.column].transactionsORs;
-                auto& or1 = relColumns[cb1.column].transactionsORs;
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((or0[pos] & cb.value) != cb.value) {continue;}
-                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                }
-            } else if (lp_EQUAL(eqval, 0)) {
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                } // end of all the transactions for this relation for this specific query
-            } else if (lp_EQUAL(eqval, 7)) {
-                auto& or0 = relColumns[cb.column].transactionsORs;
-                auto& or1 = relColumns[cb1.column].transactionsORs;
-                auto& or2 = relColumns[cb2.column].transactionsORs;
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((or0[pos] & cb.value) != cb.value) {continue;}
-                    if ((or1[pos] & cb1.value) != cb1.value) {continue;}
-                    if ((or2[pos] & cb2.value) != cb2.value) {continue;}
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                }
-            }
-        } else if (colCountUniq == 2) {
-            auto& cb=cbegin[0], cb1=cbegin[1];
-            if (cb.op==Op::Equal) { 
-                if (cb1.op==Op::Equal) { 
-                    for(; transFrom<transTo; ++transFrom, ++pos) {  
-                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+            for(; transFrom<transTo; ++transFrom, ++pos) {  
+                if (cb.op==Op::Equal) { 
+                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    if (cb1.op==Op::Equal) { 
                         if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                        if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
                     }
-                } else {
-                    for(; transFrom<transTo; ++transFrom, ++pos) {  
-                        if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                        if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                    } // end of all the transactions for this relation for this specific query
                 }
+                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-            else {
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-                } // end of all the transactions for this relation for this specific query
-            }
+        } else if (colCountUniq > 1) {
+            auto& cb=cbegin[0], cb1=cbegin[1];
+            for(; transFrom<transTo; ++transFrom, ++pos) {  
+                if (cb.op==Op::Equal) { 
+                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    if (cb1.op==Op::Equal) { 
+                        if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
+                    }
+                }
+                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+            } // end of all the transactions for this relation for this specific query
         } else {
             auto& cb = cbegin[0];
-            if (cb.op == Op::Equal) {
+            if (cb.op==Op::Equal) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
+                    if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
                     if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
