@@ -1154,7 +1154,35 @@ static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Colu
 }
 
 
-//static bool isTransactionConflict(LPQuery& q, uint64_t tri, Column pFirst, PredIter cbegin, PredIter cend) {
+bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t pos) {
+    for (; cbegin<cend; ++cbegin) {
+        auto& c = *cbegin;
+        auto& transValues = relColumns[c.column].transactions[pos].second;
+        switch (c.op) {
+            case Op::Equal: 
+                if ((relColumns[c.column].transactionsORs[pos] & c.value) != c.value) return true;
+                if (transValues[0].value > c.value || transValues.back().value < c.value) return true;
+                break;
+            case Op::Less: 
+                if (transValues[0].value >= c.value) return true;
+                break;
+            case Op::LessOrEqual: 
+                if (transValues[0].value > c.value) return true;
+                break;
+            case Op::Greater: 
+                if (transValues.back().value <= c.value) return true;
+                break;
+            case Op::GreaterOrEqual: 
+                if (transValues.back().value < c.value) return true;
+                break;
+            case Op::NotEqual: 
+                if (transValues[0].value == transValues.back().value && transValues.back().value == c.value) return true;
+                break;
+        } 
+    } // end of single query predicates
+    return false; 
+}
+
 //static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
 static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
@@ -1163,28 +1191,28 @@ static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFir
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
+                //if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
                 tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
-            if (transValues[0].value >= pFirst.value) return false;
+            //if (transValues[0].value >= pFirst.value) return false;
             tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            if (transValues[0].value > pFirst.value) return false;
+            //if (transValues[0].value > pFirst.value) return false;
             tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
-            if (transValues.back().value <= pFirst.value) return false;
+            //if (transValues.back().value <= pFirst.value) return false;
             tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
             if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
-            if (transValues.back().value < pFirst.value) return false;
+            //if (transValues.back().value < pFirst.value) return false;
             tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             if (tupTo == tupFrom) return false;
             break;
@@ -1286,7 +1314,7 @@ static bool isValidationConflict(LPValidation& v) {
         //if (colCountUniq > 1) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
-                
+        /*         
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
@@ -1297,6 +1325,7 @@ static bool isValidationConflict(LPValidation& v) {
                         if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
                     }
                 }
+                if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                 if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else if (colCountUniq > 1) {
@@ -1308,6 +1337,7 @@ static bool isValidationConflict(LPValidation& v) {
                         if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
                     }
                 }
+                if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                 if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
@@ -1315,17 +1345,21 @@ static bool isValidationConflict(LPValidation& v) {
             if (cb.op==Op::Equal) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (cb.op==Op::Equal && (relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    //if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                     if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    //if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                    if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
                     if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
         }
-
+        */
+        for(; transFrom<transTo; ++transFrom, ++pos) {  
+            if (isTransactionImpossible(cbegin, cend, relColumns.get(), pos)) { continue; }
+            if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+        } // end of all the transactions for this relation for this specific query
 
         /*
         } else {
