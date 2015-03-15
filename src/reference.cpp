@@ -373,7 +373,8 @@ static void processValidationQueries(const ValidationQueries& v, ReceivedMessage
     //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
     //gPendingValidationsMutex.lock();
     //gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
-    gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, vector<LPQuery>());    
+    //gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(vector<LPQuery>()));    
+    gPendingValidations.emplace_back(v.validationId, v.from, v.to, v.queryCount, msg);    
     // update the global pending validations to reflect this new one
     ++gPVunique;
     //gPendingValidationsMutex.unlock();
@@ -1046,14 +1047,20 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     auto start = LPTimer.getChrono();
 #endif
 
-    resIndexOffset = UINT64_MAX;
-    for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
+    // find the MIN validation ID to coordinate the indexing of the results
+    //resIndexOffset = UINT64_MAX;
+    //for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
+    resIndexOffset = gPendingValidations[0].validationId; // only master handles the messages now so they are in order
+    
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz); // TODO - maybe memset better
-    std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
-    gNextPending.store(0);
+    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz); // TODO - maybe memset better
+    //std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
+    gNextPending = 0;
+
+    // sort the validations by query count in order to start the heavy ones earlier
+    std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
     pool->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();

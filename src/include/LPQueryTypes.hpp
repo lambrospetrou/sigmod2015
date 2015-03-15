@@ -116,14 +116,21 @@ namespace lp {
         
         uint64_t validationId;
         uint64_t from,to;
-        
+        uint32_t queryCount;
+
         LPValidation() {}
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, ReceivedMessage* msg, std::vector<LPQuery> q)
             : queries(move(q)), rawMsg(msg), validationId(vid), from(fr), to(t) {}
+        LPValidation(uint64_t vid, uint64_t fr, uint64_t t, uint32_t qc, ReceivedMessage* msg)
+            : rawMsg(msg), validationId(vid), from(fr), to(t), queryCount(qc) {}
 
         ~LPValidation() {}
     };
-
+    struct LPValidationCompQCount {
+        bool inline operator()(const LPValidation& left, const LPValidation& right){ 
+            return left.queryCount > right.queryCount; 
+        }
+    }LPValCompQCount;
 
     namespace query {
 
