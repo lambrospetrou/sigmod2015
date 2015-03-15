@@ -119,6 +119,8 @@ std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
 typedef uint64_t* tuple_t;
 typedef Query::Column::Op  Op;
 
+#define CACHE_LINE_SIZE 64
+
 // Custom data structures to hold data
 struct CTransStruct {
     uint64_t value;
@@ -153,7 +155,7 @@ struct ColumnStruct {
         //transactions.reserve(128);
         //transactionsORs.reserve(128);
     }
-}__attribute__((align(64)));
+}__attribute__((align(CACHE_LINE_SIZE)));
 
 struct CTRSLessThan_t {
     inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -188,7 +190,7 @@ struct RelTransLog {
     RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
         if (tpl != nullptr) tuples.reset(tpl);
     } 
-}__attribute__((align(64)));
+}__attribute__((align(CACHE_LINE_SIZE)));
 
 struct RTLComp_t {
     inline bool operator() (const RelTransLog& l, const RelTransLog& r) {
@@ -211,7 +213,7 @@ struct RelationStruct {
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
     
     char padding[8]; //for false sharing
-}__attribute__((align(64)));
+}__attribute__((align(CACHE_LINE_SIZE)));
 struct TransLogComp_t {
     inline bool operator()(const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
         return l.first < target;
@@ -351,7 +353,6 @@ static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 #endif
 //---------------------------------------------------------------------------
 static void processValidationQueries(const ValidationQueries& v, ReceivedMessage *msg, uint64_t tid = 0) {
-
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif 
@@ -931,46 +932,39 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
     for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
-        //for (uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
         uint32_t ri, col;
         lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
 
-        //cerr << "rel: " << ri << " col: " << col << endl;
+        auto& relation = gRelations[ri];
+        auto& relColumns = gRelColumns[ri].columns;
+        
+        uint64_t updatedUntil = relColumns[col].transTo;
+        // Use lower_bound to automatically jump to the transaction to start
+        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+        auto tEnd=relation.transLogTuples.end();
+        auto& colTransactions = relColumns[col].transactions;
+        auto& colTransactionsORs = relColumns[col].transactionsORs;
 
-            auto& relation = gRelations[ri];
-            auto& relColumns = gRelColumns[ri].columns;
-            
-            uint64_t updatedUntil = relColumns[col].transTo;
-            // Use lower_bound to automatically jump to the transaction to start
-            auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-            auto tEnd=relation.transLogTuples.end();
-            //uint32_t colsz = gSchema[ri];
-            //for (uint32_t col=0; col<colsz; ++col) {
-                auto& colTransactions = relColumns[col].transactions;
-                auto& colTransactionsORs = relColumns[col].transactionsORs;
-
-                // for all the transactions in the relation
-                for(auto trp=transFrom; trp!=tEnd; ++trp) {
-                    colTransactionsORs.push_back(0);
-                    // allocate vectors for the current new transaction to put its data
-                    colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
-                    colTransactions.back().second.reserve(trp->second.size());
-                    auto& vecBack = colTransactions.back().second;
-                    for (auto tpl : trp->second) {
-                        vecBack.emplace_back(tpl[col], tpl);
-                        colTransactionsORs.back() |= tpl[col];
-                    }
-                    sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
-                    //cerr << "OR: " << colTransactionsORs.back() << endl;
-                    // add the sentinel value
-                    //vecBack.emplace_back(UINT64_MAX, nullptr);
-                }
-                if(!relation.transLogTuples.empty())
-                    relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
-            //} // end for cols
-        //} // end for relations
-    } // end of while columns to update
+        // for all the transactions in the relation
+        for(auto trp=transFrom; trp!=tEnd; ++trp) {
+            colTransactionsORs.push_back(0);
+            // allocate vectors for the current new transaction to put its data
+            colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            colTransactions.back().second.reserve(trp->second.size());
+            auto& vecBack = colTransactions.back().second;
+            for (auto tpl : trp->second) {
+                vecBack.emplace_back(tpl[col], tpl);
+                colTransactionsORs.back() |= tpl[col];
+            }
+            sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+            //cerr << "OR: " << colTransactionsORs.back() << endl;
+            // add the sentinel value
+            //vecBack.emplace_back(UINT64_MAX, nullptr);
+        }
+        if(!relation.transLogTuples.empty())
+            relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+    } // end of while columns to update     
 }
 
 static inline void checkPendingTransactions(ISingleTaskPool *pool) {
@@ -1015,27 +1009,24 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
-    //(void)pool;
-    //processPendingIndexTask(4, 0);
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+#ifdef LPDEBUG
+    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
+#endif
     
+#ifdef LPDEBUG
+    auto startUpdIndex = LPTimer.getChrono();
+#endif
     gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
     if (false) updateRequiredColumns(0);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
 
-    //#pragma omp parallel for schedule(static, 1) num_threads(2)
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
-    /*
-       tbb::parallel_for ((uint32_t)0, NUM_RELATIONS, [&] (uint32_t r) {
-       gTransParseMapPhase[r].clear();
-       });
-     */
     // clear the 1st predicate columns 
     //cols->resize(0);
-
 #ifdef LPDEBUG
-    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
+    LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
 }
 
