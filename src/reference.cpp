@@ -940,6 +940,8 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         auto& relColumns = gRelColumns[ri].columns;
         
         uint64_t updatedUntil = relColumns[col].transTo;
+        if (relation.transLogTuples.empty() || updatedUntil == relation.transLogTuples.back().first) continue;
+        
         // Use lower_bound to automatically jump to the transaction to start
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
         auto tEnd=relation.transLogTuples.end();
@@ -962,7 +964,8 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             // add the sentinel value
             //vecBack.emplace_back(UINT64_MAX, nullptr);
         }
-        if(!relation.transLogTuples.empty())
+        // no need to check for empty since now we update all the columns and there is a check for emptyness above
+        //if(!relation.transLogTuples.empty())
             relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
     } // end of while columns to update     
 }
