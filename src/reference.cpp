@@ -1309,21 +1309,12 @@ static bool isValidationConflict(LPValidation& v) {
         
         uint32_t pos = std::distance(transactions.begin(), transFrom);
 
-        //for(auto tri=trFidx; tri<trTidx; ++tri) {  
-        //if (colCountUniq > 1) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
                  
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                /*if (cb.op==Op::Equal) { 
-                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (cb1.op==Op::Equal) { 
-                        if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                        if (cb2.op==Op::Equal && (relColumns[cb2.column].transactionsORs[pos] & cb2.value) != cb2.value) {continue;}
-                    }
-                }*/
                 if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         | (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         | (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value))
@@ -1333,12 +1324,6 @@ static bool isValidationConflict(LPValidation& v) {
         } else if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                /*if (cb.op==Op::Equal) { 
-                    if ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value) {continue;}
-                    if (cb1.op==Op::Equal) { 
-                        if ((relColumns[cb1.column].transactionsORs[pos] & cb1.value) != cb1.value) {continue;}
-                    }
-                }*/
                 if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         | (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         ) continue;
@@ -1357,30 +1342,11 @@ static bool isValidationConflict(LPValidation& v) {
                 } // end of all the transactions for this relation for this specific query
             }
         }
-        
         /*
-        if (colCountUniq > 1) {
-            auto& cb = cbegin[0], cb1 = cbegin[1];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if ((!(uint32_t)cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value)) {continue;}
-                if ((!(uint32_t)cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)) {continue;}
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        } else {
-            auto& cb = cbegin[0];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if ((cb.op==Op::Equal) & ((relColumns[cb.column].transactionsORs[pos] & cb.value) != cb.value)) {continue;}
-                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        }
-        */
-        /*
-        } else {
-            //cerr << ":: val " << v.validationId << endl;
-            for(; transFrom<transTo; ++transFrom) {  
-                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        }
+        //cerr << ":: val " << v.validationId << endl;
+        for(; transFrom<transTo; ++transFrom) {  
+            if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+        } // end of all the transactions for this relation for this specific query
         */
     }// end for all queries
     return false;
