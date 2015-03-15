@@ -240,7 +240,7 @@ struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
         if (l.trans_id < r.trans_id) return true;
         else if (r.trans_id < l.trans_id) return false;
-        else return l.isDelOp && !r.isDelOp;
+        else return l.isDelOp & !r.isDelOp;
     }
 } TRMapPhaseByTrans;
 

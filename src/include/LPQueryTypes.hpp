@@ -36,9 +36,9 @@ namespace lp {
     } ColumnCompCol;
     struct ColumnCompColEq_t {
         inline bool operator() (const Query::Column& left, const Query::Column& right) {
-            if (left.column != right.column) return false;
-            else if (left.op != right.op) return false;
-            else return left.value == right.value;    
+            if ((left.column ^ right.column)) return false;
+            else if (left.op ^ right.op) return false;
+            else return !(left.value ^ right.value);    
         }
     } ColumnCompColEq;
     struct ColumnCompOp_t {
@@ -60,10 +60,10 @@ namespace lp {
 
     struct ColumnCompQuality_t {
         inline bool operator() (const Query::Column& left, const Query::Column& right) {
-            if (left.op == Op::Equal && right.op != Op::Equal) return true;
-            else if (left.op != Op::Equal && right.op == Op::Equal) return false;
-            else if (left.op == Op::NotEqual && right.op != Op::NotEqual) return false;
-            else if (left.op != Op::NotEqual && right.op == Op::NotEqual) return true;
+            if ((left.op == Op::Equal) & (right.op != Op::Equal)) return true;
+            else if ((left.op != Op::Equal) & (right.op == Op::Equal)) return false;
+            else if ((left.op == Op::NotEqual) & (right.op != Op::NotEqual)) return false;
+            else if ((left.op != Op::NotEqual) & (right.op == Op::NotEqual)) return true;
             return (left.column < right.column);
         }
     } ColumnCompQuality;
