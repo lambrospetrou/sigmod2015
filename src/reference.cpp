@@ -514,57 +514,6 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
 #endif
 }
 
-/*
-//static vector<ParseMessageStruct*> gPendingValidationMessages;
-static vector<ReceivedMessage*> gPendingValidationMessages;
-static std::atomic<uint64_t> gPVMCnt;
-   static void processPendingValidationMessagesTask(uint32_t nThreads, uint32_t tid) {
-   (void)tid; (void)nThreads;// to avoid unused warning
-//cerr << "::: tid " << tid << "new" << endl;
-const uint64_t pvmsz = gPendingValidationMessages.size();
-for (uint64_t vmi = gPVMCnt++; likely(vmi < pvmsz); vmi=gPVMCnt++) {
-//cerr << tid << ":" << vmi << " ";
-ReceivedMessage *msg = gPendingValidationMessages[vmi];
-processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-delete msg;
-}
-}
-
-static void omp_processPendingValidationMessagesTask(uint32_t nThreads) {
-(void)nThreads;// to avoid unused warning
-//cerr << "::: tid " << tid << "new" << endl;
-const uint64_t pvmsz = gPendingValidationMessages.size();
-for (uint64_t vmi = 0; likely(vmi < pvmsz); ++vmi) {
-uint32_t tid = omp_get_thread_num();
-//cerr << tid << "/" << omp_get_num_threads() << ":" << vmi << endl;
-ReceivedMessage *msg = gPendingValidationMessages[vmi];
-processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg->data, tid); 
-delete msg;
-}
-}
-
-static void parsePendingValidationMessages(SingleTaskPool &pool, uint32_t nThreads = 4) {
-if (unlikely(gPendingValidationMessages.empty())) return;
-#ifdef LPDEBUG
-auto start = LPTimer.getChrono();
-#endif
-//cerr << "parsing session: " << gPendingValidationMessages.size() << endl;
-(void)nThreads;
-pool.startAll(processPendingValidationMessagesTask);
-pool.waitAll();
-
-//(void)pool;
-//omp_processPendingValidationMessagesTask(nThreads);
-
-gPendingValidationMessages.clear();
-gPVMCnt = 0;
-
-#ifdef LPDEBUG
-LPTimer.validations += LPTimer.getChrono(start);
-#endif
-}
- */
-
 
 
 void inline initOpenMP(uint32_t nThreads) {
@@ -789,7 +738,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
    }
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
-static std::atomic<uint64_t> gNextIndex;
 
 //static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
 static void updateRequiredColumns(uint64_t ri) {
@@ -842,6 +790,8 @@ static void updateRequiredColumns(uint64_t ri) {
     }
 }
 
+static std::atomic<uint64_t> gNextIndex;
+
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
@@ -875,7 +825,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
-        operations.reserve(2048);
+        operations.reserve(512);
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
