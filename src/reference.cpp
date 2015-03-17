@@ -126,6 +126,7 @@ typedef Query::Column::Op  Op;
 //#define CACHE_ALIGNMENT 16
 #define CACHE_ALIGNMENT 64
 
+#define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
 //typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > aligned_vector;
 template<typename T>
@@ -154,7 +155,13 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     os << "{" << "-" << o.value << "}";
     return os;
 }
+
 typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
+/*struct ColumnTransaction_t {
+    aligned_vector<uint64_t> values;
+    aligned_vector<tuple_t> tuples;
+    uint64_t trans_id;
+} ALIGNED_DATA;*/
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     vector<ColumnTransaction_t> transactions;
@@ -164,7 +171,7 @@ struct ColumnStruct {
     char padding[8]; //for false sharing
     
     ColumnStruct() : transTo(0) {}
-}__attribute__((aligned(CACHE_ALIGNMENT)));
+} ALIGNED_DATA;
 
 struct CTRSLessThan_t {
     ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -199,7 +206,7 @@ struct RelTransLog {
     RelTransLog(uint64_t tid, uint64_t* tpl, uint64_t _rowCount) : trans_id(tid), last_del_id(tid), aliveTuples(_rowCount), rowCount(_rowCount) {
         if (tpl != nullptr) tuples.reset(tpl);
     } 
-}__attribute__((aligned(CACHE_ALIGNMENT)));
+} ALIGNED_DATA;
 
 struct RTLComp_t {
     inline bool operator() (const RelTransLog& l, const RelTransLog& r) {
@@ -222,7 +229,7 @@ struct RelationStruct {
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
     
     char padding[8]; //for false sharing
-}__attribute__((aligned(CACHE_ALIGNMENT)));
+} ALIGNED_DATA;
 struct TransLogComp_t {
     inline bool operator()(const pair<uint64_t, vector<tuple_t>>& l, const uint64_t target) {
         return l.first < target;
@@ -244,7 +251,7 @@ struct TRMapPhase {
     TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
         : trans_id(tid), values(vals), rowCount(rows), isDelOp(isdel) {
         }
-}__attribute__((aligned(CACHE_ALIGNMENT)));
+} ALIGNED_DATA;
 struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
         if (l.trans_id < r.trans_id) return true;
