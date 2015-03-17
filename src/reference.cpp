@@ -29,6 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 
+#include "include/DoubleIter.hpp"
 #include "include/aligned_allocator.hpp"
 #include "include/LPUtils.hpp"
 #include "include/ReaderIO.hpp"
@@ -156,12 +157,13 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
-typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
-/*struct ColumnTransaction_t {
+//typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
+struct ColumnTransaction_t {
     aligned_vector<uint64_t> values;
     aligned_vector<tuple_t> tuples;
     uint64_t trans_id;
-} ALIGNED_DATA;*/
+    ColumnTransaction_t(uint64_t tid) : values(aligned_vector<uint64_t>()), tuples(aligned_vector<tuple_t>()), trans_id(tid) {}
+} ALIGNED_DATA;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     vector<ColumnTransaction_t> transactions;
@@ -172,7 +174,7 @@ struct ColumnStruct {
     
     ColumnStruct() : transTo(0) {}
 } ALIGNED_DATA;
-
+/*
 struct CTRSLessThan_t {
     ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
@@ -184,7 +186,7 @@ struct CTRSLessThan_t {
         return target < o.first;
     }
 } CTRSLessThan;
-
+*/
 // transactions in each relation column - all tuples of same transaction in one vector
 
 struct RelationColumns {
@@ -484,6 +486,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
+        /*
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
@@ -494,6 +497,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
+        */
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -926,20 +930,26 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         for(auto trp=transFrom; trp!=tEnd; ++trp) {
             colTransactionsORs.push_back(0);
             // allocate vectors for the current new transaction to put its data
-            //colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
-            colTransactions.emplace_back(trp->first, move(aligned_vector<CTransStruct>()));
-            colTransactions.back().second.reserve(trp->second.size());
-            auto& vecBack = colTransactions.back().second;
+            colTransactions.emplace_back(trp->first);
+            auto& values = colTransactions.back().values;
+            auto& tuples = colTransactions.back().tuples;
+            values.reserve(trp->second.size());
+            tuples.reserve(trp->second.size());
+            //auto& vecBack = colTransactions.back().second;
             //const uint32_t tplsz = trp->second.size();
             //const auto *tpls = trp->second.data();
             //for (uint32_t i=0; i<tplsz; ++i) {
             for (auto tpl : trp->second) {
-                vecBack.emplace_back(tpl[col], tpl);
+                //vecBack.emplace_back(tpl[col], tpl);
+                values.push_back(tpl[col]);
+                tuples.push_back(tpl);
                 colTransactionsORs.back() |= tpl[col];
                 //vecBack.emplace_back(tpls[i][col], tpls[i]);
                 //colTransactionsORs.back() |= tpls[i][col];
             }
-            sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+            //sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+            sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
+                    SIter<uint64_t, tuple_t>(values.data()+values.size(), tuples.data()+tuples.size()), ColTransValueLess);
             //cerr << "OR: " << colTransactionsORs.back() << endl;
             // add the sentinel value
             //vecBack.emplace_back(UINT64_MAX, nullptr);
