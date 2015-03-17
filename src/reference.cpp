@@ -167,7 +167,7 @@ struct ColumnTransaction_t {
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     vector<ColumnTransaction_t> transactions;
-    aligned_vector<uint64_t> transactionsORs;
+    vector<uint64_t> transactionsORs;
     uint64_t transTo;
     
     char padding[8]; //for false sharing
@@ -917,6 +917,16 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
 static std::atomic<uint32_t> gNextReqCol;
 
+uint64_t ALWAYS_INLINE COPY_OR(auint64<16> **__restrict__ tpls, auint64<16> *__restrict__ vals, const unsigned int sz, const unsigned int col) {
+    auint64<16> ored = 0;
+    for (unsigned int i=0; i<sz; ++i) {
+        vals[i] = tpls[i][col];
+        ored |= tpls[i][col];
+    }
+    return ored;
+}
+
+
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
@@ -943,22 +953,23 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             colTransactions.emplace_back(trp->first);
             auto& values = colTransactions.back().values;
             auto& tuples = colTransactions.back().tuples;
+            /*
             values.reserve(trp->second.size());
             tuples.reserve(trp->second.size());
             //colTransactionsORs.push_back(0);
-            //const uint32_t tplsz = trp->second.size();
-            //const tuple_t *tpls = trp->second.data();
-            //tuple_t* tuplesptr = (tuple_t*)__builtin_assume_aligned(tuples.data(), 16, 8);
-            //uint64_t* valuesptr = (uint64_t*)__builtin_assume_aligned (values.data(), 16, 8);
-            //for (uint32_t i=0; i<tplsz; ++i) {
             for (auto tpl : trp->second) {
                 //colTransactionsORs.back() |= tpl[col];
                 values.push_back(tpl[col]);
                 tuples.push_back(tpl);
-                //valuesptr[i] = tpls[i][col];
-                //tuplesptr[i] = tpls[i];
             }
             colTransactionsORs.push_back(lp_OR(values.data(), values.size()));
+            */
+            tuples.reserve(trp->second.size());
+            for (auto tpl : trp->second) {
+                tuples.push_back(tpl);
+            }
+            values.resize(trp->second.size());
+            colTransactionsORs.push_back(COPY_OR(tuples.data(), values.data(), values.size(), col));
 
             //tuples.insert(tuples.begin(), trp->second.begin(), trp->second.end());
             sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
