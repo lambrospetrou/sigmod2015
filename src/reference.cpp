@@ -608,8 +608,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -917,16 +917,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
 static std::atomic<uint32_t> gNextReqCol;
 
-uint64_t ALWAYS_INLINE COPY_OR(auint64<16> **__restrict__ tpls, auint64<16> *__restrict__ vals, const unsigned int sz, const unsigned int col) {
-    auint64<16> ored = 0;
-    for (unsigned int i=0; i<sz; ++i) {
-        vals[i] = tpls[i][col];
-        ored |= tpls[i][col];
-    }
-    return ored;
-}
-
-
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
@@ -953,27 +943,22 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             colTransactions.emplace_back(trp->first);
             auto& values = colTransactions.back().values;
             auto& tuples = colTransactions.back().tuples;
-            /*
-            values.reserve(trp->second.size());
-            tuples.reserve(trp->second.size());
-            //colTransactionsORs.push_back(0);
+            const unsigned int trpsz = trp->second.size();
+            values.reserve(trpsz);
+            tuples.reserve(trpsz);
+            colTransactionsORs.push_back(0);
+            //for (unsigned int i=0; i<trpsz; ++i) {
             for (auto tpl : trp->second) {
-                //colTransactionsORs.back() |= tpl[col];
+                //auto tpl = trp->second[i];
                 values.push_back(tpl[col]);
                 tuples.push_back(tpl);
+                colTransactionsORs.back() |= tpl[col];
             }
-            colTransactionsORs.push_back(lp_OR(values.data(), values.size()));
-            */
-            tuples.reserve(trp->second.size());
-            for (auto tpl : trp->second) {
-                tuples.push_back(tpl);
-            }
-            values.resize(trp->second.size());
-            colTransactionsORs.push_back(COPY_OR(tuples.data(), values.data(), values.size(), col));
+            //colTransactionsORs.push_back(lp_OR(values.data(), trpsz));
 
             //tuples.insert(tuples.begin(), trp->second.begin(), trp->second.end());
             sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-                    SIter<uint64_t, tuple_t>(values.data()+values.size(), tuples.data()+tuples.size()));
+                    SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
             //cerr << "OR: " << colTransactionsORs.back() << endl;
         }
         // no need to check for empty since now we update all the columns and there is a check for emptyness above
