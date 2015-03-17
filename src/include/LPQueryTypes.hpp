@@ -200,10 +200,10 @@ namespace lp {
             }
 
             // check for equality and constrasting ranges OR  check non-overlapping ranges
-            if ((sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) | (sat.lt - sat.gt <= 0))
-                return true;
-
-            return false;
+            //if ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) )
+                //return true;
+            bool res = ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
+            return res;
         }
 
         bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
