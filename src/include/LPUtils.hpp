@@ -11,16 +11,11 @@ namespace lp {
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#define ALWAYS_INLINE  __attribute__((always_inline)) inline
+
 #define lp_EQUAL(x, y) (!((x)^(y)))
 #define lp_EQUAL2(x, y) (!(1 + ~(x) + (y)))
 
-
-    inline bool __attribute__((always_inline)) funlikely(bool cond) {
-        return (__builtin_expect(cond, 0));
-    }
-    inline bool __attribute__((always_inline)) flikely(bool cond) {
-        return (__builtin_expect(cond, 1));
-    }
 
     inline void lp_spin_sleep(std::function<bool ()> pred) {
         do { std::this_thread::yield(); } while (!pred());

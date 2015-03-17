@@ -28,6 +28,8 @@
 //
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
+
+#include "include/aligned_allocator.hpp"
 #include "include/LPUtils.hpp"
 #include "include/ReaderIO.hpp"
 #include "include/LPThreadpool.hpp"
@@ -123,6 +125,12 @@ typedef Query::Column::Op  Op;
 //#define CACHE_ALIGNMENT 16
 #define CACHE_ALIGNMENT 64
 
+
+//typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > aligned_vector;
+template<typename T>
+using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
+//using aligned_vector = std::vector<T, aligned_allocator<T, sizeof(T)>>;
+
 // Custom data structures to hold data
 struct CTransStruct {
     uint64_t value;
@@ -130,13 +138,13 @@ struct CTransStruct {
     CTransStruct (uint64_t v, tuple_t t) : value(v), tuple(t) {}
 };
 struct CTRSValueLessThan_t {
-    inline bool operator()(const CTransStruct& l, const CTransStruct& r) {
+    ALWAYS_INLINE bool operator()(const CTransStruct& l, const CTransStruct& r) {
         return l.value < r.value;
     }
-    inline bool operator() (const CTransStruct& o, uint64_t target) {
+    ALWAYS_INLINE bool operator() (const CTransStruct& o, uint64_t target) {
         return o.value < target;
     }
-    inline bool operator() (uint64_t target, const CTransStruct& o) {
+    ALWAYS_INLINE bool operator() (uint64_t target, const CTransStruct& o) {
         return target < o.value;
     }
 } ColTransValueLess;
@@ -144,12 +152,12 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     os << "{" << "-" << o.value << "}";
     return os;
 }
-typedef pair<uint64_t, vector<CTransStruct>> ColumnTransaction_t;
+typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
-    uint64_t transTo;
     vector<ColumnTransaction_t> transactions;
     vector<uint64_t> transactionsORs;
+    uint64_t transTo;
     
     char padding[8]; //for false sharing
     
@@ -160,13 +168,13 @@ struct ColumnStruct {
 }__attribute__((aligned(CACHE_ALIGNMENT)));
 
 struct CTRSLessThan_t {
-    inline bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
+    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
         return left.first < right.first;
     }
-    inline bool operator() (const ColumnTransaction_t& o, uint64_t target) {
+    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& o, uint64_t target) {
         return o.first < target;
     }
-    inline bool operator() (uint64_t target, const ColumnTransaction_t& o) {
+    ALWAYS_INLINE bool operator() (uint64_t target, const ColumnTransaction_t& o) {
         return target < o.first;
     }
 } CTRSLessThan;
@@ -237,7 +245,7 @@ struct TRMapPhase {
     TRMapPhase(uint64_t tid, bool isdel, uint32_t rows, uint64_t *vals)
         : trans_id(tid), values(vals), rowCount(rows), isDelOp(isdel) {
         }
-};
+}__attribute__((aligned(CACHE_ALIGNMENT)));
 struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
         if (l.trans_id < r.trans_id) return true;
@@ -258,7 +266,7 @@ static std::unique_ptr<uint32_t[]> gSchema;
 
 ///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
-static vector<LPValidation> gPendingValidations;
+static aligned_vector<LPValidation> gPendingValidations;
 static std::mutex gPendingValidationsMutex;
 //static LPSpinLock gPendingValidationsMutex;
 
@@ -740,7 +748,7 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
    }
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
-
+/*
 //static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
 static void updateRequiredColumns(uint64_t ri) {
     // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
@@ -791,7 +799,7 @@ static void updateRequiredColumns(uint64_t ri) {
       //      }});
     }
 }
-
+*/
 static std::atomic<uint64_t> gNextIndex;
 
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
@@ -907,7 +915,8 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         for(auto trp=transFrom; trp!=tEnd; ++trp) {
             colTransactionsORs.push_back(0);
             // allocate vectors for the current new transaction to put its data
-            colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            //colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
+            colTransactions.emplace_back(trp->first, move(aligned_vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
             auto& vecBack = colTransactions.back().second;
             for (auto tpl : trp->second) {
@@ -976,7 +985,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #endif
     gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
-    if (false) updateRequiredColumns(0);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
 
@@ -1080,7 +1088,7 @@ struct TupleComp_t {
     }
 };
 
-bool inline __attribute__((always_inline)) isTupleRangeConflict(vector<TupleType>::iterator tupFrom, vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
+bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::iterator tupFrom, aligned_vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
     } // end of all tuples for this transaction
@@ -1091,7 +1099,7 @@ bool inline __attribute__((always_inline)) isTupleRangeConflict(vector<TupleType
 }
 
 
-static bool inline isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst) {
+static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
     switch (pFirst.op) {
         case Op::Equal: 
@@ -1140,7 +1148,7 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
 }
 
 //static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
-static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
+static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
     // find the valid tuples using range binary searches based on the first predicate
