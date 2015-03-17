@@ -174,6 +174,17 @@ struct ColumnStruct {
     
     ColumnStruct() : transTo(0) {}
 } ALIGNED_DATA;
+struct CTRSLessThan_t {
+    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
+        return left.trans_id < right.trans_id;
+    }
+    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& o, uint64_t target) {
+        return o.trans_id < target;
+    }
+    ALWAYS_INLINE bool operator() (uint64_t target, const ColumnTransaction_t& o) {
+        return target < o.trans_id;
+    }
+} CTRSLessThan;
 /*
 struct CTRSLessThan_t {
     ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -949,7 +960,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             }
             //sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
             sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-                    SIter<uint64_t, tuple_t>(values.data()+values.size(), tuples.data()+tuples.size()), ColTransValueLess);
+                    SIter<uint64_t, tuple_t>(values.data()+values.size(), tuples.data()+tuples.size()));
             //cerr << "OR: " << colTransactionsORs.back() << endl;
             // add the sentinel value
             //vecBack.emplace_back(UINT64_MAX, nullptr);
@@ -1074,73 +1085,64 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 // VALIDATION
 //////////////////////////////////////////////////////////
 
-typedef CTransStruct TupleType;
-typedef vector<TupleType> TupleCont;
+//typedef CTransStruct TupleType;
+typedef tuple_t TupleType;
 //typedef vector<Query::Column>::iterator PredIter;
 typedef Query::Column* PredIter;
 
-bool inline isTupleConflict(PredIter cbegin, PredIter cend, TupleType& tup) {
+bool inline isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
         // make the actual check
         switch (c.op) {
             case Op::Equal: 
-                if(!lp_EQUAL(tup.tuple[c.column], c.value)) return false; 
+                if(!lp_EQUAL(tup[c.column], c.value)) return false; 
                 break;
             case Op::Less: 
-                if((tup.tuple[c.column]>=c.value)) return false; 
+                if((tup[c.column]>=c.value)) return false; 
                 break;
             case Op::LessOrEqual: 
-                if((tup.tuple[c.column]>c.value)) return false; 
+                if((tup[c.column]>c.value)) return false; 
                 break;
             case Op::Greater: 
-                if((tup.tuple[c.column]<=c.value)) return false; 
+                if((tup[c.column]<=c.value)) return false; 
                 break;
             case Op::GreaterOrEqual: 
-                if((tup.tuple[c.column]<c.value)) return false; 
+                if((tup[c.column]<c.value)) return false; 
                 break;
             case Op::NotEqual: 
-                if(lp_EQUAL(tup.tuple[c.column], c.value)) return false; 
+                if(lp_EQUAL(tup[c.column], c.value)) return false; 
                 break;
         } 
     } // end of single query predicates
     return true;    
 }
 
-struct TupleComp_t {
-    PredIter cbegin, cend;
-    TupleComp_t(PredIter cb, PredIter ce) : cbegin(cb), cend(ce) {}
-    bool operator() (TupleType& tup) {
-        return isTupleConflict(cbegin, cend, tup);
-    }
-};
-
-bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::iterator tupFrom, aligned_vector<TupleType>::iterator tupTo, PredIter cbegin, PredIter cend) {
+bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
     } // end of all tuples for this transaction
     return false;
-    
     //return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
-    //return std::find_if(tupFrom, tupTo, TupleComp_t(cbegin, cend)) != tupTo;
 }
 
-
-static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst) {
+//static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst) {
+static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
+    auto& transValues = transaction.values;
     switch (pFirst.op) {
         case Op::Equal: 
-            return std::binary_search(transValues.begin(), transValues.end(), pFirst.value, ColTransValueLess); 
+            return std::binary_search(transValues.begin(), transValues.end(), pFirst.value); 
         case Op::Less: 
-            return transValues[0].value < pFirst.value;                   
+            return transValues[0] < pFirst.value;                   
         case Op::LessOrEqual: 
-            return transValues[0].value <= pFirst.value;                   
+            return transValues[0] <= pFirst.value;                   
         case Op::Greater: 
-            return transValues.back().value > pFirst.value;                   
+            return transValues.back() > pFirst.value;                   
         case Op::GreaterOrEqual: 
-            return transValues.back().value >= pFirst.value;                   
+            return transValues.back() >= pFirst.value;                   
         default: 
-            return !lp_EQUAL(transValues.back().value, pFirst.value) | !lp_EQUAL(transValues[0].value, pFirst.value);
+            return !lp_EQUAL(transValues.back(), pFirst.value) | !lp_EQUAL(transValues[0], pFirst.value);
     }
     return false;
 }
@@ -1149,25 +1151,26 @@ static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValu
 bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t pos) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
-        auto& transValues = relColumns[c.column].transactions[pos].second;
+        //auto& transValues = relColumns[c.column].transactions[pos].second;
+        auto& transValues = relColumns[c.column].transactions[pos].values;
         switch (c.op) {
             case Op::Equal: 
                 //if ((relColumns[c.column].transactionsORs[pos] & c.value) != c.value) return true;
                 //if (transValues[0].value > c.value || transValues.back().value < c.value) return true;
                 if (((relColumns[c.column].transactionsORs[pos] & c.value) != c.value)
-                    | ((transValues[0].value > c.value) | (transValues.back().value < c.value))) return true;
+                    | ((transValues[0] > c.value) | (transValues.back() < c.value))) return true;
                 break;
             case Op::Less: 
-                if (transValues[0].value >= c.value) return true;
+                if (transValues[0] >= c.value) return true;
                 break;
             case Op::LessOrEqual: 
-                if (transValues[0].value > c.value) return true;
+                if (transValues[0] > c.value) return true;
                 break;
             case Op::Greater: 
-                if (transValues.back().value <= c.value) return true;
+                if (transValues.back() <= c.value) return true;
                 break;
             case Op::GreaterOrEqual: 
-                if (transValues.back().value < c.value) return true;
+                if (transValues.back() < c.value) return true;
                 break;
             default: 
                 break;
@@ -1177,36 +1180,42 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
 }
 
 //static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
-static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
+//static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
+static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend) {
+    auto& transValues = transaction.values;
+    auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    decltype(transValues.begin()) tupFrom{tBegin}, tupTo{tEnd};
+    decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (transValues[0].value > pFirst.value || transValues.back().value < pFirst.value) return false;
-                auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
+                //auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
+                auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
                 if (tp.second == tp.first) return false;
-                tupFrom = tp.first; tupTo = tp.second;
+                //tupFrom = tp.first; tupTo = tp.second;
+                tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
                 break;}
         case Op::Less: 
-            if (transValues[0].value >= pFirst.value) return false;
-            tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            if (transValues[0] >= pFirst.value) return false;
+            //tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
             if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            if (transValues[0].value > pFirst.value) return false;
-            tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
+            if (transValues[0] > pFirst.value) return false;
+            tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
             if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
-            if (transValues.back().value <= pFirst.value) return false;
-            tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);  
+            if (transValues.back() <= pFirst.value) return false;
+            tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
             if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
-            if (transValues.back().value < pFirst.value) return false;
-            tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
+            if (transValues.back() < pFirst.value) return false;
+            tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
             if (tupTo == tupFrom) return false;
             break;
         default: 
@@ -1315,25 +1324,25 @@ static bool isValidationConflict(LPValidation& v) {
                 if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
-                && isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
                 if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
-                && isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
             auto& cb = cbegin[0];
             if (!cb.op) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
                     if (!(!lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                    && isTransactionConflict(transFrom->second, pFirst)) { return true; }
+                    && isTransactionConflict(*transFrom, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+                    if (isTransactionConflict(*transFrom, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
         }

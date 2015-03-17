@@ -52,6 +52,11 @@ class SIter {
             }
         };
         struct reference {
+            friend void swap(reference a, reference b) {
+                using std::swap;
+                swap(*a.a, *b.a);
+                swap(*a.b, *b.b);
+            }
             TA* a;
             TB* b;
             reference& operator = (const value_type& o) 
