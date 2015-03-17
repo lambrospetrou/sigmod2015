@@ -433,7 +433,8 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
         auto& cRelCol = gRelColumns[ri];
         // clean the index columns
-        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+        const uint64_t colsz = gSchema[ri];
+        for (uint32_t ci=0; ci<colsz; ++ci) {
             auto& cCol = cRelCol.columns[ci];
             auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
                         f.transactionId,
