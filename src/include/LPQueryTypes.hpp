@@ -125,7 +125,7 @@ namespace lp {
             : rawMsg(msg), validationId(vid), from(fr), to(t), queryCount(qc) {}
 
         ~LPValidation() {}
-    };
+    }__attribute__((aligned(64)));
     struct LPValidationCompQCount {
         bool inline operator()(const LPValidation& left, const LPValidation& right){ 
             return left.queryCount > right.queryCount; 
@@ -149,8 +149,8 @@ namespace lp {
         }
 
         struct Satisfiability {
-            bool pastOps[6];
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
+            bool pastOps[6];
             Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
                 A_memset(pastOps, 0, 6);
             }

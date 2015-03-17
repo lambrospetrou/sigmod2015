@@ -138,11 +138,11 @@ reference.cpp:1061:9: note: bad loop form.
 
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1160:85: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1160:85: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1162:85: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1162:85: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2142:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2142:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
@@ -150,205 +150,205 @@ reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:778:20: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1162:17: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1164:17: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2140:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1168:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1170:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1173:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1176:42: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1176:42: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1175:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1178:42: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1178:42: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1178:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1181:42: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1181:42: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1180:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1183:42: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1183:42: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1183:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1185:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator_base_funcs.h:156:11: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:1094:5: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:1061:9: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:1061:9: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not consecutive access _180 = *_179;
+reference.cpp:1155:13: note: not consecutive access _180 = *_179;
 
-reference.cpp:1153:13: note: not consecutive access _175 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _175 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _180 = *_179;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _180 = *_179;
 
-reference.cpp:1153:13: note: not consecutive access _175 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _175 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _187 = *_186;
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _187 = *_186;
 
-reference.cpp:1153:13: note: not consecutive access _182 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _182 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _187 = *_186;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _187 = *_186;
 
-reference.cpp:1153:13: note: not consecutive access _182 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _182 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _194 = *_193;
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _194 = *_193;
 
-reference.cpp:1153:13: note: not consecutive access _189 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _189 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _194 = *_193;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _194 = *_193;
 
-reference.cpp:1153:13: note: not consecutive access _189 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _189 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _201 = *_200;
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _201 = *_200;
 
-reference.cpp:1153:13: note: not consecutive access _196 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _196 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _201 = *_200;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _201 = *_200;
 
-reference.cpp:1153:13: note: not consecutive access _196 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _196 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _208 = *_207;
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _208 = *_207;
 
-reference.cpp:1153:13: note: not consecutive access _203 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _203 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _208 = *_207;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _208 = *_207;
 
-reference.cpp:1153:13: note: not consecutive access _203 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _203 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _215 = *_214;
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _215 = *_214;
 
-reference.cpp:1153:13: note: not consecutive access _210 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _210 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: SLP: step doesn't divide the vector-size.
-reference.cpp:1153:13: note: Unknown alignment for access: *cbegin_268
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not consecutive access _215 = *_214;
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: SLP: step doesn't divide the vector-size.
+reference.cpp:1155:13: note: Unknown alignment for access: *cbegin_268
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not consecutive access _215 = *_214;
 
-reference.cpp:1153:13: note: not consecutive access _210 = MEM[(struct TupleType &)_304].tuple;
+reference.cpp:1155:13: note: not consecutive access _210 = MEM[(struct TupleType &)_304].tuple;
 
-reference.cpp:1153:13: note: Failed to SLP the basic block.
-reference.cpp:1153:13: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: Failed to SLP the basic block.
+reference.cpp:1155:13: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:1058:5: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1153:13: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1155:13: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:2039:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:2039:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:1902:4: note: not vectorized: not enough data-refs in basic block.
@@ -1007,7 +1007,7 @@ include/ReaderIO.hpp:210:15: note: not vectorized: not enough data-refs in basic
 include/ReaderIO.hpp:128:102: note: not vectorized: not enough data-refs in basic block.
 include/ReaderIO.hpp:129:49: note: not vectorized: not enough data-refs in basic block.
 include/ReaderIO.hpp:210:15: note: not vectorized: not enough data-refs in basic block.
-include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(long int *)&D.270404];
+include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(long int *)&D.270410];
 
 include/ReaderIO.hpp:129:51: note: not consecutive access _31 = MEM[(struct CppReaderIOTest *)_6].mLen;
 
@@ -1015,7 +1015,7 @@ include/ReaderIO.hpp:129:51: note: not consecutive access MEM[(struct CppReaderI
 
 include/ReaderIO.hpp:129:51: note: Failed to SLP the basic block.
 include/ReaderIO.hpp:129:51: note: not vectorized: failed to find SLP opportunities in basic block.
-include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(long int *)&D.270404];
+include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(long int *)&D.270410];
 
 include/ReaderIO.hpp:129:51: note: not consecutive access _31 = MEM[(struct CppReaderIOTest *)_6].mLen;
 
@@ -1263,38 +1263,38 @@ include/LPQueryTypes.hpp:218:22: note: not vectorized: control flow in loop.
 include/LPQueryTypes.hpp:218:22: note: bad loop form.
 include/LPQueryTypes.hpp:210:13: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:154:90: note: misalign = 16 bytes of ref sat.lt
-include/LPQueryTypes.hpp:154:90: note: misalign = 24 bytes of ref sat.leq
-include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:154:90: note: misalign = 16 bytes of ref sat.leq
+include/LPQueryTypes.hpp:154:90: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:154:90: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:154:90: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:154:90: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.lt
-include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.leq
-include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.leq
+include/LPQueryTypes.hpp:154:90: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:154:90: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:154:90: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:154:90: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:154:90: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:218:22: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:218:22: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:158:30: note: misalign = 16 bytes of ref sat.lt
-include/LPQueryTypes.hpp:158:30: note: misalign = 24 bytes of ref sat.leq
-include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:158:30: note: misalign = 16 bytes of ref sat.leq
+include/LPQueryTypes.hpp:158:30: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:158:30: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:158:30: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:158:30: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.lt
-include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.leq
-include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.leq
+include/LPQueryTypes.hpp:158:30: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:158:30: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:158:30: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:158:30: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:158:30: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -1302,16 +1302,16 @@ include/LPQueryTypes.hpp:164:13: note: not vectorized: not enough data-refs in b
 include/LPQueryTypes.hpp:164:13: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:209:14: note: not consecutive access pretmp_182 = sat.pastOps[0];
 
-include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:209:14: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:209:14: note: not consecutive access pretmp_182 = sat.pastOps[0];
 
-include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.eq
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.eq
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in basic block.
@@ -1322,16 +1322,16 @@ include/LPQueryTypes.hpp:168:42: note: not consecutive access sat.eq = _41;
 
 include/LPQueryTypes.hpp:168:42: note: SLP: step doesn't divide the vector-size.
 include/LPQueryTypes.hpp:168:42: note: Unknown alignment for access: *colBegin_8(D)
-include/LPQueryTypes.hpp:168:42: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:168:42: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:168:42: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:168:42: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:168:42: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:168:42: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:168:42: note: not consecutive access sat.pastOps[0] = 1;
 
 include/LPQueryTypes.hpp:168:42: note: not consecutive access sat.eq = _41;
 
-include/LPQueryTypes.hpp:168:42: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:168:42: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:168:42: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:168:42: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:168:42: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:168:42: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:209:14: note: not consecutive access _42 = sat.pastOps[0];
@@ -1348,12 +1348,12 @@ include/LPQueryTypes.hpp:209:14: note: not consecutive access _43 = sat.eq;
 
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:209:14: note: not consecutive access _47 = sat.pastOps[0];
@@ -1386,15 +1386,15 @@ include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in b
 include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:179:61: note: not consecutive access pretmp_190 = sat.gt;
 
-include/LPQueryTypes.hpp:179:61: note: misalign = 16 bytes of ref sat.lt
-include/LPQueryTypes.hpp:179:61: note: misalign = 24 bytes of ref sat.leq
+include/LPQueryTypes.hpp:179:61: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:179:61: note: misalign = 16 bytes of ref sat.leq
 include/LPQueryTypes.hpp:179:61: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:179:61: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:179:61: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:179:61: note: not consecutive access pretmp_190 = sat.gt;
 
-include/LPQueryTypes.hpp:179:61: note: misalign = 0 bytes of ref sat.lt
-include/LPQueryTypes.hpp:179:61: note: misalign = 8 bytes of ref sat.leq
+include/LPQueryTypes.hpp:179:61: note: misalign = 8 bytes of ref sat.lt
+include/LPQueryTypes.hpp:179:61: note: misalign = 0 bytes of ref sat.leq
 include/LPQueryTypes.hpp:179:61: note: Build SLP failed: different types
 include/LPQueryTypes.hpp:179:61: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:179:61: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -1424,25 +1424,25 @@ include/LPQueryTypes.hpp:184:56: note: not consecutive access sat.pastOps[3] = 1
 
 include/LPQueryTypes.hpp:184:56: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:184:56: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:185:63: note: not consecutive access pretmp_192 = sat.gt;
 
-include/LPQueryTypes.hpp:185:63: note: misalign = 24 bytes of ref sat.leq
-include/LPQueryTypes.hpp:185:63: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:185:63: note: misalign = 16 bytes of ref sat.leq
+include/LPQueryTypes.hpp:185:63: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:185:63: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:185:63: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:185:63: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:185:63: note: not consecutive access pretmp_192 = sat.gt;
 
-include/LPQueryTypes.hpp:185:63: note: misalign = 8 bytes of ref sat.leq
-include/LPQueryTypes.hpp:185:63: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:185:63: note: misalign = 0 bytes of ref sat.leq
+include/LPQueryTypes.hpp:185:63: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:185:63: note: Build SLP failed: different types
 include/LPQueryTypes.hpp:185:63: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:185:63: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -1476,15 +1476,15 @@ include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in b
 include/LPQueryTypes.hpp:209:14: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:191:61: note: not consecutive access pretmp_200 = sat.lt;
 
-include/LPQueryTypes.hpp:191:61: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:191:61: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:191:61: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:191:61: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:191:61: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:191:61: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:191:61: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:191:61: note: not consecutive access pretmp_200 = sat.lt;
 
-include/LPQueryTypes.hpp:191:61: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:191:61: note: misalign = 8 bytes of ref sat.geq
+include/LPQueryTypes.hpp:191:61: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:191:61: note: misalign = 0 bytes of ref sat.geq
 include/LPQueryTypes.hpp:191:61: note: Build SLP failed: different types
 include/LPQueryTypes.hpp:191:61: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:191:61: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -1514,25 +1514,25 @@ include/LPQueryTypes.hpp:196:59: note: not consecutive access sat.pastOps[5] = 1
 
 include/LPQueryTypes.hpp:196:59: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:196:59: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 16 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 24 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.gt
-include/LPQueryTypes.hpp:209:14: note: misalign = 0 bytes of ref sat.lt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.gt
+include/LPQueryTypes.hpp:209:14: note: misalign = 8 bytes of ref sat.lt
 include/LPQueryTypes.hpp:209:14: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:209:14: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:197:63: note: not consecutive access pretmp_202 = sat.lt;
 
-include/LPQueryTypes.hpp:197:63: note: misalign = 8 bytes of ref sat.geq
-include/LPQueryTypes.hpp:197:63: note: misalign = 0 bytes of ref sat.gt
+include/LPQueryTypes.hpp:197:63: note: misalign = 0 bytes of ref sat.geq
+include/LPQueryTypes.hpp:197:63: note: misalign = 24 bytes of ref sat.gt
 include/LPQueryTypes.hpp:197:63: note: Build SLP failed: unrolling required in basic block SLP
 include/LPQueryTypes.hpp:197:63: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:197:63: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:197:63: note: not consecutive access pretmp_202 = sat.lt;
 
-include/LPQueryTypes.hpp:197:63: note: misalign = 8 bytes of ref sat.geq
-include/LPQueryTypes.hpp:197:63: note: misalign = 0 bytes of ref sat.gt
+include/LPQueryTypes.hpp:197:63: note: misalign = 0 bytes of ref sat.geq
+include/LPQueryTypes.hpp:197:63: note: misalign = 8 bytes of ref sat.gt
 include/LPQueryTypes.hpp:197:63: note: Build SLP failed: different types
 include/LPQueryTypes.hpp:197:63: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:197:63: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -1949,13 +1949,13 @@ include/SingleTaskPool.hpp:91:81: note: not vectorized: control flow in loop.
 include/SingleTaskPool.hpp:91:81: note: bad loop form.
 include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_owns = 0;
 
-include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_device = _42;
+include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_device = _53;
 
 include/SingleTaskPool.hpp:83:54: note: Failed to SLP the basic block.
 include/SingleTaskPool.hpp:83:54: note: not vectorized: failed to find SLP opportunities in basic block.
 include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_owns = 0;
 
-include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_device = _42;
+include/SingleTaskPool.hpp:83:54: note: not consecutive access lk._M_device = _53;
 
 include/SingleTaskPool.hpp:83:54: note: Failed to SLP the basic block.
 include/SingleTaskPool.hpp:83:54: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -2027,18 +2027,22 @@ include/SingleTaskPool.hpp:82:14: note: not vectorized: not enough data-refs in 
 include/SingleTaskPool.hpp:82:14: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_owns = 0;
 
-/usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_device = _42;
+/usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_device = _53;
 
 /usr/include/c++/4.9/mutex:440:7: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/mutex:440:7: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_owns = 0;
 
-/usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_device = _42;
+/usr/include/c++/4.9/mutex:440:7: note: not consecutive access lk._M_device = _53;
 
 /usr/include/c++/4.9/mutex:440:7: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/mutex:440:7: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/mutex:438:2: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/mutex:439:4: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/mutex:528:7: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/mutex:528:7: note: not vectorized: not enough data-refs in basic block.
+/usr/include/x86_64-linux-gnu/c++/4.9/bits/gthr-default.h:777:3: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/mutex:153:39: note: not vectorized: not enough data-refs in basic block.
+include/SingleTaskPool.hpp:82:14: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/mutex:440:7: note: not vectorized: not enough data-refs in basic block.
 include/SingleTaskPool.hpp:82:14: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/mutex:438:2: note: not vectorized: not enough data-refs in basic block.
@@ -2209,7 +2213,7 @@ include/SingleTaskPool.hpp:38:51: note: not vectorized: failed to find SLP oppor
 /usr/include/c++/4.9/mutex:139:27: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/mutex:475:6: note: not consecutive access lk._M_owns = 1;
 
-/usr/include/c++/4.9/mutex:475:6: note: not consecutive access MEM[(struct _Function_base *)&D.270243]._M_manager = 0B;
+/usr/include/c++/4.9/mutex:475:6: note: not consecutive access MEM[(struct _Function_base *)&D.270249]._M_manager = 0B;
 
 /usr/include/c++/4.9/mutex:475:6: note: not consecutive access _8 = MEM[(bool (*<T61fd>) (union _Any_data &, const union _Any_data &, _Manager_operation) *)f_7(D) + 16B];
 
@@ -2217,7 +2221,7 @@ include/SingleTaskPool.hpp:38:51: note: not vectorized: failed to find SLP oppor
 /usr/include/c++/4.9/mutex:475:6: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/mutex:475:6: note: not consecutive access lk._M_owns = 1;
 
-/usr/include/c++/4.9/mutex:475:6: note: not consecutive access MEM[(struct _Function_base *)&D.270243]._M_manager = 0B;
+/usr/include/c++/4.9/mutex:475:6: note: not consecutive access MEM[(struct _Function_base *)&D.270249]._M_manager = 0B;
 
 /usr/include/c++/4.9/mutex:475:6: note: not consecutive access _8 = MEM[(bool (*<T61fd>) (union _Any_data &, const union _Any_data &, _Manager_operation) *)f_7(D) + 16B];
 
@@ -2225,15 +2229,15 @@ include/SingleTaskPool.hpp:38:51: note: not vectorized: failed to find SLP oppor
 /usr/include/c++/4.9/mutex:475:6: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/functional:2410:4: note: not consecutive access _35 = MEM[(const struct function &)f_7(D)]._M_invoker;
 
-/usr/include/c++/4.9/functional:2410:4: note: misalign = 24 bytes of ref D.270243._M_invoker
-/usr/include/c++/4.9/functional:2410:4: note: misalign = 16 bytes of ref D.270243.D.66364._M_manager
+/usr/include/c++/4.9/functional:2410:4: note: misalign = 24 bytes of ref D.270249._M_invoker
+/usr/include/c++/4.9/functional:2410:4: note: misalign = 16 bytes of ref D.270249.D.66364._M_manager
 /usr/include/c++/4.9/functional:2410:4: note: Build SLP failed: unrolling required in basic block SLP
 /usr/include/c++/4.9/functional:2410:4: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/functional:2410:4: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/functional:2410:4: note: not consecutive access _35 = MEM[(const struct function &)f_7(D)]._M_invoker;
 
-/usr/include/c++/4.9/functional:2410:4: note: misalign = 8 bytes of ref D.270243._M_invoker
-/usr/include/c++/4.9/functional:2410:4: note: misalign = 0 bytes of ref D.270243.D.66364._M_manager
+/usr/include/c++/4.9/functional:2410:4: note: misalign = 8 bytes of ref D.270249._M_invoker
+/usr/include/c++/4.9/functional:2410:4: note: misalign = 0 bytes of ref D.270249.D.66364._M_manager
 /usr/include/c++/4.9/functional:2410:4: note: Build SLP failed: different types
 /usr/include/c++/4.9/functional:2410:4: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/functional:2410:4: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -2243,7 +2247,7 @@ include/SingleTaskPool.hpp:37:14: note: not vectorized: not enough data-refs in 
 /usr/include/c++/4.9/functional:1997:7: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:1998:55: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:1999:5: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: __tmp = MEM[(union _Any_data &)&D.270243];
+/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: __tmp = MEM[(union _Any_data &)&D.270249];
  scalar_type: union _Any_data
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/functional:1998:55: note: not vectorized: not enough data-refs in basic block.
@@ -2530,7 +2534,7 @@ include/ReaderIO.hpp:217:15: note: not vectorized: not enough data-refs in basic
 include/ReaderIO.hpp:128:102: note: not vectorized: not enough data-refs in basic block.
 include/ReaderIO.hpp:129:49: note: not vectorized: not enough data-refs in basic block.
 include/ReaderIO.hpp:217:15: note: not vectorized: not enough data-refs in basic block.
-include/ReaderIO.hpp:129:51: note: not consecutive access _27 = MEM[(long int *)&D.270332];
+include/ReaderIO.hpp:129:51: note: not consecutive access _27 = MEM[(long int *)&D.270338];
 
 include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(struct CppReaderIOTest *)_12].mLen;
 
@@ -2538,7 +2542,7 @@ include/ReaderIO.hpp:129:51: note: not consecutive access MEM[(struct CppReaderI
 
 include/ReaderIO.hpp:129:51: note: Failed to SLP the basic block.
 include/ReaderIO.hpp:129:51: note: not vectorized: failed to find SLP opportunities in basic block.
-include/ReaderIO.hpp:129:51: note: not consecutive access _27 = MEM[(long int *)&D.270332];
+include/ReaderIO.hpp:129:51: note: not consecutive access _27 = MEM[(long int *)&D.270338];
 
 include/ReaderIO.hpp:129:51: note: not consecutive access _29 = MEM[(struct CppReaderIOTest *)_12].mLen;
 
@@ -2727,10 +2731,18 @@ include/ReaderIO.hpp:187:25: note: not vectorized: not enough data-refs in basic
 /usr/include/c++/4.9/bits/stl_construct.h:75:7: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_193]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_193 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)__result_198]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 16 bytes of ref MEM[(struct _Vector_impl *)__result_198]._M_end_of_storage
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_193]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_193 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)__result_198]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct _Vector_impl *)__result_198]._M_end_of_storage
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/vector.tcc:407:7: note: not vectorized: not enough data-refs in basic block.
@@ -2740,10 +2752,18 @@ include/ReaderIO.hpp:187:25: note: not vectorized: not enough data-refs in basic
 /usr/include/c++/4.9/bits/vector.tcc:407:7: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct _Vector_base *)__result_198]._M_impl._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 16 bytes of ref MEM[(struct _Vector_base *)__result_198]._M_impl._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_193 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_193]
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct _Vector_base *)__result_198]._M_impl._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct _Vector_base *)__result_198]._M_impl._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_193 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_193]
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/vector.tcc:407:7: note: not vectorized: not enough data-refs in basic block.
@@ -2760,6 +2780,14 @@ include/ReaderIO.hpp:187:25: note: not vectorized: not enough data-refs in basic
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref MEM[(const struct LPValidation &)__first_193].rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref __result_198->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_193].validationId
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_193].from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_198->from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 16 bytes of ref MEM[(const struct LPValidation &)__first_193].to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 16 bytes of ref __result_198->to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref MEM[(const struct LPValidation &)__first_193].queryCount
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not consecutive access __result_198->queryCount = _113;
@@ -2768,6 +2796,14 @@ include/ReaderIO.hpp:187:25: note: not vectorized: not enough data-refs in basic
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_193].rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_198->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_193].validationId
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_193].from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_198->from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_193].to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref __result_198->to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_193].queryCount
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_uninitialized.h:74:8: note: not vectorized: not enough data-refs in basic block.
@@ -5022,16 +5058,16 @@ include/cpp_btree/btree.h:1622:6: note: not vectorized: not enough data-refs in 
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:1622:6: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:1622:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4431_445 = MEM[(struct btree_node * &)vectp_this.4430_158];
+/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4430_445 = MEM[(struct btree_node * &)vectp_this.4429_158];
  scalar_type: vector(4) long unsigned int
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4431_460 = MEM[(struct btree_node * &)vectp_this.4429_455];
+/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4430_460 = MEM[(struct btree_node * &)vectp_this.4428_455];
  scalar_type: vector(4) long unsigned int
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4431_475 = MEM[(struct btree_node * &)vectp_this.4429_470];
+/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4430_475 = MEM[(struct btree_node * &)vectp_this.4428_470];
  scalar_type: vector(4) long unsigned int
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4431_163 = MEM[(struct btree_node * &)vectp_this.4429_161];
+/usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: no vectype for stmt: vect___tmp.4430_163 = MEM[(struct btree_node * &)vectp_this.4428_161];
  scalar_type: vector(4) long unsigned int
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/move.h:175:19: note: not consecutive access __tmp.386_143 = MEM[(struct btree_node * &)this_15(D)].fields_.D.135541.children[i_141];
@@ -9260,10 +9296,18 @@ include/LPQueryTypes.hpp:66:18: note: not vectorized: not enough data-refs in ba
 /usr/include/c++/4.9/bits/stl_construct.h:75:7: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_83]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_83 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)__result_65]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 16 bytes of ref MEM[(struct _Vector_impl *)__result_65]._M_end_of_storage
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_83]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_83 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)__result_65]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 0 bytes of ref MEM[(struct _Vector_impl *)__result_65]._M_end_of_storage
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_uninitialized.h:68:9: note: not vectorized: not enough data-refs in basic block.
@@ -9273,10 +9317,18 @@ include/LPQueryTypes.hpp:66:18: note: not vectorized: not enough data-refs in ba
 /usr/include/c++/4.9/bits/stl_uninitialized.h:68:9: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct _Vector_base *)__result_65]._M_impl._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 16 bytes of ref MEM[(struct _Vector_base *)__result_65]._M_impl._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_83 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_83]
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct _Vector_base *)__result_65]._M_impl._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct _Vector_base *)__result_65]._M_impl._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 8 bytes of ref MEM[(struct LPQuery * *)__first_83 + 8B]
+/usr/include/c++/4.9/bits/stl_vector.h:185:2: note: misalign = 0 bytes of ref MEM[(struct LPQuery * *)__first_83]
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_uninitialized.h:68:9: note: not vectorized: not enough data-refs in basic block.
@@ -9293,6 +9345,14 @@ include/LPQueryTypes.hpp:66:18: note: not vectorized: not enough data-refs in ba
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref MEM[(const struct LPValidation &)__first_83].rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref __result_65->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_83].validationId
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_83].from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_65->from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 16 bytes of ref MEM[(const struct LPValidation &)__first_83].to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 16 bytes of ref __result_65->to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 24 bytes of ref MEM[(const struct LPValidation &)__first_83].queryCount
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not consecutive access __result_65->queryCount = _34;
@@ -9301,6 +9361,14 @@ include/LPQueryTypes.hpp:66:18: note: not vectorized: not enough data-refs in ba
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: interleaved store with gaps
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: complicated access pattern.
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_83].rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_65->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_83].validationId
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_83].from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref __result_65->from
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref MEM[(const struct LPValidation &)__first_83].to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 0 bytes of ref __result_65->to
+/usr/include/c++/4.9/bits/stl_vector.h:321:9: note: misalign = 8 bytes of ref MEM[(const struct LPValidation &)__first_83].queryCount
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:321:9: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_uninitialized.h:74:8: note: not vectorized: not enough data-refs in basic block.
@@ -9777,6 +9845,13 @@ reference.cpp:544:5: note: not vectorized: failed to find SLP opportunities in b
 /usr/include/c++/4.9/ext/new_allocator.h:120:4: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not consecutive access _88->queryCount = _404;
 
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref MEM[(struct _Vector_impl *)_88]._M_start
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)_88]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 16 bytes of ref MEM[(struct _Vector_impl *)_88]._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 24 bytes of ref _88->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref _88->validationId
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 8 bytes of ref _88->from
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 16 bytes of ref _88->to
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: Build SLP failed: different operation in stmt _88->rawMsg = _405;
 
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: Build SLP failed: unrolling required in basic block SLP
@@ -9784,6 +9859,13 @@ reference.cpp:544:5: note: not vectorized: failed to find SLP opportunities in b
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not consecutive access _88->queryCount = _404;
 
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref MEM[(struct _Vector_impl *)_88]._M_start
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 8 bytes of ref MEM[(struct _Vector_impl *)_88]._M_finish
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref MEM[(struct _Vector_impl *)_88]._M_end_of_storage
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 8 bytes of ref _88->rawMsg
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref _88->validationId
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 8 bytes of ref _88->from
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: misalign = 0 bytes of ref _88->to
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: Build SLP failed: different operation in stmt _88->rawMsg = _405;
 
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: Build SLP failed: unrolling required in basic block SLP
@@ -10012,7 +10094,7 @@ reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:409:26: note: not consecutive access _1840 = MEM[(const struct Flush &)_102].validationId;
 
 reference.cpp:409:26: note: SLP: step doesn't divide the vector-size.
-reference.cpp:409:26: note: Unknown alignment for access: *SR.2722_508
+reference.cpp:409:26: note: Unknown alignment for access: *SR.2721_508
 reference.cpp:409:26: note: Failed to SLP the basic block.
 reference.cpp:409:26: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:409:26: note: not consecutive access _1840 = MEM[(const struct Flush &)_102].validationId;
@@ -10373,7 +10455,7 @@ reference.cpp:348:70: note: not vectorized: failed to find SLP opportunities in 
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not vectorized: no vectype for stmt: MEM[(struct TRMapPhase * *)vectp.4677_1699] = vect_cst_.4676_1701;
+/usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not vectorized: no vectype for stmt: MEM[(struct TRMapPhase * *)vectp.4676_1699] = vect_cst_.4675_1701;
  scalar_type: vector(4) long unsigned int
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:87:68: note: Build SLP failed: unrolling required in basic block SLP
@@ -10526,7 +10608,7 @@ reference.cpp:185:8: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:185:8: note: not vectorized: no vectype for stmt: MEM[(struct ColumnStruct * *)vectp.4667_1748] = vect_cst_.4666_1752;
+reference.cpp:185:8: note: not vectorized: no vectype for stmt: MEM[(struct ColumnStruct * *)vectp.4666_1748] = vect_cst_.4665_1752;
  scalar_type: vector(4) long unsigned int
 reference.cpp:185:8: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:185:8: note: not vectorized: not enough data-refs in basic block.
@@ -10656,13 +10738,13 @@ reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:353:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:353:5: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:544:5: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:297:53: note: not consecutive access D.270037 = _904;
+include/LPQueryTypes.hpp:297:53: note: not consecutive access D.270042 = _904;
 
 include/LPQueryTypes.hpp:297:53: note: misalign = 8 bytes of ref gRequiredColumns.D.91785._M_impl._M_finish
 include/LPQueryTypes.hpp:297:53: note: misalign = 16 bytes of ref gRequiredColumns.D.91785._M_impl._M_end_of_storage
 include/LPQueryTypes.hpp:297:53: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:297:53: note: not vectorized: failed to find SLP opportunities in basic block.
-include/LPQueryTypes.hpp:297:53: note: not consecutive access D.270037 = _904;
+include/LPQueryTypes.hpp:297:53: note: not consecutive access D.270042 = _904;
 
 include/LPQueryTypes.hpp:297:53: note: misalign = 8 bytes of ref gRequiredColumns.D.91785._M_impl._M_finish
 include/LPQueryTypes.hpp:297:53: note: misalign = 0 bytes of ref gRequiredColumns.D.91785._M_impl._M_end_of_storage
@@ -11537,13 +11619,13 @@ include/cpp_btree/btree.h:1214:48: note: not vectorized: not enough data-refs in
 include/cpp_btree/btree.h:1742:1: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:529:38: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:529:38: note: not vectorized: not enough data-refs in basic block.
-include/cpp_btree/btree.h:597:7: note: not consecutive access _63 = MEM[(const unsigned int &)SR.2993_32].fields_.D.135541.D.135502.values[0].first;
+include/cpp_btree/btree.h:597:7: note: not consecutive access _63 = MEM[(const unsigned int &)SR.2992_32].fields_.D.135541.D.135502.values[0].first;
 
 include/cpp_btree/btree.h:597:7: note: not consecutive access _64 = MEM[(const unsigned int &)key_9(D)];
 
 include/cpp_btree/btree.h:597:7: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:597:7: note: not vectorized: failed to find SLP opportunities in basic block.
-include/cpp_btree/btree.h:597:7: note: not consecutive access _63 = MEM[(const unsigned int &)SR.2993_32].fields_.D.135541.D.135502.values[0].first;
+include/cpp_btree/btree.h:597:7: note: not consecutive access _63 = MEM[(const unsigned int &)SR.2992_32].fields_.D.135541.D.135502.values[0].first;
 
 include/cpp_btree/btree.h:597:7: note: not consecutive access _64 = MEM[(const unsigned int &)key_9(D)];
 
@@ -11591,17 +11673,17 @@ include/cpp_btree/btree.h:572:61: note: not vectorized: not enough data-refs in 
 include/cpp_btree/btree.h:1742:1: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:525:41: note: not consecutive access _71 = MEM[(bool *)_70];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _68 = MEM[(unsigned char *)SR.4968_28 + 1B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _68 = MEM[(unsigned char *)SR.4967_28 + 1B];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _70 = MEM[(struct btree_node * *)SR.4968_28 + 8B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _70 = MEM[(struct btree_node * *)SR.4967_28 + 8B];
 
 include/cpp_btree/btree.h:525:41: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:525:41: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:525:41: note: not consecutive access _71 = MEM[(bool *)_70];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _68 = MEM[(unsigned char *)SR.4968_28 + 1B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _68 = MEM[(unsigned char *)SR.4967_28 + 1B];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _70 = MEM[(struct btree_node * *)SR.4968_28 + 8B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _70 = MEM[(struct btree_node * *)SR.4967_28 + 8B];
 
 include/cpp_btree/btree.h:525:41: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:525:41: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -11624,7 +11706,7 @@ include/cpp_btree/btree.h:2222:5: note: not consecutive access _98 = MEM[(size_t
 
 include/cpp_btree/btree.h:2222:5: note: not consecutive access MEM[(size_type *)prephitmp_77 + 416B] = _99;
 
-include/cpp_btree/btree.h:2222:5: note: not consecutive access pretmp_231 = MEM[(unsigned char *)SR.2993_280 + 3B];
+include/cpp_btree/btree.h:2222:5: note: not consecutive access pretmp_231 = MEM[(unsigned char *)SR.2992_280 + 3B];
 
 include/cpp_btree/btree.h:2222:5: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:2222:5: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -11632,7 +11714,7 @@ include/cpp_btree/btree.h:2222:5: note: not consecutive access _98 = MEM[(size_t
 
 include/cpp_btree/btree.h:2222:5: note: not consecutive access MEM[(size_type *)prephitmp_77 + 416B] = _99;
 
-include/cpp_btree/btree.h:2222:5: note: not consecutive access pretmp_231 = MEM[(unsigned char *)SR.2993_280 + 3B];
+include/cpp_btree/btree.h:2222:5: note: not consecutive access pretmp_231 = MEM[(unsigned char *)SR.2992_280 + 3B];
 
 include/cpp_btree/btree.h:2222:5: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:2222:5: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -11942,25 +12024,25 @@ include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree
 include/cpp_btree/btree.h:773:28: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:773:28: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:1742:1: note: not vectorized: not enough data-refs in basic block.
-include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].position = SR.4969_230;
+include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].position = SR.4968_230;
 
 include/cpp_btree/btree.h:773:28: note: not consecutive access _10(D)->second = 0;
 
-include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].node = SR.4968_282;
+include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].node = SR.4967_282;
 
 include/cpp_btree/btree.h:773:28: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:773:28: note: not vectorized: failed to find SLP opportunities in basic block.
-include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].position = SR.4969_230;
+include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].position = SR.4968_230;
 
 include/cpp_btree/btree.h:773:28: note: not consecutive access _10(D)->second = 0;
 
-include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].node = SR.4968_282;
+include/cpp_btree/btree.h:773:28: note: not consecutive access MEM[(struct btree_iterator *)_10(D)].node = SR.4967_282;
 
 include/cpp_btree/btree.h:773:28: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:773:28: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.position = s_210;
 
-include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.node = SR.2993_280;
+include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.node = SR.2992_280;
 
 include/cpp_btree/btree.h:1742:1: note: not consecutive access _19 = value.key;
 
@@ -11970,7 +12052,7 @@ include/cpp_btree/btree.h:1742:1: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:1742:1: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.position = s_210;
 
-include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.node = SR.2993_280;
+include/cpp_btree/btree.h:1742:1: note: not consecutive access D.201492.node = SR.2992_280;
 
 include/cpp_btree/btree.h:1742:1: note: not consecutive access _19 = value.key;
 
@@ -11997,13 +12079,13 @@ include/cpp_btree/btree.h:1742:1: note: not vectorized: failed to find SLP oppor
 include/cpp_btree/btree.h:1742:1: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:529:38: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:1753:39: note: not vectorized: not enough data-refs in basic block.
-include/cpp_btree/btree.h:1753:39: note: not consecutive access _17 = MEM[(const unsigned int &)SR.4968_282].fields_.D.135541.D.135502.values[SR.4969_230].first;
+include/cpp_btree/btree.h:1753:39: note: not consecutive access _17 = MEM[(const unsigned int &)SR.4967_282].fields_.D.135541.D.135502.values[SR.4968_230].first;
 
 include/cpp_btree/btree.h:1753:39: note: not consecutive access _16 = MEM[(const unsigned int &)key_9(D)];
 
 include/cpp_btree/btree.h:1753:39: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:1753:39: note: not vectorized: failed to find SLP opportunities in basic block.
-include/cpp_btree/btree.h:1753:39: note: not consecutive access _17 = MEM[(const unsigned int &)SR.4968_282].fields_.D.135541.D.135502.values[SR.4969_230].first;
+include/cpp_btree/btree.h:1753:39: note: not consecutive access _17 = MEM[(const unsigned int &)SR.4967_282].fields_.D.135541.D.135502.values[SR.4968_230].first;
 
 include/cpp_btree/btree.h:1753:39: note: not consecutive access _16 = MEM[(const unsigned int &)key_9(D)];
 
@@ -12088,12 +12170,12 @@ reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:873:129: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:842:32: note: not consecutive access lastTransId.320_28 = lastTransId;
 
-reference.cpp:842:32: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:842:32: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:842:32: note: Failed to SLP the basic block.
 reference.cpp:842:32: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:842:32: note: not consecutive access lastTransId.320_28 = lastTransId;
 
-reference.cpp:842:32: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:842:32: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:842:32: note: Failed to SLP the basic block.
 reference.cpp:842:32: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
@@ -12128,12 +12210,12 @@ reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not consecutive access pretmp_215 = MEM[(struct _Vector_base *)&operations]._M_impl._M_start;
 
-reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:807:6: note: Failed to SLP the basic block.
 reference.cpp:807:6: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:807:6: note: not consecutive access pretmp_215 = MEM[(struct _Vector_base *)&operations]._M_impl._M_start;
 
-reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:807:6: note: Failed to SLP the basic block.
 reference.cpp:807:6: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:185:2: note: not consecutive access _207 = MEM[(long unsigned int * * *)&operations + 8B];
@@ -12181,12 +12263,12 @@ reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/vector.tcc:98:6: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:845:81: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:807:6: note: misalign = 0 bytes of ref MEM[(struct _Vector_base *)&operations]._M_impl._M_start
 reference.cpp:807:6: note: misalign = 8 bytes of ref MEM[(long unsigned int * * *)&operations + 8B]
 reference.cpp:807:6: note: Failed to SLP the basic block.
 reference.cpp:807:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:807:6: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:807:6: note: misalign = 0 bytes of ref MEM[(struct _Vector_base *)&operations]._M_impl._M_start
 reference.cpp:807:6: note: misalign = 8 bytes of ref MEM[(long unsigned int * * *)&operations + 8B]
 reference.cpp:807:6: note: Failed to SLP the basic block.
@@ -12197,12 +12279,12 @@ reference.cpp:846:45: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:1439:2: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:850:13: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:850:13: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:852:48: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:852:48: note: misalign = 16 bytes of ref SR.3167_302->rowCount
+reference.cpp:852:48: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:852:48: note: misalign = 16 bytes of ref SR.3166_302->rowCount
 reference.cpp:852:48: note: Failed to SLP the basic block.
 reference.cpp:852:48: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:852:48: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:852:48: note: misalign = 0 bytes of ref SR.3167_302->rowCount
+reference.cpp:852:48: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:852:48: note: misalign = 0 bytes of ref SR.3166_302->rowCount
 reference.cpp:852:48: note: Failed to SLP the basic block.
 reference.cpp:852:48: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
@@ -12265,17 +12347,17 @@ include/cpp_btree/btree.h:572:61: note: not vectorized: not enough data-refs in 
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 include/cpp_btree/btree.h:525:41: note: not consecutive access _256 = MEM[(bool *)_255];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _253 = MEM[(unsigned char *)SR.4992_364 + 1B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _253 = MEM[(unsigned char *)SR.4991_364 + 1B];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _255 = MEM[(struct btree_node * *)SR.4992_364 + 8B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _255 = MEM[(struct btree_node * *)SR.4991_364 + 8B];
 
 include/cpp_btree/btree.h:525:41: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:525:41: note: not vectorized: failed to find SLP opportunities in basic block.
 include/cpp_btree/btree.h:525:41: note: not consecutive access _256 = MEM[(bool *)_255];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _253 = MEM[(unsigned char *)SR.4992_364 + 1B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _253 = MEM[(unsigned char *)SR.4991_364 + 1B];
 
-include/cpp_btree/btree.h:525:41: note: not consecutive access _255 = MEM[(struct btree_node * *)SR.4992_364 + 8B];
+include/cpp_btree/btree.h:525:41: note: not consecutive access _255 = MEM[(struct btree_node * *)SR.4991_364 + 8B];
 
 include/cpp_btree/btree.h:525:41: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:525:41: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -12333,15 +12415,15 @@ reference.cpp:807:6: note: not vectorized: failed to find SLP opportunities in b
 /usr/include/c++/4.9/bits/stl_vector.h:919:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:864:63: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
-include/cpp_btree/btree.h:773:28: note: not consecutive access D.264241.position = lb$position_366;
+include/cpp_btree/btree.h:773:28: note: not consecutive access D.264246.position = lb$position_366;
 
-include/cpp_btree/btree.h:773:28: note: not consecutive access D.264241.node = lb$node_367;
+include/cpp_btree/btree.h:773:28: note: not consecutive access D.264246.node = lb$node_367;
 
 include/cpp_btree/btree.h:773:28: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:773:28: note: not vectorized: failed to find SLP opportunities in basic block.
-include/cpp_btree/btree.h:773:28: note: not consecutive access D.264241.position = lb$position_366;
+include/cpp_btree/btree.h:773:28: note: not consecutive access D.264246.position = lb$position_366;
 
-include/cpp_btree/btree.h:773:28: note: not consecutive access D.264241.node = lb$node_367;
+include/cpp_btree/btree.h:773:28: note: not consecutive access D.264246.node = lb$node_367;
 
 include/cpp_btree/btree.h:773:28: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:773:28: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -12351,12 +12433,12 @@ reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:870:38: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:870:32: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:873:51: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:873:51: note: misalign = 16 bytes of ref SR.3167_302->rowCount
+reference.cpp:873:51: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:873:51: note: misalign = 16 bytes of ref SR.3166_302->rowCount
 reference.cpp:873:51: note: Failed to SLP the basic block.
 reference.cpp:873:51: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:873:51: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:873:51: note: misalign = 0 bytes of ref SR.3167_302->rowCount
+reference.cpp:873:51: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:873:51: note: misalign = 0 bytes of ref SR.3166_302->rowCount
 reference.cpp:873:51: note: Failed to SLP the basic block.
 reference.cpp:873:51: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:881:109: note: not vectorized: not enough data-refs in basic block.
@@ -12398,21 +12480,21 @@ reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:878:51: note: not consecutive access D.164224 = _69;
 
-reference.cpp:878:51: note: not consecutive access D.269757.key = &D.164224;
+reference.cpp:878:51: note: not consecutive access D.269762.key = &D.164224;
 
 reference.cpp:878:51: note: not consecutive access _68 = *values_333;
 
-reference.cpp:878:51: note: not consecutive access _66 = MEM[(long unsigned int &)SR.3167_302];
+reference.cpp:878:51: note: not consecutive access _66 = MEM[(long unsigned int &)SR.3166_302];
 
 reference.cpp:878:51: note: Failed to SLP the basic block.
 reference.cpp:878:51: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:878:51: note: not consecutive access D.164224 = _69;
 
-reference.cpp:878:51: note: not consecutive access D.269757.key = &D.164224;
+reference.cpp:878:51: note: not consecutive access D.269762.key = &D.164224;
 
 reference.cpp:878:51: note: not consecutive access _68 = *values_333;
 
-reference.cpp:878:51: note: not consecutive access _66 = MEM[(long unsigned int &)SR.3167_302];
+reference.cpp:878:51: note: not consecutive access _66 = MEM[(long unsigned int &)SR.3166_302];
 
 reference.cpp:878:51: note: Failed to SLP the basic block.
 reference.cpp:878:51: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -12421,9 +12503,9 @@ include/cpp_btree/btree.h:557:57: note: not consecutive access MEM[(struct pair 
 
 include/cpp_btree/btree.h:557:57: note: not consecutive access MEM[(struct pair *)_299 + 8B].second = prephitmp_230;
 
-include/cpp_btree/btree.h:557:57: note: not consecutive access _298 = MEM[(int *)&D.269758 + 8B];
+include/cpp_btree/btree.h:557:57: note: not consecutive access _298 = MEM[(int *)&D.269763 + 8B];
 
-include/cpp_btree/btree.h:557:57: note: not consecutive access _297 = MEM[(struct btree_node * *)&D.269758];
+include/cpp_btree/btree.h:557:57: note: not consecutive access _297 = MEM[(struct btree_node * *)&D.269763];
 
 include/cpp_btree/btree.h:557:57: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:557:57: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -12431,26 +12513,26 @@ include/cpp_btree/btree.h:557:57: note: not consecutive access MEM[(struct pair 
 
 include/cpp_btree/btree.h:557:57: note: not consecutive access MEM[(struct pair *)_299 + 8B].second = prephitmp_230;
 
-include/cpp_btree/btree.h:557:57: note: not consecutive access _298 = MEM[(int *)&D.269758 + 8B];
+include/cpp_btree/btree.h:557:57: note: not consecutive access _298 = MEM[(int *)&D.269763 + 8B];
 
-include/cpp_btree/btree.h:557:57: note: not consecutive access _297 = MEM[(struct btree_node * *)&D.269758];
+include/cpp_btree/btree.h:557:57: note: not consecutive access _297 = MEM[(struct btree_node * *)&D.269763];
 
 include/cpp_btree/btree.h:557:57: note: Failed to SLP the basic block.
 include/cpp_btree/btree.h:557:57: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:807:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:881:108: note: misalign = 16 bytes of ref SR.3167_302->rowCount
-reference.cpp:881:108: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:881:108: note: misalign = 16 bytes of ref SR.3166_302->rowCount
+reference.cpp:881:108: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:881:108: note: Build SLP failed: different operation in stmt _87 = (long unsigned int) _86;
 
 reference.cpp:881:108: note: Build SLP failed: different operation in stmt _87 = (long unsigned int) _86;
 
 reference.cpp:881:108: note: Failed to SLP the basic block.
 reference.cpp:881:108: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3167_302->rowCount
-reference.cpp:881:108: note: misalign = 8 bytes of ref SR.3167_302->values
-reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3167_302->trans_id
+reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3166_302->rowCount
+reference.cpp:881:108: note: misalign = 8 bytes of ref SR.3166_302->values
+reference.cpp:881:108: note: misalign = 0 bytes of ref SR.3166_302->trans_id
 reference.cpp:881:108: note: Build SLP failed: different operation in stmt _87 = (long unsigned int) _86;
 
 reference.cpp:881:108: note: Build SLP failed: different operation in stmt _87 = (long unsigned int) _86;
@@ -13006,10 +13088,10 @@ include/LPQueryTypes.hpp:34:36: note: not vectorized: failed to find SLP opportu
 /usr/include/c++/4.9/bits/move.h:175:19: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1909:4: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1948:8: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1326:5: note: not vectorized: multiple nested loops.
-reference.cpp:1326:5: note: bad loop form.
-reference.cpp:1213:37: note: not vectorized: multiple nested loops.
-reference.cpp:1213:37: note: bad loop form.
+reference.cpp:1330:5: note: not vectorized: multiple nested loops.
+reference.cpp:1330:5: note: bad loop form.
+reference.cpp:1215:37: note: not vectorized: multiple nested loops.
+reference.cpp:1215:37: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: control flow in loop.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: bad inner-loop form.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: Bad inner loop.
@@ -13022,12 +13104,12 @@ reference.cpp:1213:37: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: control flow in loop.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: bad loop form.
-reference.cpp:1284:38: note: not vectorized: control flow in loop.
-reference.cpp:1284:38: note: bad loop form.
-reference.cpp:1293:38: note: not vectorized: control flow in loop.
-reference.cpp:1293:38: note: bad loop form.
-reference.cpp:1302:26: note: not vectorized: multiple nested loops.
-reference.cpp:1302:26: note: bad loop form.
+reference.cpp:1290:40: note: not vectorized: control flow in loop.
+reference.cpp:1290:40: note: bad loop form.
+reference.cpp:1298:40: note: not vectorized: control flow in loop.
+reference.cpp:1298:40: note: bad loop form.
+reference.cpp:1306:28: note: not vectorized: multiple nested loops.
+reference.cpp:1306:28: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: control flow in loop.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: bad inner-loop form.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: Bad inner loop.
@@ -13074,8 +13156,8 @@ include/LPQueryTypes.hpp:30:29: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: misalign = 8 bytes of ref MEM[(struct LPValidation * *)&gPendingValidations + 8B]
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:655:74: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1338:1: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1342:1: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _39 = MEM[(struct LPValidation &)_26].rawMsg;
 
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _8 = MEM[(struct LPValidation &)_26].validationId;
@@ -13088,7 +13170,7 @@ reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
 
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _40 = MEM[(char * *)_39 + 8B];
 
-/usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _599 = MEM[(const struct ValidationQueries &)_40].queryCount;
+/usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _564 = MEM[(const struct ValidationQueries &)_40].queryCount;
 
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -13104,90 +13186,90 @@ reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
 
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _40 = MEM[(char * *)_39 + 8B];
 
-/usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _599 = MEM[(const struct ValidationQueries &)_40].queryCount;
+/usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not consecutive access _564 = MEM[(const struct ValidationQueries &)_40].queryCount;
 
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:780:41: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1213:37: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1213:37: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1222:63: note: not consecutive access _49 = MEM[(struct RelationStruct * const &)&gRelations];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1215:37: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1215:37: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1224:63: note: not consecutive access _49 = MEM[(struct RelationStruct * const &)&gRelations];
 
-reference.cpp:1222:63: note: not consecutive access _47 = MEM[(struct Query &)qreader_586].relationId;
+reference.cpp:1224:63: note: not consecutive access _47 = MEM[(struct Query &)qreader_594].relationId;
 
-reference.cpp:1222:63: note: Failed to SLP the basic block.
-reference.cpp:1222:63: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1222:63: note: not consecutive access _49 = MEM[(struct RelationStruct * const &)&gRelations];
+reference.cpp:1224:63: note: Failed to SLP the basic block.
+reference.cpp:1224:63: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1224:63: note: not consecutive access _49 = MEM[(struct RelationStruct * const &)&gRelations];
 
-reference.cpp:1222:63: note: not consecutive access _47 = MEM[(struct Query &)qreader_586].relationId;
+reference.cpp:1224:63: note: not consecutive access _47 = MEM[(struct Query &)qreader_594].relationId;
 
-reference.cpp:1222:63: note: Failed to SLP the basic block.
-reference.cpp:1222:63: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1224:63: note: Failed to SLP the basic block.
+reference.cpp:1224:63: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _484 = MEM[(long unsigned int *)_254];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _571 = MEM[(long unsigned int *)_575];
 
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _487 = MEM[(const long unsigned int &)_26 + 40];
-
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _484 = MEM[(long unsigned int *)_254];
-
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _487 = MEM[(const long unsigned int &)_26 + 40];
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _576 = MEM[(const long unsigned int &)_26 + 40];
 
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _571 = MEM[(long unsigned int *)_575];
+
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _576 = MEM[(const long unsigned int &)_26 + 40];
+
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _571 = MEM[(long unsigned int *)_596];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _254 = MEM[(long unsigned int *)_541];
 
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _576 = MEM[(const long unsigned int &)_26 + 48];
-
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _571 = MEM[(long unsigned int *)_596];
-
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _576 = MEM[(const long unsigned int &)_26 + 48];
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _570 = MEM[(const long unsigned int &)_26 + 48];
 
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1225:13: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:140:49: note: not vectorized: more than one data ref in stmt: __comp = D.269480;
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _254 = MEM[(long unsigned int *)_541];
+
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _570 = MEM[(const long unsigned int &)_26 + 48];
+
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1227:13: note: not vectorized: not enough data-refs in basic block.
+include/LPQueryTypes.hpp:140:49: note: not vectorized: more than one data ref in stmt: __comp = D.269485;
 
 include/LPQueryTypes.hpp:140:49: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:140:49: note: not vectorized: more than one data ref in stmt: __comp = D.269480;
+include/LPQueryTypes.hpp:140:49: note: not vectorized: more than one data ref in stmt: __comp = D.269485;
 
 include/LPQueryTypes.hpp:140:49: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1968:31: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1884:70: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: SLP: step doesn't divide the vector-size.
-/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_586 + 264B]
+/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_594 + 264B]
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: SLP: step doesn't divide the vector-size.
-/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_586 + 264B]
+/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_594 + 264B]
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: SLP: step doesn't divide the vector-size.
-/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_586 + 264B]
+/usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Unknown alignment for access: MEM[(void *)qreader_594 + 264B]
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1824:10: note: Failed to SLP the basic block.
@@ -13198,13 +13280,13 @@ reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:30:29: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:30:29: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:31:18: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: not consecutive access MEM[(struct Column *)__last_850 + 8B] = __val$value_528;
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: not consecutive access MEM[(struct Column *)__last_832 + 8B] = __val$value_532;
 
 /usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: Build SLP failed: unrolling required in basic block SLP
 /usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: not consecutive access MEM[(struct Column *)__last_850 + 8B] = __val$value_528;
+/usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: not consecutive access MEM[(struct Column *)__last_832 + 8B] = __val$value_532;
 
 /usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: Build SLP failed: unrolling required in basic block SLP
 /usr/include/c++/4.9/bits/stl_algo.h:1833:7: note: Failed to SLP the basic block.
@@ -13212,49 +13294,49 @@ reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:32:30: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:32:30: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:33:18: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:34:36: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:34:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:1889:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:945:7: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:39:13: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:39:13: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:39:13: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:39:13: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:39:13: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:39:13: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:40:18: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:40:18: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:40:18: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:40:18: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:40:18: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:40:18: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:41:51: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:41:51: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *qreader_586
+include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *qreader_594
 include/LPQueryTypes.hpp:41:51: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:41:51: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:41:51: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:41:51: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:964:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:948:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:39:13: note: not consecutive access _314 = MEM[(const struct Column &)__first_313].column;
 
 include/LPQueryTypes.hpp:39:13: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *__first_900
+include/LPQueryTypes.hpp:39:13: note: Unknown alignment for access: *__first_859
 include/LPQueryTypes.hpp:39:13: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:39:13: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:39:13: note: not consecutive access _314 = MEM[(const struct Column &)__first_313].column;
@@ -13264,7 +13346,7 @@ include/LPQueryTypes.hpp:39:13: note: not vectorized: failed to find SLP opportu
 include/LPQueryTypes.hpp:40:18: note: not consecutive access _340 = MEM[(const struct Column &)__first_313].op;
 
 include/LPQueryTypes.hpp:40:18: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *__first_900
+include/LPQueryTypes.hpp:40:18: note: Unknown alignment for access: *__first_859
 include/LPQueryTypes.hpp:40:18: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:40:18: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:40:18: note: not consecutive access _340 = MEM[(const struct Column &)__first_313].op;
@@ -13274,7 +13356,7 @@ include/LPQueryTypes.hpp:40:18: note: not vectorized: failed to find SLP opportu
 include/LPQueryTypes.hpp:41:51: note: not consecutive access _342 = MEM[(const struct Column &)__first_313].value;
 
 include/LPQueryTypes.hpp:41:51: note: SLP: step doesn't divide the vector-size.
-include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *__first_900
+include/LPQueryTypes.hpp:41:51: note: Unknown alignment for access: *__first_859
 include/LPQueryTypes.hpp:41:51: note: Failed to SLP the basic block.
 include/LPQueryTypes.hpp:41:51: note: not vectorized: failed to find SLP opportunities in basic block.
 include/LPQueryTypes.hpp:41:51: note: not consecutive access _342 = MEM[(const struct Column &)__first_313].value;
@@ -13284,195 +13366,191 @@ include/LPQueryTypes.hpp:41:51: note: not vectorized: failed to find SLP opportu
 /usr/include/c++/4.9/bits/stl_algo.h:972:4: note: not vectorized: no vectype for stmt: MEM[(struct Column *)__first_313 + 16B] = *__first_315;
  scalar_type: struct Column
 /usr/include/c++/4.9/bits/stl_algo.h:972:4: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:970:7: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:973:16: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator_base_funcs.h:96:23: note: not vectorized: not enough data-refs in basic block.
 include/LPQueryTypes.hpp:227:45: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:233:112: note: not vectorized: more than one data ref in stmt: __comp = D.269522;
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+include/LPQueryTypes.hpp:233:112: note: not vectorized: more than one data ref in stmt: __comp = D.269527;
 
 include/LPQueryTypes.hpp:233:112: note: not vectorized: not enough data-refs in basic block.
-include/LPQueryTypes.hpp:233:112: note: not vectorized: more than one data ref in stmt: __comp = D.269522;
+include/LPQueryTypes.hpp:233:112: note: not vectorized: more than one data ref in stmt: __comp = D.269527;
 
 include/LPQueryTypes.hpp:233:112: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_heap.h:395:4: note: not vectorized: more than one data ref in stmt: __comp = __comp;
 
 /usr/include/c++/4.9/bits/stl_heap.h:395:4: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_heap.h:395:4: note: not vectorized: more than one data ref in stmt: __comp = __comp;
 
 /usr/include/c++/4.9/bits/stl_heap.h:395:4: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _556 = MEM[(long unsigned int *)_558];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _483 = MEM[(long unsigned int *)_486];
 
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _557 = MEM[(const long unsigned int &)_26 + 40];
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _484 = MEM[(const long unsigned int &)_26 + 40];
 
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _556 = MEM[(long unsigned int *)_558];
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _483 = MEM[(long unsigned int *)_486];
 
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _557 = MEM[(const long unsigned int &)_26 + 40];
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not consecutive access _484 = MEM[(const long unsigned int &)_26 + 40];
 
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2049:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _45 = MEM[(long unsigned int *)_545];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _410 = MEM[(long unsigned int *)_401];
 
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _562 = MEM[(const long unsigned int &)_26 + 48];
-
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _45 = MEM[(long unsigned int *)_545];
-
-/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _562 = MEM[(const long unsigned int &)_26 + 48];
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _462 = MEM[(const long unsigned int &)_26 + 48];
 
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _410 = MEM[(long unsigned int *)_401];
+
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not consecutive access _462 = MEM[(const long unsigned int &)_26 + 48];
+
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2051:36: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:914:40: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1282:45: note: Failed to SLP the basic block.
-reference.cpp:1282:45: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1282:45: note: Failed to SLP the basic block.
-reference.cpp:1282:45: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_874 = MEM[(long unsigned int * *)_109 + 24B];
+reference.cpp:1284:45: note: Failed to SLP the basic block.
+reference.cpp:1284:45: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1284:45: note: Failed to SLP the basic block.
+reference.cpp:1284:45: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1291:42: note: not consecutive access pretmp_838 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_882 = MEM[(long unsigned int * *)pretmp_881 + 24B];
+reference.cpp:1291:42: note: not consecutive access pretmp_835 = MEM[(struct Column &)qreader_594 + 8].op;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_887 = MEM[(long unsigned int * *)pretmp_886 + 24B];
+reference.cpp:1291:42: note: not consecutive access pretmp_840 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_871 = MEM[(struct Column &)qreader_586 + 8].op;
+reference.cpp:1291:42: note: Failed to SLP the basic block.
+reference.cpp:1291:42: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1291:42: note: not consecutive access pretmp_838 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_876 = MEM[(struct Column &)qreader_586 + 8].value;
+reference.cpp:1291:42: note: not consecutive access pretmp_835 = MEM[(struct Column &)qreader_594 + 8].op;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_874 = MEM[(long unsigned int * *)_109 + 24B];
+reference.cpp:1291:42: note: not consecutive access pretmp_840 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_882 = MEM[(long unsigned int * *)pretmp_881 + 24B];
+reference.cpp:1291:42: note: Failed to SLP the basic block.
+reference.cpp:1291:42: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1290:40: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1290:40: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1291:25: note: not consecutive access _175 = MEM[(long unsigned int * *)_174 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_887 = MEM[(long unsigned int * *)pretmp_886 + 24B];
+reference.cpp:1291:25: note: not consecutive access _177 = *_176;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_871 = MEM[(struct Column &)qreader_586 + 8].op;
+reference.cpp:1291:25: note: Failed to SLP the basic block.
+reference.cpp:1291:25: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1291:25: note: not consecutive access _175 = MEM[(long unsigned int * *)_174 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_876 = MEM[(struct Column &)qreader_586 + 8].value;
+reference.cpp:1291:25: note: not consecutive access _177 = *_176;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1284:38: note: not consecutive access _165 = *_164;
+reference.cpp:1291:25: note: Failed to SLP the basic block.
+reference.cpp:1291:25: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1292:121: note: not consecutive access _186 = MEM[(long unsigned int * *)_185 + 24B];
 
-reference.cpp:1284:38: note: not consecutive access _177 = *_176;
+reference.cpp:1292:121: note: not consecutive access _188 = *_187;
 
-reference.cpp:1284:38: note: not consecutive access _189 = *_188;
+reference.cpp:1292:121: note: Failed to SLP the basic block.
+reference.cpp:1292:121: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1292:121: note: not consecutive access _186 = MEM[(long unsigned int * *)_185 + 24B];
 
-reference.cpp:1284:38: note: Failed to SLP the basic block.
-reference.cpp:1284:38: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1284:38: note: not consecutive access _165 = *_164;
+reference.cpp:1292:121: note: not consecutive access _188 = *_187;
 
-reference.cpp:1284:38: note: not consecutive access _177 = *_176;
+reference.cpp:1292:121: note: Failed to SLP the basic block.
+reference.cpp:1292:121: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1293:83: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1293:83: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1295:16: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1296:45: note: not consecutive access cb1$value_201 = MEM[(const struct Column &)qreader_594 + 32];
 
-reference.cpp:1284:38: note: not consecutive access _189 = *_188;
+reference.cpp:1296:45: note: Failed to SLP the basic block.
+reference.cpp:1296:45: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1296:45: note: not consecutive access cb1$value_201 = MEM[(const struct Column &)qreader_594 + 32];
 
-reference.cpp:1284:38: note: Failed to SLP the basic block.
-reference.cpp:1284:38: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1288:84: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1288:84: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1290:16: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1291:45: note: not consecutive access cb1$value_202 = MEM[(const struct Column &)qreader_586 + 32];
+reference.cpp:1296:45: note: Failed to SLP the basic block.
+reference.cpp:1296:45: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1299:42: note: not consecutive access pretmp_826 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1291:45: note: Failed to SLP the basic block.
-reference.cpp:1291:45: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1291:45: note: not consecutive access cb1$value_202 = MEM[(const struct Column &)qreader_586 + 32];
+reference.cpp:1299:42: note: not consecutive access pretmp_823 = MEM[(struct Column &)qreader_594 + 8].op;
 
-reference.cpp:1291:45: note: Failed to SLP the basic block.
-reference.cpp:1291:45: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_861 = MEM[(long unsigned int * *)_109 + 24B];
+reference.cpp:1299:42: note: not consecutive access pretmp_828 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_869 = MEM[(long unsigned int * *)pretmp_868 + 24B];
+reference.cpp:1299:42: note: Failed to SLP the basic block.
+reference.cpp:1299:42: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1299:42: note: not consecutive access pretmp_826 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_858 = MEM[(struct Column &)qreader_586 + 8].op;
+reference.cpp:1299:42: note: not consecutive access pretmp_823 = MEM[(struct Column &)qreader_594 + 8].op;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_863 = MEM[(struct Column &)qreader_586 + 8].value;
+reference.cpp:1299:42: note: not consecutive access pretmp_828 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_861 = MEM[(long unsigned int * *)_109 + 24B];
+reference.cpp:1299:42: note: Failed to SLP the basic block.
+reference.cpp:1299:42: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1298:40: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1298:40: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1299:121: note: not consecutive access _224 = MEM[(long unsigned int * *)_223 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_869 = MEM[(long unsigned int * *)pretmp_868 + 24B];
+reference.cpp:1299:121: note: not consecutive access _226 = *_225;
 
-reference.cpp:1321:6: note: not consecutive access pretmp_858 = MEM[(struct Column &)qreader_586 + 8].op;
+reference.cpp:1299:121: note: Failed to SLP the basic block.
+reference.cpp:1299:121: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1299:121: note: not consecutive access _224 = MEM[(long unsigned int * *)_223 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_863 = MEM[(struct Column &)qreader_586 + 8].value;
+reference.cpp:1299:121: note: not consecutive access _226 = *_225;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1293:38: note: not consecutive access _215 = *_214;
+reference.cpp:1299:121: note: Failed to SLP the basic block.
+reference.cpp:1299:121: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1300:83: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1300:83: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1304:21: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1304:21: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1310:17: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1305:17: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not consecutive access pretmp_786 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1293:38: note: not consecutive access _227 = *_226;
+reference.cpp:1325:6: note: not consecutive access pFirst$4_58 = MEM[(struct Column *)&pFirst + 4B];
 
-reference.cpp:1293:38: note: Failed to SLP the basic block.
-reference.cpp:1293:38: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1293:38: note: not consecutive access _215 = *_214;
+reference.cpp:1325:6: note: not consecutive access pFirst$8_77 = MEM[(struct Column *)&pFirst + 8B];
 
-reference.cpp:1293:38: note: not consecutive access _227 = *_226;
+reference.cpp:1325:6: note: not consecutive access pretmp_788 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1293:38: note: Failed to SLP the basic block.
-reference.cpp:1293:38: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1296:84: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1296:84: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1300:21: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1300:21: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1306:17: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1301:17: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_817 = MEM[(long unsigned int * *)_109 + 24B];
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access pretmp_786 = MEM[(long unsigned int * *)_109 + 24B];
 
-reference.cpp:1321:6: note: not consecutive access pFirst$4_58 = MEM[(struct Column *)&pFirst + 4B];
+reference.cpp:1325:6: note: not consecutive access pFirst$4_58 = MEM[(struct Column *)&pFirst + 4B];
 
-reference.cpp:1321:6: note: not consecutive access pFirst$8_77 = MEM[(struct Column *)&pFirst + 8B];
+reference.cpp:1325:6: note: not consecutive access pFirst$8_77 = MEM[(struct Column *)&pFirst + 8B];
 
-reference.cpp:1321:6: note: not consecutive access pretmp_819 = MEM[(struct Column &)qreader_586 + 8].value;
+reference.cpp:1325:6: note: not consecutive access pretmp_788 = MEM[(struct Column &)qreader_594 + 8].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_817 = MEM[(long unsigned int * *)_109 + 24B];
-
-reference.cpp:1321:6: note: not consecutive access pFirst$4_58 = MEM[(struct Column *)&pFirst + 4B];
-
-reference.cpp:1321:6: note: not consecutive access pFirst$8_77 = MEM[(struct Column *)&pFirst + 8B];
-
-reference.cpp:1321:6: note: not consecutive access pretmp_819 = MEM[(struct Column &)qreader_586 + 8].value;
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1302:26: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1302:26: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1306:28: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1306:28: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:1106:5: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -13480,35 +13558,35 @@ reference.cpp:1106:5: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not consecutive access _376 = MEM[(struct value_type &)_375].value;
+reference.cpp:1325:6: note: not consecutive access _376 = MEM[(struct value_type &)_375].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _376 = MEM[(struct value_type &)_375].value;
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _376 = MEM[(struct value_type &)_375].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _380 = MEM[(struct value_type &)_379].value;
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _380 = MEM[(struct value_type &)_379].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _380 = MEM[(struct value_type &)_379].value;
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _380 = MEM[(struct value_type &)_379].value;
 
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _384 = MEM[(struct value_type &)_383 + 18446744073709551600].value;
 
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
@@ -13527,133 +13605,129 @@ reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in 
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _392 = MEM[(struct value_type &)_391 + 18446744073709551600].value;
 
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _396 = MEM[(struct value_type &)_395].value;
+
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _392 = MEM[(struct value_type &)_391 + 18446744073709551600].value;
 
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1118:74: note: not consecutive access _395 = MEM[(struct value_type &)_394].value;
-
-reference.cpp:1118:74: note: Failed to SLP the basic block.
-reference.cpp:1118:74: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1118:74: note: not consecutive access _395 = MEM[(struct value_type &)_394].value;
-
-reference.cpp:1118:74: note: Failed to SLP the basic block.
-reference.cpp:1118:74: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1303:21: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_844 = MEM[(struct Column *)&pFirst + 4B];
-
-reference.cpp:1321:6: note: not consecutive access pretmp_846 = MEM[(struct Column *)&pFirst + 8B];
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access pretmp_844 = MEM[(struct Column *)&pFirst + 4B];
-
-reference.cpp:1321:6: note: not consecutive access pretmp_846 = MEM[(struct Column *)&pFirst + 8B];
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1106:5: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
-/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not consecutive access _426 = MEM[(struct value_type &)_425].value;
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _426 = MEM[(struct value_type &)_425].value;
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _430 = MEM[(struct value_type &)_429].value;
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1321:6: note: not consecutive access _430 = MEM[(struct value_type &)_429].value;
-
-reference.cpp:1321:6: note: Failed to SLP the basic block.
-reference.cpp:1321:6: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _434 = MEM[(struct value_type &)_433 + 18446744073709551600].value;
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _396 = MEM[(struct value_type &)_395].value;
 
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _434 = MEM[(struct value_type &)_433 + 18446744073709551600].value;
-
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _438 = MEM[(struct value_type &)_437 + 18446744073709551600].value;
-
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _438 = MEM[(struct value_type &)_437 + 18446744073709551600].value;
-
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _442 = MEM[(struct value_type &)_441 + 18446744073709551600].value;
-
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _442 = MEM[(struct value_type &)_441 + 18446744073709551600].value;
-
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
-/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1118:74: note: not consecutive access _445 = MEM[(struct value_type &)_444].value;
-
-reference.cpp:1118:74: note: Failed to SLP the basic block.
-reference.cpp:1118:74: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1118:74: note: not consecutive access _445 = MEM[(struct value_type &)_444].value;
-
-reference.cpp:1118:74: note: Failed to SLP the basic block.
-reference.cpp:1118:74: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:1307:21: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1211:5: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1334:41: note: not consecutive access MEM[(char &)_27] = prephitmp_735;
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not consecutive access pretmp_809 = MEM[(struct Column *)&pFirst + 4B];
 
-reference.cpp:1334:41: note: not consecutive access _16 = MEM[(struct LPValidation &)_26].rawMsg;
+reference.cpp:1325:6: note: not consecutive access pretmp_811 = MEM[(struct Column *)&pFirst + 8B];
 
-reference.cpp:1334:41: note: Failed to SLP the basic block.
-reference.cpp:1334:41: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:1334:41: note: not consecutive access MEM[(char &)_27] = prephitmp_735;
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access pretmp_809 = MEM[(struct Column *)&pFirst + 4B];
 
-reference.cpp:1334:41: note: not consecutive access _16 = MEM[(struct LPValidation &)_26].rawMsg;
+reference.cpp:1325:6: note: not consecutive access pretmp_811 = MEM[(struct Column *)&pFirst + 8B];
 
-reference.cpp:1334:41: note: Failed to SLP the basic block.
-reference.cpp:1334:41: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1106:5: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:960:7: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algobase.h:962:36: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_algo.h:2311:56: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not consecutive access _428 = MEM[(struct value_type &)_427].value;
+
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _428 = MEM[(struct value_type &)_427].value;
+
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _432 = MEM[(struct value_type &)_431].value;
+
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1325:6: note: not consecutive access _432 = MEM[(struct value_type &)_431].value;
+
+reference.cpp:1325:6: note: Failed to SLP the basic block.
+reference.cpp:1325:6: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _436 = MEM[(struct value_type &)_435 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _436 = MEM[(struct value_type &)_435 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _440 = MEM[(struct value_type &)_439 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _440 = MEM[(struct value_type &)_439 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _444 = MEM[(struct value_type &)_443 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _448 = MEM[(struct value_type &)_447].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _444 = MEM[(struct value_type &)_443 + 18446744073709551600].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not consecutive access _448 = MEM[(struct value_type &)_447].value;
+
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: Failed to SLP the basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:729:23: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1311:21: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1213:5: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1338:41: note: not consecutive access MEM[(char &)_27] = prephitmp_704;
+
+reference.cpp:1338:41: note: not consecutive access _16 = MEM[(struct LPValidation &)_26].rawMsg;
+
+reference.cpp:1338:41: note: Failed to SLP the basic block.
+reference.cpp:1338:41: note: not vectorized: failed to find SLP opportunities in basic block.
+reference.cpp:1338:41: note: not consecutive access MEM[(char &)_27] = prephitmp_704;
+
+reference.cpp:1338:41: note: not consecutive access _16 = MEM[(struct LPValidation &)_26].rawMsg;
+
+reference.cpp:1338:41: note: Failed to SLP the basic block.
+reference.cpp:1338:41: note: not vectorized: failed to find SLP opportunities in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:161:33: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_vector.h:161:33: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/ext/new_allocator.h:110:9: note: not vectorized: not enough data-refs in basic block.
 include/ReaderIO.hpp:24:12: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/atomic_base.h:618:50: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1321:6: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:1268:67: note: not vectorized: no vectype for stmt: pFirst = MEM[(struct Query &)qreader_586].columns[0];
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1270:67: note: not vectorized: no vectype for stmt: pFirst = MEM[(struct Query &)qreader_594].columns[0];
  scalar_type: const struct Column
-reference.cpp:1268:67: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1270:67: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
+/usr/include/c++/4.9/bits/stl_iterator.h:751:2: note: not vectorized: not enough data-refs in basic block.
+reference.cpp:1325:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/stl_iterator.h:782:45: note: not vectorized: control flow in loop.
 /usr/include/c++/4.9/bits/stl_iterator.h:782:45: note: bad loop form.
 /usr/include/c++/4.9/bits/stl_heap.h:212:7: note: not vectorized: number of iterations cannot be computed.
@@ -14120,11 +14194,11 @@ reference.cpp:896:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/bits/vector.tcc:81:4: note: Failed to SLP the basic block.
 /usr/include/c++/4.9/bits/vector.tcc:81:4: note: not vectorized: failed to find SLP opportunities in basic block.
 reference.cpp:923:52: note: not vectorized: not enough data-refs in basic block.
-reference.cpp:896:6: note: not vectorized: more than one data ref in stmt: __comp = D.265600;
+reference.cpp:896:6: note: not vectorized: more than one data ref in stmt: __comp = D.265605;
 
 reference.cpp:896:6: note: Failed to SLP the basic block.
 reference.cpp:896:6: note: not vectorized: failed to find SLP opportunities in basic block.
-reference.cpp:896:6: note: not vectorized: more than one data ref in stmt: __comp = D.265600;
+reference.cpp:896:6: note: not vectorized: more than one data ref in stmt: __comp = D.265605;
 
 reference.cpp:896:6: note: Failed to SLP the basic block.
 reference.cpp:896:6: note: not vectorized: failed to find SLP opportunities in basic block.
@@ -14254,6 +14328,6 @@ reference.cpp:896:6: note: not vectorized: not enough data-refs in basic block.
 reference.cpp:896:6: note: not vectorized: not enough data-refs in basic block.
 /usr/include/c++/4.9/iostream:74:25: note: not vectorized: not enough data-refs in basic block.
 ColumnStruct: 64 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
-  :::: LPTimer [val: 4673 val-proc: 2001469 trans: 56199 trans-index: 99527 upd-index: 319016 flush: 2760 forget: 31441 reads: 386755/0]
+  :::: LPTimer [val: 5094 val-proc: 2043147 trans: 59688 trans-index: 98077 upd-index: 331626 flush: 2814 forget: 32555 reads: 381458/0]
 
 total validations: 80908 trans: 19656 tuples: 424515

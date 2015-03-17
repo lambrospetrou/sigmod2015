@@ -1115,7 +1115,7 @@ static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValu
         case Op::GreaterOrEqual: 
             return transValues.back().value >= pFirst.value;                   
         default: 
-            return !lp_EQUAL(transValues.back().value, pFirst.value) || !lp_EQUAL(transValues[0].value, pFirst.value);
+            return !lp_EQUAL(transValues.back().value, pFirst.value) | !lp_EQUAL(transValues[0].value, pFirst.value);
     }
     return false;
 }
@@ -1127,8 +1127,10 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
         auto& transValues = relColumns[c.column].transactions[pos].second;
         switch (c.op) {
             case Op::Equal: 
-                if ((relColumns[c.column].transactionsORs[pos] & c.value) != c.value) return true;
-                if (transValues[0].value > c.value || transValues.back().value < c.value) return true;
+                //if ((relColumns[c.column].transactionsORs[pos] & c.value) != c.value) return true;
+                //if (transValues[0].value > c.value || transValues.back().value < c.value) return true;
+                if (((relColumns[c.column].transactionsORs[pos] & c.value) != c.value)
+                    | ((transValues[0].value > c.value) | (transValues.back().value < c.value))) return true;
                 break;
             case Op::Less: 
                 if (transValues[0].value >= c.value) return true;
@@ -1281,26 +1283,28 @@ static bool isValidationConflict(LPValidation& v) {
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                /*if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         | (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         | (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value))
-                        ) continue;
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                        ) continue;*/
+                if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                        || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
+                        || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
+                && isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                        | (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
-                        ) continue;
-                if (isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
+                if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                        || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
+                && isTransactionConflict(transFrom->second, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
             auto& cb = cbegin[0];
             if (!cb.op) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (!lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value)) continue;
-                    if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+                    if (!(!lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                    && isTransactionConflict(transFrom->second, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
