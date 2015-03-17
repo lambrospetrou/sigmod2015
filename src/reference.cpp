@@ -497,18 +497,18 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
-        /*
+        
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
             auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
                         f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; });
+                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
             
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
-        */
+        
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -608,8 +608,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
