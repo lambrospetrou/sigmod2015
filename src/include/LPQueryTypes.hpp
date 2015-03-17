@@ -202,7 +202,7 @@ namespace lp {
             // check for equality and constrasting ranges OR  check non-overlapping ranges
             //if ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) )
                 //return true;
-            bool res = ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
+            bool res = ( (sat.lt <= sat.gt) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
             return res;
         }
 
