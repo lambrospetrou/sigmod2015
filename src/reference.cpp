@@ -350,10 +350,12 @@ static void processDefineSchema(const DefineSchema& d) {
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
     //cerr << endl << "relations: " << NUM_RELATIONS << endl;
-    for(uint32_t ri=0; ri<d.relationCount; ++ri) {
+    const uint32_t rels = d.relationCount;
+    for(uint32_t ri=0; ri<rels; ++ri) {
         //cerr << " " << gSchema[ci];
         gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
-        for (uint32_t ci=0, csz=gSchema[ri]; ci<csz; ++ci)
+        const uint32_t colsz = gSchema[ri];
+        for (uint32_t ci=0; ci<colsz; ++ci)
             gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
     }
 }
@@ -841,7 +843,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
-                if (!operations.empty())
+                if (likely(!operations.empty()))
                     relation.transLogTuples.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
@@ -921,9 +923,14 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             colTransactions.emplace_back(trp->first, move(aligned_vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
             auto& vecBack = colTransactions.back().second;
-            for (auto tpl : trp->second) {
-                vecBack.emplace_back(tpl[col], tpl);
-                colTransactionsORs.back() |= tpl[col];
+            const uint32_t tplsz = trp->second.size();
+            const auto *tpls = trp->second.data();
+            for (uint32_t i=0; i<tplsz; ++i) {
+            //for (auto tpl : trp->second) {
+                //vecBack.emplace_back(tpl[col], tpl);
+                //colTransactionsORs.back() |= tpl[col];
+                vecBack.emplace_back(tpls[i][col], tpls[i]);
+                colTransactionsORs.back() |= tpls[i][col];
             }
             sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
             //cerr << "OR: " << colTransactionsORs.back() << endl;
@@ -977,7 +984,8 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) 
+        gTransParseMapPhase[r].clear();
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif

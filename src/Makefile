@@ -8,7 +8,7 @@ RELEASE_CFLAGS=-march=native -msse4.2 -std=c++11 -O3 -W -Wall -Wextra $(MATH_FLA
 #RELEASE_MIN=-march=corei7-avx -msse4.2 -std=c++11 -O3 -W -Wall -Wextra -funroll-all-loops -fomit-frame-pointer -Iinclude 
 
 all: reference
-    reference: reference.cpp; g++ -L./include/asm  $(RELEASE_CFLAGS) -fopenmp -o$@ reference.cpp -lpthread -laelf64o -fopt-info-vec -fopt-info-vec-missed 
+    reference: reference.cpp; g++ -L./include/asm  $(RELEASE_CFLAGS) -fopenmp -o$@ reference.cpp -lpthread -laelf64o -fopt-info-vec #-fopt-info-vec-missed 
 #reference: reference.cpp; g++ $(RELEASE_CFLAGS) -I/usr/local/lib/tbb/include  -L/usr/local/lib/tbb/lib/intel64/gcc4.4 -fopenmp -o$@ reference.cpp -lpthread -ltbb -g
 
 clean:
