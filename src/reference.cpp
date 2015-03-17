@@ -128,8 +128,9 @@ typedef Query::Column::Op  Op;
 
 //typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > aligned_vector;
 template<typename T>
-using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
 //using aligned_vector = std::vector<T, aligned_allocator<T, sizeof(T)>>;
+using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
+//using aligned_vector = std::vector<T>;
 
 // Custom data structures to hold data
 struct CTransStruct {
@@ -266,7 +267,7 @@ static std::unique_ptr<uint32_t[]> gSchema;
 
 ///////// AUXILIARY STRUCTURES FOR THE WHOLE PROGRAM
 
-static aligned_vector<LPValidation> gPendingValidations;
+static vector<LPValidation> gPendingValidations;
 static std::mutex gPendingValidationsMutex;
 //static LPSpinLock gPendingValidationsMutex;
 
@@ -591,7 +592,7 @@ int main(int argc, char**argv) {
     //multiPool.initThreads();
     //multiPool.startAll();
 
-    cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << endl;
+    cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
     try {
 
