@@ -1244,11 +1244,6 @@ static bool isValidationConflict(LPValidation& v) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
     //cerr << vq.queryCount << endl; 
-    //for (auto& q : v.queries) {
-        //auto rq = q.rawQuery;
-        //lp::query::preprocess(q);
-        // protect from the case where there is no single predicate
-        //if (q.colCountUniq == 0) { 
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
@@ -1261,45 +1256,16 @@ static bool isValidationConflict(LPValidation& v) {
                 // transactions exist for this query so it is a conflict
                 return true;
             }; 
-        //} else if (q.colCountUniq == 1) {
         }
         
         uint32_t colCountUniq = lp::query::preprocess(rq); 
-        /* 
-        if (colCountUniq == 1) {
-            //cerr << "uniq 1" << endl;
-            //auto pFirst = *reinterpret_cast<Query::Column*>(q.rawQuery->columns);
-            auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
-            // just find the range of transactions we want in this relation
-            //auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
-            auto& transactions = gRelColumns[rq.relationId].columns[pFirst.column].transactions;
-            auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-            auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-            for(; transFrom<transTo; ++transFrom) {  
-                if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-            continue;
-        }
-        */
-        //cerr << "> 1" << endl;
         if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
         //cerr << "passed" << endl;
         
-        // just find the range of transactions we want in this relation
-        //auto& transactions = gRelColumns[q.relationId].columns[0].transactions;
-        //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-        //auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        //cerr << "after: " << v.from << "-" << v.to << "=" << (transTo-transFrom) << " for col: " << pFirst.column << "-" << pFirst.value << endl;   
-        //auto trFidx = transFrom - transactions.begin();
-        //auto trTidx = transTo - transactions.begin();
-        //cerr << (trTidx - trFidx) << endl;
-        
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
-            //cend = cbegin + q.colCountUniq;
             cend = cbegin + colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
-        //auto& transactions = gRelColumns[q.relationId].columns[pFirst.column].transactions;
         auto& relColumns = gRelColumns[rq.relationId].columns;
         auto& transactions = relColumns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
@@ -1313,10 +1279,6 @@ static bool isValidationConflict(LPValidation& v) {
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                /*if (    (!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                        | (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
-                        | (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value))
-                        ) continue;*/
                 if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
