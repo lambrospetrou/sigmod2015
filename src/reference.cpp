@@ -158,15 +158,12 @@ typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     vector<ColumnTransaction_t> transactions;
-    vector<uint64_t> transactionsORs;
+    aligned_vector<uint64_t> transactionsORs;
     uint64_t transTo;
     
     char padding[8]; //for false sharing
     
-    ColumnStruct() : transTo(0) {
-        //transactions.reserve(128);
-        //transactionsORs.reserve(128);
-    }
+    ColumnStruct() : transTo(0) {}
 }__attribute__((aligned(CACHE_ALIGNMENT)));
 
 struct CTRSLessThan_t {
