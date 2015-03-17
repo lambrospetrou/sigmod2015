@@ -73,15 +73,16 @@
 #include "include/LPQueryTypes.hpp"
 
 
-#ifdef LPTBB
+#ifdef LPOMPTBB
 #include <tbb/tbb.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include "include/TBBUtils.hpp"
+
+#include <omp.h>
 #endif
 
 
-#include <omp.h>
 
 
 //---------------------------------------------------------------------------
@@ -532,12 +533,12 @@ void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
 
 
 
+
+#ifdef LPOMPTBB
 void inline initOpenMP(uint32_t nThreads) {
     //omp_set_dynamic(0);           // Explicitly disable dynamic teams
     omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
 }
-
-#ifdef LPTBB
 void inline initTBB(uint32_t nThreads) {
    (void)nThreads;
    //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
@@ -555,8 +556,8 @@ int main(int argc, char**argv) {
     //cerr << "Number of threads: " << numOfThreads << endl;
     Globals.nThreads = numOfThreads;
 
+#ifdef LPOMPTBB
     initOpenMP(numOfThreads);
-#ifdef LPTBB
     initTBB(numOfThreads);
 #endif
 
@@ -1338,9 +1339,8 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
-    //#pragma omp parallel for schedule(static, 1)
-    //for (uint64_t vi = 0; vi < totalPending; ++vi) {
-    //tbb::parallel_for ((uint64_t)0, totalPending, [&] (uint64_t vi) {
+    //for (uint64_t vi = gNextPending--; vi < totalPending; vi=gNextPending--) {
+        //d:cerr << vi << " ";
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
@@ -1348,6 +1348,5 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
         atoRes = isValidationConflict(v);
         delete v.rawMsg;
     } // while true take more validations 
-    //); // for tbb::parallel_for
 }
 
