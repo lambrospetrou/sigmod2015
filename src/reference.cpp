@@ -923,14 +923,14 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             colTransactions.emplace_back(trp->first, move(aligned_vector<CTransStruct>()));
             colTransactions.back().second.reserve(trp->second.size());
             auto& vecBack = colTransactions.back().second;
-            const uint32_t tplsz = trp->second.size();
-            const auto *tpls = trp->second.data();
-            for (uint32_t i=0; i<tplsz; ++i) {
-            //for (auto tpl : trp->second) {
-                //vecBack.emplace_back(tpl[col], tpl);
-                //colTransactionsORs.back() |= tpl[col];
-                vecBack.emplace_back(tpls[i][col], tpls[i]);
-                colTransactionsORs.back() |= tpls[i][col];
+            //const uint32_t tplsz = trp->second.size();
+            //const auto *tpls = trp->second.data();
+            //for (uint32_t i=0; i<tplsz; ++i) {
+            for (auto tpl : trp->second) {
+                vecBack.emplace_back(tpl[col], tpl);
+                colTransactionsORs.back() |= tpl[col];
+                //vecBack.emplace_back(tpls[i][col], tpls[i]);
+                //colTransactionsORs.back() |= tpls[i][col];
             }
             sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
             //cerr << "OR: " << colTransactionsORs.back() << endl;
