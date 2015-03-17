@@ -426,6 +426,7 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 }
 //---------------------------------------------------------------------------
 
+/*
 static atomic<uint64_t> gNextFRel;
 void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
@@ -445,15 +446,13 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }
-        // clean the transactions log
-        /* 
-        auto& transLog = gRelations[ri].transLog; 
+        // clean the transactions log 
+        //auto& transLog = gRelations[ri].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
-        for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
-            if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
-            else ++it;
-        }
-        */
+        //for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
+        //    if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
+        //    else ++it;
+        //}
         
         // delete the transLogTuples
         auto& transLogTuples = gRelations[ri].transLogTuples;
@@ -463,17 +462,20 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
                 );
     }
 }
+*/
         
 static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
+    /*
     if (false) {
         gNextFRel = 0; 
         pool->startSingleAll(processForgetThreaded, (void*)&f);
         pool->waitSingleAll();
     }
-
+    */
+    (void)pool;
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
