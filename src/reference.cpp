@@ -939,31 +939,31 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // for all the transactions in the relation
         for(auto trp=transFrom; trp!=tEnd; ++trp) {
-            colTransactionsORs.push_back(0);
             // allocate vectors for the current new transaction to put its data
             colTransactions.emplace_back(trp->first);
             auto& values = colTransactions.back().values;
             auto& tuples = colTransactions.back().tuples;
             values.reserve(trp->second.size());
             tuples.reserve(trp->second.size());
-            //auto& vecBack = colTransactions.back().second;
+            //colTransactionsORs.push_back(0);
             //const uint32_t tplsz = trp->second.size();
-            //const auto *tpls = trp->second.data();
+            //const tuple_t *tpls = trp->second.data();
+            //tuple_t* tuplesptr = (tuple_t*)__builtin_assume_aligned(tuples.data(), 16, 8);
+            //uint64_t* valuesptr = (uint64_t*)__builtin_assume_aligned (values.data(), 16, 8);
             //for (uint32_t i=0; i<tplsz; ++i) {
             for (auto tpl : trp->second) {
-                //vecBack.emplace_back(tpl[col], tpl);
+                //colTransactionsORs.back() |= tpl[col];
                 values.push_back(tpl[col]);
                 tuples.push_back(tpl);
-                colTransactionsORs.back() |= tpl[col];
-                //vecBack.emplace_back(tpls[i][col], tpls[i]);
-                //colTransactionsORs.back() |= tpls[i][col];
+                //valuesptr[i] = tpls[i][col];
+                //tuplesptr[i] = tpls[i];
             }
-            //sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
+            colTransactionsORs.push_back(lp_OR(values.data(), values.size()));
+
+            //tuples.insert(tuples.begin(), trp->second.begin(), trp->second.end());
             sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
                     SIter<uint64_t, tuple_t>(values.data()+values.size(), tuples.data()+tuples.size()));
             //cerr << "OR: " << colTransactionsORs.back() << endl;
-            // add the sentinel value
-            //vecBack.emplace_back(UINT64_MAX, nullptr);
         }
         // no need to check for empty since now we update all the columns and there is a check for emptyness above
         //if(!relation.transLogTuples.empty())

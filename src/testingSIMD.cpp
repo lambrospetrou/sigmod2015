@@ -15,6 +15,9 @@
 #include <iostream>
 #include <array>
 #include <vector>
+#include <cstdint>
+#include "include/aligned_allocator.hpp"
+#include "include/LPUtils.hpp"
 
 // Sturcture-Of-Array to hold coordinates
 struct Vector3
@@ -37,6 +40,9 @@ struct Vector3
 };
 
 
+template<typename T>
+using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
+
 int main()
 {
 
@@ -48,6 +54,24 @@ int main()
     DataArray vect_b = {0.5,1,2,3,4,5,6,7,8,9 };
     DataArray vect_res_plain = { 0,0,0,0,0,0,0,0,0,0};   
     DataArray vect_res_lambda = { 0,0,0,0,0,0,0,0,0,0};
+
+    typedef uint64_t aint __attribute__ ((__aligned__(16)));
+    //typedef std::array<uint64_t, 10> lparray;
+    //typedef aligned_vector<uint64_t> lparray;
+    typedef std::vector<uint64_t> lparray;
+    lparray orArr = { 1,2,3,4,5,6,7,8,9,10 };
+    auto kernelOR = [] (lparray const& a) -> uint64_t {
+        aint ored;
+        const unsigned int sz = a.size();
+        for (unsigned int i=0; i<sz; ++i) {
+            ored |= a[i];
+        }
+        return ored;
+    };
+    //uint64_t orA = kernelOR(orArr);
+    //uint64_t orA = lp::lp_OR(orArr.data(), orArr.size());
+    uint64_t orA = lp::lp_OR(orArr);
+    std::cout << " or vect_a: " << orA << std::endl;
 
     constexpr double cFixedMultiply = 23.5f;
 
