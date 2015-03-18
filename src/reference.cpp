@@ -1175,7 +1175,8 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
 }
 
 //static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
-static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend) {
+//static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ) {
+static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
@@ -1220,14 +1221,85 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 100) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    
+    // copy the eligible tuples into our mask vector
+    vector<tuple_t> resTuples(tupFrom, tupTo);
+    size_t activeSize = resTuples.size();
+    for (; cbegin<cend; ++cbegin) {
+        //cerr << "active: " << activeSize << endl;
+        auto& c = *cbegin;    
+        auto& cTransactions = relColumns[c.column].transactions[pos];
+        auto& transValues = cTransactions.values;
+        auto& transTuples = cTransactions.tuples;
+        decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+        decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
+        size_t tupFromIdx{0}, tupToIdx{transTuples.size()};
+        switch (c.op) {
+            case Op::Equal: 
+                {
+                    if (transValues[0] > c.value || transValues.back() < c.value) return false;
+                    auto tp = std::equal_range(tBegin, tEnd, c.value);
+                    if (tp.second == tp.first) return false;
+                    tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
+                    tupFromIdx = (tp.first - tBegin); tupToIdx = tupFromIdx + (tp.second-tp.first);
+                    break;}
+            case Op::Less: 
+                if (transValues[0] >= c.value) return false;
+                tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, c.value));
+                if (tupTo == tupFrom) return false;
+                tupToIdx = (tupTo-tupFrom);
+                break;
+            case Op::LessOrEqual: 
+                if (transValues[0] > c.value) return false;
+                tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, c.value)); 
+                if (tupTo == tupFrom) return false;
+                tupToIdx = (tupTo-tupFrom);
+                break;
+            case Op::Greater: 
+                if (transValues.back() <= c.value) return false;
+                tupFrom += (std::upper_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupTo == tupFrom) return false;
+                tupFromIdx = (tupFrom-transTuples.begin());
+                break;
+            case Op::GreaterOrEqual: 
+                if (transValues.back() < c.value) return false;
+                tupFrom += (std::lower_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupTo == tupFrom) return false;
+                tupFromIdx = (tupFrom-transTuples.begin());
+                break;
+            default: 
+                // check if the active tuples have a value != to the predicate
+                for (size_t i=0; i<activeSize; ++i) {
+                    resTuples[i] = (resTuples[i][c.column] == c.value) ? 0 : resTuples[i];
+                }
+                goto LBL_CHECK_END;
+        }
+//LBL_CHECK:
+        // this check is done for all the operators apart from !=
+        // we have to check if the active tuples are inside the result set returned
+        for (size_t i=0; i<activeSize; ++i) {
+            unsigned int mask = 0;
+            for (size_t ct=tupFromIdx; ct<tupToIdx; ++ct) {
+                if (resTuples[i] == transTuples[ct]) { mask = 1; break; }
+            }
+            resTuples[i] = mask ? resTuples[i] : 0;
+        }
+LBL_CHECK_END:
+        // TODO - check if we have any valid tuple left otherwise return false
+        std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<tuple_t>());
+        activeSize = std::lower_bound(resTuples.begin(), resTuples.begin()+activeSize, (tuple_t)0, std::greater<tuple_t>()) - resTuples.begin();
+        //cerr << "active (after): " << activeSize << endl;
+        if (activeSize == 0) return false;
+    }
+    return true;
 }
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
     //vector<Query*> queries; queries.reserve(vq.queryCount);
-    
+    //cerr << "========= validation " << v.validationId << " =========" << endl; 
     const char* qreader = vq.queries;
     /*
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*queries.back()->columnCount)) {
@@ -1279,14 +1351,14 @@ static bool isValidationConflict(LPValidation& v) {
                 if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
                         || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
-                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
                 if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
                         || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
-                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
             } // end of all the transactions for this relation for this specific query
         } else {
             auto& cb = cbegin[0];
