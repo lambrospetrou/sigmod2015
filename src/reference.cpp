@@ -621,7 +621,6 @@ int main(int argc, char**argv) {
 
     try {
 
-        //uint64_t msgs = 0;
         while (true) {
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
             auto startInner = LPTimer.getChrono();
@@ -1175,7 +1174,6 @@ bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct
     return false; 
 }
 
-//static bool isTransactionConflict(vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend, uint64_t ORed) {
 //static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
 static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend) {
     auto& transValues = transaction.values;
@@ -1187,15 +1185,12 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
         case Op::Equal: 
             {
                 if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
-                //auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
                 if (tp.second == tp.first) return false;
-                //tupFrom = tp.first; tupTo = tp.second;
                 tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
                 break;}
         case Op::Less: 
             if (transValues[0] >= pFirst.value) return false;
-            //tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);                   
             tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
             if (tupTo == tupFrom) return false;
             break;
@@ -1217,12 +1212,14 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
         default: 
             cbegin = std::prev(cbegin);
     }
-
-    //cerr << transValues.size() << endl;
-
+    //cerr << "\n||| Transaction tuples |||" << endl;
+    //cerr << "-- orig: " << transValues.size() << endl;
+    //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
+    //for (auto t : transValues) cerr << t << " ";
+    
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
-
+    
     return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
 }
 
