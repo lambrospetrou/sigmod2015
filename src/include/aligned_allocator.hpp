@@ -1,5 +1,6 @@
 
-#include "LPUtils.hpp"
+#pragma once
+
 #include <cstdint>
 #include <vector>
 #include <iostream>
@@ -7,6 +8,9 @@
 #include <stdexcept>
 #include <xmmintrin.h>
 
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#define ALWAYS_INLINE  __attribute__((always_inline)) inline
 /**
  * Allocator for aligned data.
  *

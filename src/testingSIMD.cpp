@@ -57,7 +57,7 @@ int main()
 
     typedef uint64_t aint __attribute__ ((__aligned__(16)));
     typedef std::vector<uint64_t> lparray;
-    lparray orArr = { 1,2,3,4,5,6,7,8,9,10 };
+    lparray lpArr = { 1,2,3,4,5,6,7,8,9,10 };
     auto kernelOR = [] (lparray const& a) -> uint64_t {
         aint ored;
         const unsigned int sz = a.size();
@@ -66,9 +66,25 @@ int main()
         }
         return ored;
     };
-    //uint64_t orA = kernelOR(orArr);
-    uint64_t orA = lp::lp_OR(orArr);
+    uint64_t orA = kernelOR(lpArr);
     std::cout << " or vect_a: " << orA << std::endl;
+    uint64_t orB = lp::simd::or_all(lpArr);
+    std::cout << " or vect_a: " << orB << std::endl;
+
+    auto kernelExists = [] (lparray const& a, const uint64_t val) -> bool {
+        aint mask = 0;
+        const unsigned int sz = a.size();
+        for (unsigned int i=0; i<sz; ++i) {
+            mask |= a[i] == val;
+        }
+        return mask;
+    };
+    uint64_t exA = kernelExists(lpArr, 6);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr, 20);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data()+2, lpArr.size()-1, 3);
+    std::cout << " exists: " << exA << std::endl;
 
     constexpr double cFixedMultiply = 23.5f;
 

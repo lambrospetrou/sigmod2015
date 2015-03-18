@@ -296,6 +296,8 @@ static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
 
+static uint64_t gTimeSearch = 0;
+
 
 /////////////////////////////////////////// STRUCTURES FOR STATS
 typedef pair<bool, uint32_t> SColType;
@@ -684,6 +686,7 @@ int main(int argc, char**argv) {
                     {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
+                        cerr << " search: " << gTimeSearch << endl;
 #endif              
                         workerThreads.destroy();
                         //multiPool.destroy();
@@ -1154,7 +1157,7 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         auto& transValues = cTransactions.values;
         auto& transTuples = cTransactions.tuples;
         decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-        decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
+        //decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
         size_t tupFromIdx{0}, tupToIdx{transTuples.size()};
         switch (c.op) {
             case Op::Equal: 
@@ -1162,32 +1165,28 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                     if (transValues[0] > c.value || transValues.back() < c.value) return false;
                     auto tp = std::equal_range(tBegin, tEnd, c.value);
                     if (tp.second == tp.first) return false;
-                    tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
+                    //tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
                     tupFromIdx = (tp.first - tBegin); tupToIdx = tupFromIdx + (tp.second-tp.first);
                     break;}
             case Op::Less: 
                 if (transValues[0] >= c.value) return false;
-                tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, c.value));
-                if (tupTo == tupFrom) return false;
-                tupToIdx = (tupTo-tupFrom);
+                tupToIdx -= (tEnd-std::lower_bound(tBegin, tEnd, c.value));
+                if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::LessOrEqual: 
                 if (transValues[0] > c.value) return false;
-                tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, c.value)); 
-                if (tupTo == tupFrom) return false;
-                tupToIdx = (tupTo-tupFrom);
+                tupToIdx -= (tEnd-std::upper_bound(tBegin, tEnd, c.value)); 
+                if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::Greater: 
                 if (transValues.back() <= c.value) return false;
-                tupFrom += (std::upper_bound(tBegin, tEnd, c.value)-tBegin);
-                if (tupTo == tupFrom) return false;
-                tupFromIdx = (tupFrom-transTuples.begin());
+                tupFromIdx += (std::upper_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::GreaterOrEqual: 
                 if (transValues.back() < c.value) return false;
-                tupFrom += (std::lower_bound(tBegin, tEnd, c.value)-tBegin);
-                if (tupTo == tupFrom) return false;
-                tupFromIdx = (tupFrom-transTuples.begin());
+                tupFromIdx += (std::lower_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupToIdx == tupFromIdx) return false;
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
@@ -1196,15 +1195,19 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                 }
                 goto LBL_CHECK_END;
         }
-//LBL_CHECK:
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         for (size_t i=0; i<activeSize; ++i) {
+            auto start = LPTimer.getChrono();
+            /*
             unsigned int mask = 0;
             for (size_t ct=tupFromIdx; ct<tupToIdx; ++ct) {
                 if (resTuples[i] == transTuples[ct]) { mask = 1; break; }
             }
             resTuples[i] = mask ? resTuples[i] : 0;
+            */
+            resTuples[i] = lp::simd::exists(transTuples.data()+tupFromIdx, (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+            gTimeSearch += LPTimer.getChrono(start);
         }
 LBL_CHECK_END:
         // TODO - check if we have any valid tuple left otherwise return false
