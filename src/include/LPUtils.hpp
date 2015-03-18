@@ -101,13 +101,13 @@ namespace simd {
                     veca.load(a+i);
                     if (horizontal_or(veca == val)) return true;
                 }
-                return a[0] == val || a[1] == val;
+                return (a[0] == val) | (a[1] == val);
             case 3:
                 for (size_t i=3; i<sz; i += 4) {
                     veca.load(a+i);
                     if (horizontal_or(veca == val)) return true;
                 }
-                return a[0] == val || a[1] == val || a[2] == val;
+                return (a[0] == val) | (a[1] == val) | (a[2] == val);
         }
         return false;
     }
