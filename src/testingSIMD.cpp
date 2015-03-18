@@ -59,21 +59,19 @@ void testExists() {
     };
     uint64_t exA = kernelExists(lpArr, 6);
     std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr, 20);
+    exA = lp::utils::exists<uint64_t>(lpArr.data(), lpArr.size(), 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::exists<uint64_t>(lpArr.data(), lpArr.size(), 1);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::exists<uint64_t>(lpArr.data(), lpArr.size(), 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 1);
     std::cout << " exists (no): " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 11);
+    exA = lp::utils::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 11);
     std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 1);
+    exA = lp::utils::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 4);
     std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 4);
-    std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 1);
-    std::cout << " exists (no): " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 11);
-    std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 4);
-    std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-2, 11);
+    exA = lp::utils::exists<uint64_t>(lpArr.data()+1, lpArr.size()-2, 11);
     std::cout << " exists (no): " << exA << std::endl;
 }
 void testExists2() {
@@ -121,9 +119,14 @@ void timeExists() {
     
     std::cout << ":: exists 25 (yes) :: " << std::endl;
     auto tstart = LPTimer.getChrono();
-    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), 25);
+    res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), 25);
     total = LPTimer.getChrono(tstart);
-    std::cout << "no simd: " << total << " : " << res << std::endl;
+    std::cout << "no simd stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::exists_loop<uint64_t>(arr.data(), arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd loop: " << total << " : " << res << std::endl;
     
     tstart = LPTimer.getChrono();
     res = lp::simd::exists(arr.data(), arr.size(), 25);
@@ -137,9 +140,14 @@ void timeExists() {
     
     std::cout << ":: exists " << upper << " (yes) :: " << std::endl;
     tstart = LPTimer.getChrono();
-    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), upper);
+    res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), upper);
     total = LPTimer.getChrono(tstart);
-    std::cout << "no simd: " << total << " : " << res << std::endl;
+    std::cout << "no simd stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::exists_loop<uint64_t>(arr.data(), arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd loop: " << total << " : " << res << std::endl;
     
     tstart = LPTimer.getChrono();
     res = lp::simd::exists(arr.data(), arr.size(), upper);
@@ -153,9 +161,14 @@ void timeExists() {
     
     std::cout << ":: exists (no) :: " << std::endl;
     tstart = LPTimer.getChrono();
-    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), MAX+1);
+    res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), MAX+1);
     total = LPTimer.getChrono(tstart);
-    std::cout << "no simd: " << total << " : " << res << std::endl;
+    std::cout << "no simd stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::exists_loop<uint64_t>(arr.data(), arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd loop: " << total << " : " << res << std::endl;
     
     tstart = LPTimer.getChrono();
     res = lp::simd::exists(arr.data(), arr.size(), MAX+1);

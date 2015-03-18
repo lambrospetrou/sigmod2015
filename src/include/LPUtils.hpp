@@ -24,6 +24,13 @@ namespace lp {
 namespace utils {
 
     template<typename T>
+    bool ALWAYS_INLINE exists_loop(T *a, const size_t sz, T val) {
+        for (size_t i=0; i<sz; ++i) {
+            if (a[i] == val) return true;
+        }
+        return false;
+    }
+    template<typename T>
     bool ALWAYS_INLINE exists(T *a, const size_t sz, T val) {
         return std::find_if(a, a+sz, [&](const T& c) { return c == val; }) != a+sz;
     }
@@ -33,7 +40,6 @@ namespace utils {
         for (size_t i = 0; i<sz; ++i) if (a[i] == 0) return i;
         return sz;
     }
-
 }
 
 namespace simd {   
@@ -65,19 +71,6 @@ namespace simd {
             mask |= a[i] == val;
         }
         return mask;
-    }
-    /* 
-    template<typename T>
-    bool ALWAYS_INLINE exists_early(a16_t<T> *__restrict__ a, const size_t sz, T val) {
-        for (size_t i=0; i<sz; ++i) {
-            if (a[i] == val) return true;
-        }
-        return false;
-    }
-    */
-    template<typename T>
-    bool ALWAYS_INLINE exists(a16_t<T> *__restrict__ a, const size_t sz, T val) {
-        return std::find_if(a, a+sz, [&](const T& c) { return c == val; }) != a+sz;
     }
     
     bool ALWAYS_INLINE exists(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {

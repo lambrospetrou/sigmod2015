@@ -610,8 +610,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1150,7 +1150,7 @@ auto kernelZero = [](uint64_t t) { return t != 0; };
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    //vector<tuple_t> resTuples(tupFrom, tupTo);
+    vector<uint64_t> cres; size_t csz;
     vector<uint64_t> resTuples; resTuples.reserve(tupTo-tupFrom);
     for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
     size_t activeSize = resTuples.size();
@@ -1195,25 +1195,29 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (size_t i=0; i<activeSize; ++i) {
-                    resTuples[i] = (((tuple_t)resTuples[i])[c.column] == c.value) ? 0 : resTuples[i];
+                    if (((tuple_t)resTuples[i])[c.column] == c.value) resTuples[i] = 0;
                 }
+                //std::for_each(resTuples.data(), resTuples.data()+activeSize, [&c](uint64_t& t) { if (((tuple_t)t)[c.column] == c.value) t = 0; });
                 goto LBL_CHECK_END;
         }
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
-        for (size_t i=0; i<activeSize; ++i) {
-            //auto start = LPTimer.getChrono();
-            /*  
-            unsigned int mask = 0;
-            for (size_t ct=tupFromIdx; ct<tupToIdx; ++ct) {
-                if (resTuples[i] == (uint64_t)transTuples[ct]) { mask = 1; break; }
+        csz = tupToIdx-tupFromIdx;
+        if (activeSize > 64 && csz > 64) {
+            cres.resize(0);
+            for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
+            std::sort(cres.begin(), cres.end());
+            for (size_t i=0; i<activeSize; ++i) {
+                if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
             }
-            resTuples[i] = mask ? resTuples[i] : 0;
-            */
-            //resTuples[i] = lp::simd::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-            //resTuples[i] = lp::simd::exists((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-            resTuples[i] = lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-            //gTimeSearch += LPTimer.getChrono(start);
+        } else {
+            for (size_t i=0; i<activeSize; ++i) {
+                //auto start = LPTimer.getChrono();
+                //resTuples[i] = lp::utils::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+                //resTuples[i] = lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+                if (!lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), csz, resTuples[i])) resTuples[i] = 0;
+                //gTimeSearch += LPTimer.getChrono(start);
+            }
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
