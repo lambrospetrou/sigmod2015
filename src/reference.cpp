@@ -1142,87 +1142,8 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     return false;
 }
 
-
-bool inline isTransactionImpossible(PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t pos) {
-    for (; cbegin<cend; ++cbegin) {
-        auto& c = *cbegin;
-        //auto& transValues = relColumns[c.column].transactions[pos].second;
-        auto& transValues = relColumns[c.column].transactions[pos].values;
-        switch (c.op) {
-            case Op::Equal: 
-                //if ((relColumns[c.column].transactionsORs[pos] & c.value) != c.value) return true;
-                //if (transValues[0].value > c.value || transValues.back().value < c.value) return true;
-                if (((relColumns[c.column].transactionsORs[pos] & c.value) != c.value)
-                    | ((transValues[0] > c.value) | (transValues.back() < c.value))) return true;
-                break;
-            case Op::Less: 
-                if (transValues[0] >= c.value) return true;
-                break;
-            case Op::LessOrEqual: 
-                if (transValues[0] > c.value) return true;
-                break;
-            case Op::Greater: 
-                if (transValues.back() <= c.value) return true;
-                break;
-            case Op::GreaterOrEqual: 
-                if (transValues.back() < c.value) return true;
-                break;
-            default: 
-                break;
-        } 
-    } // end of single query predicates
-    return false; 
-}
-
-//static bool isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst, PredIter cbegin, PredIter cend) {
-//static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ) {
-static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
-    auto& transValues = transaction.values;
-    auto& transTuples = transaction.tuples;
-    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
-    // find the valid tuples using range binary searches based on the first predicate
-    switch (pFirst.op) {
-        case Op::Equal: 
-            {
-                if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
-                auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
-                if (tp.second == tp.first) return false;
-                tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
-                break;}
-        case Op::Less: 
-            if (transValues[0] >= pFirst.value) return false;
-            tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
-            if (tupTo == tupFrom) return false;
-            break;
-        case Op::LessOrEqual: 
-            if (transValues[0] > pFirst.value) return false;
-            tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
-            if (tupTo == tupFrom) return false;
-            break;
-        case Op::Greater: 
-            if (transValues.back() <= pFirst.value) return false;
-            tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            if (tupTo == tupFrom) return false;
-            break;
-        case Op::GreaterOrEqual: 
-            if (transValues.back() < pFirst.value) return false;
-            tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            if (tupTo == tupFrom) return false;
-            break;
-        default: 
-            cbegin = std::prev(cbegin);
-    }
-    //cerr << "\n||| Transaction tuples |||" << endl;
-    //cerr << "-- orig: " << transValues.size() << endl;
-    //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
-    //for (auto t : transValues) cerr << t << " ";
-    
-    //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-    //if (std::distance(tupFrom, tupTo) == 0) return false;
-    
-    if (tupTo - tupFrom < 100) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
-    
+bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
+        PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
     vector<tuple_t> resTuples(tupFrom, tupTo);
     size_t activeSize = resTuples.size();
@@ -1293,6 +1214,56 @@ LBL_CHECK_END:
         if (activeSize == 0) return false;
     }
     return true;
+}
+
+//static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ) {
+static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
+    auto& transValues = transaction.values;
+    auto& transTuples = transaction.tuples;
+    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+    decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
+    // find the valid tuples using range binary searches based on the first predicate
+    switch (pFirst.op) {
+        case Op::Equal: 
+            {
+                if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
+                auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
+                if (tp.second == tp.first) return false;
+                tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
+                break;}
+        case Op::Less: 
+            if (transValues[0] >= pFirst.value) return false;
+            tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
+            if (tupTo == tupFrom) return false;
+            break;
+        case Op::LessOrEqual: 
+            if (transValues[0] > pFirst.value) return false;
+            tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
+            if (tupTo == tupFrom) return false;
+            break;
+        case Op::Greater: 
+            if (transValues.back() <= pFirst.value) return false;
+            tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            if (tupTo == tupFrom) return false;
+            break;
+        case Op::GreaterOrEqual: 
+            if (transValues.back() < pFirst.value) return false;
+            tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            if (tupTo == tupFrom) return false;
+            break;
+        default: 
+            cbegin = std::prev(cbegin);
+    }
+    //cerr << "\n||| Transaction tuples |||" << endl;
+    //cerr << "-- orig: " << transValues.size() << endl;
+    //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
+    //for (auto t : transValues) cerr << t << " ";
+    
+    //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
+    //if (std::distance(tupFrom, tupTo) == 0) return false;
+    
+    if (tupTo - tupFrom < 100) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
 
 static bool isValidationConflict(LPValidation& v) {
