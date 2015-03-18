@@ -18,6 +18,7 @@
 #include <cstdint>
 #include "include/aligned_allocator.hpp"
 #include "include/LPUtils.hpp"
+#include "include/LPTimer.hpp"
 
 // Sturcture-Of-Array to hold coordinates
 struct Vector3
@@ -43,8 +44,131 @@ struct Vector3
 template<typename T>
 using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
 
-int main()
-{
+typedef uint64_t aint __attribute__ ((__aligned__(16)));
+typedef std::vector<uint64_t> lparray;
+
+void testExists() {
+    lparray lpArr = { 1,2,3,4,5,6,7,8,9,10, 11 };
+    auto kernelExists = [] (lparray const& a, const uint64_t val) -> bool {
+        aint mask = 0;
+        const unsigned int sz = a.size();
+        for (unsigned int i=0; i<sz; ++i) {
+            mask |= a[i] == val;
+        }
+        return mask;
+    };
+    uint64_t exA = kernelExists(lpArr, 6);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr, 20);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 1);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data(), lpArr.size(), 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 1);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-1, 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists<uint64_t>(lpArr.data()+1, lpArr.size()-2, 11);
+    std::cout << " exists (no): " << exA << std::endl;
+}
+void testExists2() {
+    lparray lpArr = { 1,2,3,4,5,6,7,8,9,10, 11 };
+    uint64_t exA = lp::simd::exists(lpArr.data(), lpArr.size(), 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data(), lpArr.size(), 1);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data(), lpArr.size(), 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data()+1, lpArr.size()-1, 1);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data()+1, lpArr.size()-1, 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data()+1, lpArr.size()-1, 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists(lpArr.data()+1, lpArr.size()-2, 11);
+    std::cout << " exists (no): " << exA << std::endl;
+    
+    exA = lp::simd::exists_avx(lpArr.data(), lpArr.size(), 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data(), lpArr.size(), 1);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data(), lpArr.size(), 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data()+1, lpArr.size()-1, 1);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data()+1, lpArr.size()-1, 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data()+1, lpArr.size()-1, 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::simd::exists_avx(lpArr.data()+1, lpArr.size()-2, 11);
+    std::cout << " exists (no): " << exA << std::endl;
+}
+
+void timeExists() {
+    LPTimer_t LPTimer;
+    std::vector<uint64_t> arr;
+    const size_t MAX = ((size_t)1)<<30;
+    const size_t upper = (MAX>>1) + (MAX>>2);
+    for (size_t i=0; i<MAX; ++i) { arr.push_back(i); }
+    bool res; uint64_t total = 0;
+
+    std::cout << "\n----- TESTING EXISTS() ----- " << std::endl;
+    
+    std::cout << ":: exists 25 (yes) :: " << std::endl;
+    auto tstart = LPTimer.getChrono();
+    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists(arr.data(), arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec2uq vec: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists_avx(arr.data(), arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec4uq vec: " << total << " : " << res << std::endl;
+    
+    std::cout << ":: exists " << upper << " (yes) :: " << std::endl;
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists(arr.data(), arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec2uq vec: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists_avx(arr.data(), arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec4uq vec: " << total << " : " << res << std::endl;
+    
+    std::cout << ":: exists (no) :: " << std::endl;
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists<uint64_t>(arr.data(), arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "no simd: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists(arr.data(), arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec2uq vec: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::simd::exists_avx(arr.data(), arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "Vec4uq vec: " << total << " : " << res << std::endl;
+}
+
+int main() {
 
     // Fixed Size Arrays
 
@@ -55,9 +179,7 @@ int main()
     DataArray vect_res_plain = { 0,0,0,0,0,0,0,0,0,0};   
     DataArray vect_res_lambda = { 0,0,0,0,0,0,0,0,0,0};
 
-    typedef uint64_t aint __attribute__ ((__aligned__(16)));
-    typedef std::vector<uint64_t> lparray;
-    lparray lpArr = { 1,2,3,4,5,6,7,8,9,10 };
+    lparray lpArr = { 1,2,3,4,5,6,7,8,9,10, 11 };
     auto kernelOR = [] (lparray const& a) -> uint64_t {
         aint ored;
         const unsigned int sz = a.size();
@@ -71,20 +193,8 @@ int main()
     uint64_t orB = lp::simd::or_all(lpArr);
     std::cout << " or vect_a: " << orB << std::endl;
 
-    auto kernelExists = [] (lparray const& a, const uint64_t val) -> bool {
-        aint mask = 0;
-        const unsigned int sz = a.size();
-        for (unsigned int i=0; i<sz; ++i) {
-            mask |= a[i] == val;
-        }
-        return mask;
-    };
-    uint64_t exA = kernelExists(lpArr, 6);
-    std::cout << " exists: " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr, 20);
-    std::cout << " exists (no): " << exA << std::endl;
-    exA = lp::simd::exists<uint64_t>(lpArr.data()+2, lpArr.size()-1, 3);
-    std::cout << " exists: " << exA << std::endl;
+    testExists();
+    testExists2();
 
     constexpr double cFixedMultiply = 23.5f;
 
@@ -154,6 +264,10 @@ int main()
         std::cout << "sqrt( " << v3.x[i] << "^2 + " << v3.y[i] << "^2 + " << v3.z[i] << "^2 ) = " 
             << v3.distance[i] << std::endl;
     }
+
+    /////////////// LPTESTS ///////////////////
+    timeExists();
+
 
     return 0;
 }

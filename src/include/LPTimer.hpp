@@ -1,7 +1,10 @@
 #ifndef __LP_LPTIMER__
 #define __LP_LPTIMER__
 
+#pragma once
+
 #include <iostream>
+#include <sys/time.h>
 
 struct LPTimer_t {
     uint64_t validations;

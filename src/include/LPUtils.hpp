@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 #include "agner/vectorclass.h"
 #include "aligned_allocator.hpp"
@@ -50,14 +51,65 @@ namespace simd {
         }
         return mask;
     }
-    
+    /* 
     template<typename T>
-    bool ALWAYS_INLINE exists(a16_t<T> *__restrict__ a, const unsigned int sz, T val) {
-        auint mask = 0;
-        for (unsigned int i=0; i<sz; ++i) {
-            mask |= a[i] == val;
+    bool ALWAYS_INLINE exists_early(a16_t<T> *__restrict__ a, const size_t sz, T val) {
+        for (size_t i=0; i<sz; ++i) {
+            if (a[i] == val) return true;
         }
-        return mask;
+        return false;
+    }
+    */
+    template<typename T>
+    bool ALWAYS_INLINE exists(a16_t<T> *__restrict__ a, const size_t sz, T val) {
+        return std::find_if(a, a+sz, [&](const T& c) { return c == val; }) != a+sz;
+    }
+    
+    bool ALWAYS_INLINE exists(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {
+        Vec2uq veca;
+        if (sz&1) {
+            for (size_t i=1; i<sz; i += 2) {
+                veca.load(a+i);
+                if (horizontal_or(veca == val)) return true;
+            }
+            return a[0] == val;
+        } else {
+            for (size_t i=0; i<sz; i += 2) {
+                veca.load(a+i);
+                if (horizontal_or(veca == val)) return true;
+            }
+            return false;
+        }
+    }
+    bool ALWAYS_INLINE exists_avx(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {
+        Vec4uq veca;
+        switch (sz&3) {
+            case 0:
+                for (size_t i=0; i<sz; i += 4) {
+                    veca.load(a+i);
+                    if (horizontal_or(veca == val)) return true;
+                }
+                return false;
+            case 1:
+                for (size_t i=1; i<sz; i += 4) {
+                    veca.load(a+i);
+                    if (horizontal_or(veca == val)) return true;
+                }
+                return a[0] == val;
+            case 2:
+                for (size_t i=2; i<sz; i += 4) {
+                    veca.load(a+i);
+                    if (horizontal_or(veca == val)) return true;
+                }
+                return a[0] == val || a[1] == val;
+            case 3:
+                for (size_t i=3; i<sz; i += 4) {
+                    veca.load(a+i);
+                    if (horizontal_or(veca == val)) return true;
+                }
+                return a[0] == val || a[1] == val || a[2] == val;
+        }
+        return false;
     }
     
     // SPECIFIC functions for the aligned allocator types I use

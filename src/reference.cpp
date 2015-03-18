@@ -610,8 +610,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1148,7 +1148,9 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    vector<tuple_t> resTuples(tupFrom, tupTo);
+    //vector<tuple_t> resTuples(tupFrom, tupTo);
+    vector<uint64_t> resTuples; resTuples.reserve(tupTo-tupFrom);
+    for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
     size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
         //cerr << "active: " << activeSize << endl;
@@ -1191,28 +1193,30 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (size_t i=0; i<activeSize; ++i) {
-                    resTuples[i] = (resTuples[i][c.column] == c.value) ? 0 : resTuples[i];
+                    resTuples[i] = (((tuple_t)resTuples[i])[c.column] == c.value) ? 0 : resTuples[i];
                 }
                 goto LBL_CHECK_END;
         }
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         for (size_t i=0; i<activeSize; ++i) {
-            auto start = LPTimer.getChrono();
-            /*
+            //auto start = LPTimer.getChrono();
+            /*  
             unsigned int mask = 0;
             for (size_t ct=tupFromIdx; ct<tupToIdx; ++ct) {
-                if (resTuples[i] == transTuples[ct]) { mask = 1; break; }
+                if (resTuples[i] == (uint64_t)transTuples[ct]) { mask = 1; break; }
             }
             resTuples[i] = mask ? resTuples[i] : 0;
             */
-            resTuples[i] = lp::simd::exists(transTuples.data()+tupFromIdx, (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-            gTimeSearch += LPTimer.getChrono(start);
+            //resTuples[i] = lp::simd::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+            //resTuples[i] = lp::simd::exists((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+            resTuples[i] = lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
+            //gTimeSearch += LPTimer.getChrono(start);
         }
 LBL_CHECK_END:
         // TODO - check if we have any valid tuple left otherwise return false
-        std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<tuple_t>());
-        activeSize = std::lower_bound(resTuples.begin(), resTuples.begin()+activeSize, (tuple_t)0, std::greater<tuple_t>()) - resTuples.begin();
+        std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<uint64_t>());
+        activeSize = std::lower_bound(resTuples.begin(), resTuples.begin()+activeSize, (uint64_t)0, std::greater<uint64_t>()) - resTuples.begin();
         //cerr << "active (after): " << activeSize << endl;
         if (activeSize == 0) return false;
     }
