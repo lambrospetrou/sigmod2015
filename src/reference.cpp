@@ -1145,6 +1145,8 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     return false;
 }
 
+auto kernelZero = [](uint64_t t) { return t != 0; };
+
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
@@ -1214,11 +1216,11 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             //gTimeSearch += LPTimer.getChrono(start);
         }
 LBL_CHECK_END:
-        // TODO - check if we have any valid tuple left otherwise return false
-        std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<uint64_t>());
-        activeSize = std::lower_bound(resTuples.begin(), resTuples.begin()+activeSize, (uint64_t)0, std::greater<uint64_t>()) - resTuples.begin();
-        //cerr << "active (after): " << activeSize << endl;
+        // check if we have any valid tuple left otherwise return false
+        activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
+        //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
         if (activeSize == 0) return false;
+        //cerr << "active (after): " << activeSize << endl;
     }
     return true;
 }

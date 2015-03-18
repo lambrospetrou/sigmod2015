@@ -21,6 +21,21 @@ namespace lp {
 #define lp_EQUAL(x, y) (!((x)^(y)))
 #define lp_EQUAL2(x, y) (!(1 + ~(x) + (y)))
 
+namespace utils {
+
+    template<typename T>
+    bool ALWAYS_INLINE exists(T *a, const size_t sz, T val) {
+        return std::find_if(a, a+sz, [&](const T& c) { return c == val; }) != a+sz;
+    }
+
+    template<typename T>
+    uint64_t find_zero(T *a, const size_t sz) {
+        for (size_t i = 0; i<sz; ++i) if (a[i] == 0) return i;
+        return sz;
+    }
+
+}
+
 namespace simd {   
     typedef uint64_t auint __attribute__ ((__aligned__(16)));
     template<unsigned int asz = 16> using auint64 __attribute__ ((__aligned__(asz)))= uint64_t;
@@ -101,13 +116,13 @@ namespace simd {
                     veca.load(a+i);
                     if (horizontal_or(veca == val)) return true;
                 }
-                return (a[0] == val) | (a[1] == val);
+                return a[0] == val || a[1] == val;
             case 3:
                 for (size_t i=3; i<sz; i += 4) {
                     veca.load(a+i);
                     if (horizontal_or(veca == val)) return true;
                 }
-                return (a[0] == val) | (a[1] == val) | (a[2] == val);
+                return a[0] == val || a[1] == val || a[2] == val;
         }
         return false;
     }
