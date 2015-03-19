@@ -1251,7 +1251,8 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
+        //activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
+        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
         //std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<uint64_t>());
         //activeSize = std::partition_point(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
         //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
