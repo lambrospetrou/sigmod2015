@@ -931,7 +931,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         auto& relColumns = gRelColumns[ri].columns;
         
         uint64_t updatedUntil = relColumns[col].transTo;
-        if (relation.transLogTuples.empty() | lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) continue;
+        if (relation.transLogTuples.empty() || lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) continue;
         
         // Use lower_bound to automatically jump to the transaction to start
         auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
@@ -1130,7 +1130,7 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     auto& transValues = transaction.values;
     switch (pFirst.op) {
         case Op::Equal: 
-            return std::binary_search(transValues.begin(), transValues.end(), pFirst.value); 
+            return lp::utils::binary_cmov(transValues.data(), transValues.size(), pFirst.value); 
         case Op::Less: 
             return transValues[0] < pFirst.value;                   
         case Op::LessOrEqual: 
@@ -1153,7 +1153,7 @@ auto kernelZero = [](uint64_t t) { return t != 0; };
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    vector<uint64_t> cres; 
+    //vector<uint64_t> cres; 
     size_t csz;
     vector<uint64_t> resTuples; 
     //resTuples.resize(0);
@@ -1213,12 +1213,16 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             //cerr << "csz: " << csz << " active: " << activeSize << endl;
             //cres.resize(0);
             //for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
-            cres.resize(csz);
-            memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
-            std::sort(cres.begin(), cres.end());
+            //cres.resize(csz);
+            //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
+            //std::sort(cres.begin(), cres.end());
+            uint64_t *cres = (uint64_t*)alloca(csz*sizeof(uint64_t));
+            memcpy(cres, transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
+            std::sort(cres, cres+csz);
             const size_t extra = activeSize & 1;
             register uint64_t *resPtr = resTuples.data();
-            register const uint64_t *cresb = cres.data(), *crese = cres.data()+csz;
+            //register const uint64_t *cresb = cres.data();
+            register const uint64_t *cresb = cres;
             //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
             for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
                 if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
@@ -1229,7 +1233,7 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                 //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
             //if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
-            if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+            if (extra && !lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
         } else {
             const uint64_t *transPtr = (uint64_t*)(transTuples.data()+tupFromIdx);
             const size_t extra = activeSize & 1;
@@ -1382,7 +1386,7 @@ static bool isValidationConflict(LPValidation& v) {
                     && isTransactionConflict(*transFrom, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
+                for(; transFrom<transTo; ++transFrom) {  
                     if (isTransactionConflict(*transFrom, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             }
