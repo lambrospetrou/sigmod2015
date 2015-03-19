@@ -1205,6 +1205,7 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                 //std::for_each(resTuples.data(), resTuples.data()+activeSize, [&c](uint64_t& t) { if (((tuple_t)t)[c.column] == c.value) t = 0; });
                 goto LBL_CHECK_END;
         }
+
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         csz = tupToIdx-tupFromIdx;
