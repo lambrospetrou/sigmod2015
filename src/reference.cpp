@@ -1147,11 +1147,17 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
 
 auto kernelZero = [](uint64_t t) { return t != 0; };
 
+vector<uint64_t> cres;
+vector<uint64_t> resTuples;
+
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    vector<uint64_t> cres; size_t csz;
-    vector<uint64_t> resTuples; resTuples.reserve(tupTo-tupFrom);
+    //vector<uint64_t> cres; 
+    size_t csz;
+    //vector<uint64_t> resTuples; 
+    resTuples.resize(0);
+    resTuples.reserve(tupTo-tupFrom);
     for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
     size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
@@ -1203,13 +1209,27 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         csz = tupToIdx-tupFromIdx;
-        if (activeSize > 64 && csz > 64) {
+        if (activeSize > 64 && csz > 32) {
             cres.resize(0);
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
+            //cres.resize(csz);
+            //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
             std::sort(cres.begin(), cres.end());
+            std::sort(resTuples.begin(), resTuples.begin()+activeSize);
+            for (auto rtb=resTuples.begin(), rte=resTuples.begin()+activeSize, crb=cres.begin(), cre=cres.end(); rtb != rte;) {
+                if (crb!=cre) {
+                    while (crb!=cre && *crb < *rtb) ++crb;
+                    if (crb!=cre && *crb == *rtb) { ++rtb; ++crb; }
+                    else { *rtb = 0; ++rtb; }
+                } else {
+                    for (; rtb != rte; ) *rtb++ = 0;
+                }
+            }
+            /*
             for (size_t i=0; i<activeSize; ++i) {
                 if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
             }
+            */
         } else {
             for (size_t i=0; i<activeSize; ++i) {
                 //auto start = LPTimer.getChrono();
@@ -1222,6 +1242,8 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
         activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
+        //std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<uint64_t>());
+        //activeSize = std::partition_point(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
         //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
         if (activeSize == 0) return false;
         //cerr << "active (after): " << activeSize << endl;
