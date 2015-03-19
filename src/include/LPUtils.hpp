@@ -90,7 +90,25 @@ namespace simd {
         }
     }
     bool ALWAYS_INLINE exists_avx(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {
+        const size_t extra = sz&3; // sz%4
+        const a16_t<uint64_t> *aend = a+sz-extra;
         Vec4uq veca;
+        for (; a<aend; ) {
+            veca.load(a); a += 4;
+            if (horizontal_or(veca == val)) return true;
+        }
+        switch (extra) {
+            case 0: 
+                return false;
+            case 1: 
+                return a[0] == val;
+            case 2:
+                return a[0] == val || a[1] == val;
+            case 3:
+                return a[0] == val || a[1] == val || a[2] == val;
+        }
+        return false;
+        /*
         switch (sz&3) {
             case 0:
                 for (size_t i=0; i<sz; i += 4) {
@@ -118,6 +136,7 @@ namespace simd {
                 return a[0] == val || a[1] == val || a[2] == val;
         }
         return false;
+        */
     }
     
     // SPECIFIC functions for the aligned allocator types I use

@@ -1149,7 +1149,6 @@ auto kernelZero = [](uint64_t t) { return t != 0; };
 
 vector<uint64_t> cres;
 vector<uint64_t> resTuples;
-vector<uint64_t> resTuplesDup; 
 
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
@@ -1157,10 +1156,8 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
     //vector<uint64_t> cres; 
     size_t csz;
     //vector<uint64_t> resTuples; 
-    //vector<uint64_t> resTuplesDup(tupTo-tupFrom); 
     resTuples.resize(0);
     resTuples.reserve(tupTo-tupFrom);
-    resTuplesDup.resize(tupTo-tupFrom);
     for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
     size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
@@ -1218,8 +1215,8 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             //cres.resize(csz);
             //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
             std::sort(cres.begin(), cres.end());
-            std::sort(resTuples.begin(), resTuples.begin()+activeSize);
             /*
+            std::sort(resTuples.begin(), resTuples.begin()+activeSize);
             for (auto rtb=resTuples.begin(), rte=resTuples.begin()+activeSize, crb=cres.begin(), cre=cres.end(); rtb != rte;) {
                 if (crb!=cre) {
                     while (crb!=cre && *crb < *rtb) ++crb;
@@ -1230,17 +1227,11 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                 }
             }
             */
-            /*
+            
             for (size_t i=0; i<activeSize; ++i) {
                 if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
             }
-            */
-            auto it = std::set_intersection(resTuples.begin(), resTuples.begin()+activeSize, cres.begin(), cres.end(), resTuplesDup.begin());
-            resTuplesDup.resize(it-resTuplesDup.begin());
-            resTuples.resize(0);
-            resTuples.swap(resTuplesDup);
-            activeSize = resTuples.size();
-            goto LBL_NEXT_PRED;
+            
         } else {
             for (size_t i=0; i<activeSize; ++i) {
                 //auto start = LPTimer.getChrono();
@@ -1258,7 +1249,6 @@ LBL_CHECK_END:
         //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
         //if (activeSize == 0) return false;
         //cerr << "active (after): " << activeSize << endl;
-LBL_NEXT_PRED:
         if (activeSize == 0) return false;
     }
     return true;
