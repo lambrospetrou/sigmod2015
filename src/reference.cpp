@@ -610,8 +610,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1140,23 +1140,23 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
         case Op::GreaterOrEqual: 
             return transValues.back() >= pFirst.value;                   
         default: 
-            return !lp_EQUAL(transValues.back(), pFirst.value) | !lp_EQUAL(transValues[0], pFirst.value);
+            return !lp_EQUAL(transValues.back(), pFirst.value) || !lp_EQUAL(transValues[0], pFirst.value);
     }
     return false;
 }
 
 auto kernelZero = [](uint64_t t) { return t != 0; };
 
-vector<uint64_t> cres;
-vector<uint64_t> resTuples;
+//vector<uint64_t> cres;
+//vector<uint64_t> resTuples;
 
 bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    //vector<uint64_t> cres; 
+    vector<uint64_t> cres; 
     size_t csz;
-    //vector<uint64_t> resTuples; 
-    resTuples.resize(0);
+    vector<uint64_t> resTuples; 
+    //resTuples.resize(0);
     resTuples.reserve(tupTo-tupFrom);
     for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
     size_t activeSize = resTuples.size();
@@ -1201,6 +1201,7 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (size_t i=0; i<activeSize; ++i) {
+                    // use CMOV instruction instead of branch
                     if (((tuple_t)resTuples[i])[c.column] == c.value) resTuples[i] = 0;
                 }
                 //std::for_each(resTuples.data(), resTuples.data()+activeSize, [&c](uint64_t& t) { if (((tuple_t)t)[c.column] == c.value) t = 0; });
@@ -1215,23 +1216,12 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             //cres.resize(csz);
             //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
             std::sort(cres.begin(), cres.end());
-            /*
-            std::sort(resTuples.begin(), resTuples.begin()+activeSize);
-            for (auto rtb=resTuples.begin(), rte=resTuples.begin()+activeSize, crb=cres.begin(), cre=cres.end(); rtb != rte;) {
-                if (crb!=cre) {
-                    while (crb!=cre && *crb < *rtb) ++crb;
-                    if (crb!=cre && *crb == *rtb) { ++rtb; ++crb; }
-                    else { *rtb = 0; ++rtb; }
-                } else {
-                    for (; rtb != rte; ) *rtb++ = 0;
-                }
-            }
-            */
-            
-            for (size_t i=0; i<activeSize; ++i) {
+            const size_t extra = activeSize & 1;
+            for (size_t i=0; i<activeSize-extra; i+=2) {
                 if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
+                if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
-            
+            if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
         } else {
             for (size_t i=0; i<activeSize; ++i) {
                 //auto start = LPTimer.getChrono();
