@@ -73,25 +73,27 @@ namespace simd {
         return mask;
     }
     
-    bool ALWAYS_INLINE exists(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {
+    bool ALWAYS_INLINE exists(a16_t<uint64_t> *__restrict__ _a, const size_t sz, uint64_t val) {
+        const size_t extra = sz&1; // sz%2
+        register a16_t<uint64_t> *a = (a16_t<uint64_t>*)__builtin_assume_aligned (_a, 16);
+        register const a16_t<uint64_t> *aend = a+sz-extra;
         Vec2uq veca;
-        if (sz&1) {
-            for (size_t i=1; i<sz; i += 2) {
-                veca.load(a+i);
-                if (horizontal_or(veca == val)) return true;
-            }
-            return a[0] == val;
-        } else {
-            for (size_t i=0; i<sz; i += 2) {
-                veca.load(a+i);
-                if (horizontal_or(veca == val)) return true;
-            }
-            return false;
+        for (; a<aend; ) {
+            veca.load(a++); a++;
+            if (horizontal_or(veca == val)) return true;
         }
+        switch (extra) {
+            case 0: 
+                return false;
+            case 1: 
+                return a[0] == val;
+        }
+        return false;
     }
-    bool ALWAYS_INLINE exists_avx(a16_t<uint64_t> *__restrict__ a, const size_t sz, uint64_t val) {
+    bool ALWAYS_INLINE exists_avx(a16_t<uint64_t> *__restrict__ _a, const size_t sz, uint64_t val) {
         const size_t extra = sz&3; // sz%4
-        const a16_t<uint64_t> *aend = a+sz-extra;
+        register a16_t<uint64_t> *a = (a16_t<uint64_t>*)__builtin_assume_aligned (_a, 16);
+        register const a16_t<uint64_t> *aend = a+sz-extra;
         Vec4uq veca;
         for (; a<aend; ) {
             veca.load(a); a += 4;
@@ -101,42 +103,13 @@ namespace simd {
             case 0: 
                 return false;
             case 1: 
-                return a[0] == val;
+                return *a == val;
             case 2:
-                return a[0] == val || a[1] == val;
+                return *a++ == val || *a == val;
             case 3:
-                return a[0] == val || a[1] == val || a[2] == val;
+                return *a++ == val || *a++ == val || *a == val;
         }
         return false;
-        /*
-        switch (sz&3) {
-            case 0:
-                for (size_t i=0; i<sz; i += 4) {
-                    veca.load(a+i);
-                    if (horizontal_or(veca == val)) return true;
-                }
-                return false;
-            case 1:
-                for (size_t i=1; i<sz; i += 4) {
-                    veca.load(a+i);
-                    if (horizontal_or(veca == val)) return true;
-                }
-                return a[0] == val;
-            case 2:
-                for (size_t i=2; i<sz; i += 4) {
-                    veca.load(a+i);
-                    if (horizontal_or(veca == val)) return true;
-                }
-                return a[0] == val || a[1] == val;
-            case 3:
-                for (size_t i=3; i<sz; i += 4) {
-                    veca.load(a+i);
-                    if (horizontal_or(veca == val)) return true;
-                }
-                return a[0] == val || a[1] == val || a[2] == val;
-        }
-        return false;
-        */
     }
     
     // SPECIFIC functions for the aligned allocator types I use
