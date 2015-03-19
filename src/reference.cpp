@@ -1216,7 +1216,7 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             std::sort(cres.begin(), cres.end());
             const size_t extra = activeSize & 1;
             register uint64_t *resPtr = resTuples.data();
-            register const auto cresb = cres.begin(), crese = cres.end();
+            register const uint64_t *cresb = cres.data(), *crese = cres.data()+csz;
             //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
             for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
                 if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
