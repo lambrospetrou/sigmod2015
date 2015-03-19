@@ -1167,7 +1167,6 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         auto& transValues = cTransactions.values;
         auto& transTuples = cTransactions.tuples;
         decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-        //decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
         size_t tupFromIdx{0}, tupToIdx{transTuples.size()};
         switch (c.op) {
             case Op::Equal: 
@@ -1175,7 +1174,6 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
                     if (transValues[0] > c.value || transValues.back() < c.value) return false;
                     auto tp = std::equal_range(tBegin, tEnd, c.value);
                     if (tp.second == tp.first) return false;
-                    //tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
                     tupFromIdx = (tp.first - tBegin); tupToIdx = tupFromIdx + (tp.second-tp.first);
                     break;}
             case Op::Less: 
@@ -1211,25 +1209,38 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         // we have to check if the active tuples are inside the result set returned
         csz = tupToIdx-tupFromIdx;
         if (activeSize > 64 && csz > 32) {
-            cres.resize(0);
-            for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
-            //cres.resize(csz);
-            //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
+            //cres.resize(0);
+            //for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
+            cres.resize(csz);
+            memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
             std::sort(cres.begin(), cres.end());
             const size_t extra = activeSize & 1;
-            for (size_t i=0; i<activeSize-extra; i+=2) {
-                if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
-                if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
+            register uint64_t *resPtr = resTuples.data();
+            register const auto cresb = cres.begin(), crese = cres.end();
+            //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
+            for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
+                if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+                if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
+                //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
+                //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
-            if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
+            //if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
+            if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
         } else {
-            for (size_t i=0; i<activeSize; ++i) {
+            const uint64_t *transPtr = (uint64_t*)(transTuples.data()+tupFromIdx);
+            const size_t extra = activeSize & 1;
+            register uint64_t *resPtr = resTuples.data();
+            register const uint64_t *resEnd = resPtr+activeSize-extra;
+            //for (size_t i=0; i<activeSize; ++i) {
+            for (; resPtr<resEnd; resPtr += 2) {
                 //auto start = LPTimer.getChrono();
                 //resTuples[i] = lp::utils::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-                //resTuples[i] = lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-                if (!lp::simd::exists_avx((uint64_t*)(transTuples.data()+tupFromIdx), csz, resTuples[i])) resTuples[i] = 0;
+                //if (!lp::simd::exists_avx(transPtr, csz, resTuples[i])) resTuples[i] = 0;
+                if (!lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
+                if (!lp::simd::exists_avx(transPtr, csz, *(resPtr+1))) *(resPtr+1) = 0; 
                 //gTimeSearch += LPTimer.getChrono(start);
             }
+            if (extra && !lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false

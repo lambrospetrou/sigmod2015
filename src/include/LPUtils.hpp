@@ -90,7 +90,7 @@ namespace simd {
         }
         return false;
     }
-    bool ALWAYS_INLINE exists_avx(a16_t<uint64_t> *__restrict__ _a, const size_t sz, uint64_t val) {
+    bool ALWAYS_INLINE exists_avx(const a16_t<uint64_t> *__restrict__ _a, const size_t sz, uint64_t val) {
         const size_t extra = sz&3; // sz%4
         register a16_t<uint64_t> *a = (a16_t<uint64_t>*)__builtin_assume_aligned (_a, 16);
         register const a16_t<uint64_t> *aend = a+sz-extra;
