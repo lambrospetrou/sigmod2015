@@ -164,35 +164,35 @@ namespace lp {
             switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
-                    if (sat.pastOps[0] | sat.pastOps[0]) return true;
+                    if (sat.pastOps[0] && (sat.eq != p.value)) return true;
                     sat.pastOps[0] = true; 
                     sat.eq = p.value;
                     break;
                 case Op::NotEqual:
                     // both equality and inequality with same value
-                    if (sat.pastOps[0] & (sat.eq == p.value)) return true;
+                    if (sat.pastOps[0] && (sat.eq == p.value)) return true;
                     //sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
                     break;
                 case Op::Less:
-                    if (sat.pastOps[0] & (sat.eq >= p.value)) return true;
+                    if (sat.pastOps[0] && (sat.eq >= p.value)) return true;
                     sat.pastOps[Op::Less] = true;
                     if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
                     //else { p.value = sat.lt; }
                     break;
                 case Op::LessOrEqual:
-                    if (sat.pastOps[0] & (sat.eq > p.value)) return true;
+                    if (sat.pastOps[0] && (sat.eq > p.value)) return true;
                     sat.pastOps[Op::LessOrEqual] = true;
                     if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
                     //else { p.value = sat.leq; }
                     break;
                 case Op::Greater:
-                    if (sat.pastOps[0] & (sat.eq <= p.value)) return true;
+                    if (sat.pastOps[0] && (sat.eq <= p.value)) return true;
                     sat.pastOps[Op::Greater] = true;
                     if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
                     //else { p.value = sat.gt; }
                     break;
                 case Op::GreaterOrEqual:
-                    if (sat.pastOps[0] & (sat.eq < p.value)) return true;
+                    if (sat.pastOps[0] && (sat.eq < p.value)) return true;
                     sat.pastOps[Op::GreaterOrEqual] = true;
                     if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
                     //else { p.value = sat.geq; }
@@ -202,8 +202,7 @@ namespace lp {
             // check for equality and constrasting ranges OR  check non-overlapping ranges
             //if ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) )
                 //return true;
-            bool res = ( (sat.lt <= sat.gt) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
-            return res;
+            return ( (sat.lt <= sat.gt) || (sat.pastOps[0] && ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
         }
 
         bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {

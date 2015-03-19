@@ -73,6 +73,22 @@ void testExists() {
     std::cout << " exists: " << exA << std::endl;
     exA = lp::utils::exists<uint64_t>(lpArr.data()+1, lpArr.size()-2, 11);
     std::cout << " exists (no): " << exA << std::endl;
+    
+    std::cout << "---- binary_cmov ::" << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data(), lpArr.size(), 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data(), lpArr.size(), 1);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data(), lpArr.size(), 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data()+1, lpArr.size()-1, 1);
+    std::cout << " exists (no): " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data()+1, lpArr.size()-1, 11);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data()+1, lpArr.size()-1, 4);
+    std::cout << " exists: " << exA << std::endl;
+    exA = lp::utils::binary_cmov(lpArr.data()+1, lpArr.size()-2, 11);
+    std::cout << "---- binary_cmov end ----" << std::endl;
 }
 void testExists2() {
     lparray lpArr = { 1,2,3,4,5,6,7,8,9,10, 11 };

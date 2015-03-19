@@ -1208,7 +1208,8 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         csz = tupToIdx-tupFromIdx;
-        if (activeSize > 64 && csz > 32) {
+        if (csz > 512 && activeSize > 512) {
+            //cerr << "csz: " << csz << " active: " << activeSize << endl;
             //cres.resize(0);
             //for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
             cres.resize(csz);
@@ -1219,8 +1220,10 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             register const uint64_t *cresb = cres.data(), *crese = cres.data()+csz;
             //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
             for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
-                if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
-                if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
+                if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
+                if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
+                //if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+                //if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
                 //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
                 //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
@@ -1235,7 +1238,6 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             for (; resPtr<resEnd; resPtr += 2) {
                 //auto start = LPTimer.getChrono();
                 //resTuples[i] = lp::utils::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
-                //if (!lp::simd::exists_avx(transPtr, csz, resTuples[i])) resTuples[i] = 0;
                 if (!lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
                 if (!lp::simd::exists_avx(transPtr, csz, *(resPtr+1))) *(resPtr+1) = 0; 
                 //gTimeSearch += LPTimer.getChrono(start);
