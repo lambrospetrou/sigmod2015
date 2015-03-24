@@ -610,8 +610,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1199,7 +1199,6 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (size_t i=0; i<activeSize; ++i) {
-                    // use CMOV instruction instead of branch
                     if (((tuple_t)resTuples[i])[c.column] == c.value) resTuples[i] = 0;
                 }
                 //std::for_each(resTuples.data(), resTuples.data()+activeSize, [&c](uint64_t& t) { if (((tuple_t)t)[c.column] == c.value) t = 0; });
@@ -1242,7 +1241,6 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             //for (size_t i=0; i<activeSize; ++i) {
             for (; resPtr<resEnd; resPtr += 2) {
                 //auto start = LPTimer.getChrono();
-                //resTuples[i] = lp::utils::exists<uint64_t>((uint64_t*)(transTuples.data()+tupFromIdx), (tupToIdx-tupFromIdx), resTuples[i]) ? resTuples[i] : 0;
                 if (!lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
                 if (!lp::simd::exists_avx(transPtr, csz, *(resPtr+1))) *(resPtr+1) = 0; 
                 //gTimeSearch += LPTimer.getChrono(start);
@@ -1253,8 +1251,6 @@ LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
         //activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
         activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
-        //std::sort(resTuples.begin(), resTuples.begin()+activeSize, std::greater<uint64_t>());
-        //activeSize = std::partition_point(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
         //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
         //if (activeSize == 0) return false;
         //cerr << "active (after): " << activeSize << endl;
@@ -1309,7 +1305,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    if (tupTo - tupFrom < 100) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
@@ -1317,21 +1313,49 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
     const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-    //vector<Query*> queries; queries.reserve(vq.queryCount);
-    //cerr << "========= validation " << v.validationId << " =========" << endl; 
-    const char* qreader = vq.queries;
     /*
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*queries.back()->columnCount)) {
-        queries.push_back(const_cast<Query*>(reinterpret_cast<const Query*>(qreader)));
-    }
-    for (auto& q : queries) {
-        Query& rq=*q;
+    cerr << "\n========= validation " << v.validationId << " =========" << endl; 
+    cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
     */
+    const char* qreader = vq.queries;
     uint32_t columnCount;
+   /*
+    vector<pair<uint32_t, Column>> allPreds;
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        const Query *rq = (reinterpret_cast<const Query*>(qreader));
+        columnCount = rq->columnCount;
+        cerr << "-- query: rel: " << rq->relationId << " columns: " << rq->columnCount << endl;
+        for (uint32_t j=0; j<rq->columnCount; ++j) {
+            cerr << rq->columns[j];
+            allPreds.emplace_back(i, rq->columns[j]);
+        }
+        cerr << endl;
+    }
+    qreader = vq.queries;
+
+    auto comp = [](const pair<uint32_t, Column>& l, pair<uint32_t, Column>& r) {
+                return ColumnCompCol(l.second, r.second);
+            };
+    auto compeq = [](const pair<uint32_t, Column>& l, pair<uint32_t, Column>& r) {
+                return !ColumnCompCol(l.second, r.second) && !ColumnCompCol(l.second, r.second);
+            };
+    sort(allPreds.begin(), allPreds.end(), comp);
+    auto uniqit = std::unique(allPreds.begin(), allPreds.end(), compeq);
+    cerr << "uniques: " << std::distance(allPreds.begin(), uniqit) << " : " << allPreds.size() << endl;
+    cerr << "\npredicates sorted :::" << endl;
+    for (auto c : allPreds) {
+        cerr << c.first << "_" << c.second << " ";
+    }
+    cerr << endl;
+
+    cerr << "checked: " << endl;
+    */
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
-    //cerr << vq.queryCount << endl; 
+       
+        //cerr << " " << i;
+
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;

@@ -221,7 +221,7 @@ namespace lp {
         }
 
         bool inline satisfiable(Query* q, uint32_t colCountUniq) {
-            if (!colCountUniq) return true;
+            if (colCountUniq == 0) return true;
             Column *qc = const_cast<Column*>(q->columns);
             auto colBegin = qc, colEnd = qc + colCountUniq; //colEnd = qc + q->columnCount;
             if (isQueryUnsolvable(colBegin, colEnd)) {

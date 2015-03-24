@@ -42,16 +42,18 @@ namespace lp {
             }
 
         // https://schani.wordpress.com/2010/04/30/linear-vs-binary-search/
-        bool binary_cmov (const uint64_t *arr, const size_t sz, const uint64_t key) {
+        bool ALWAYS_INLINE binary_cmov (const uint64_t *arr, const size_t sz, const uint64_t key) {
             size_t min = 0, max = sz;
             while (min < max) {
+            //do {
                 size_t middle = min + ((max-min) >> 1);
                 asm ("cmpq %3, %2\n\tcmova %4, %0\n\tcmovbe %5, %1"
                         : "+r" (min),
                           "+r" (max)
                         : "r" (key), "g" (arr [middle]),
                         "g" (middle + 1), "g" (middle));
-            }
+            
+            }// while (min < max);
             return min < sz && lp_EQUAL(arr[min], key);
         }
         size_t lower_bound_cmov (register const uint64_t *arr, const size_t sz, const uint64_t key) {
