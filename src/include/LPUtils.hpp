@@ -56,19 +56,6 @@ namespace lp {
             }// while (min < max);
             return min < sz && lp_EQUAL(arr[min], key);
         }
-        size_t lower_bound_cmov (register const uint64_t *arr, const size_t sz, const uint64_t key) {
-            size_t min = 0, max = sz;
-            while (min < max) {
-                size_t middle = min + ((max-min) >> 1);
-                asm ("cmpq %3, %2\n\tcmova %4, %0\n\tcmovbe %5, %1"
-                        : "+r" (min),
-                          "+r" (max)
-                        : "r" (key), "g" (arr [middle]),
-                        "g" (middle + 1), "g" (middle));
-            }
-            return min;
-        }
-
 
     }
 
@@ -125,8 +112,8 @@ namespace lp {
             //register a16_t<uint64_t> *a = (a16_t<uint64_t>*)__builtin_assume_aligned (_a, 16);
             register const a16_t<uint64_t> *aend = a+sz-extra;
             Vec4uq veca;
-            for (; a<aend; ) {
-                veca.load(a); a += 4;
+            for (; a<aend; a+=4) {
+                veca.load(a); 
                 if (horizontal_or(veca == val)) return true;
             }
             switch (extra) {

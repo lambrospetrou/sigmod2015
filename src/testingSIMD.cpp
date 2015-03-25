@@ -132,9 +132,20 @@ void timeExists() {
     bool res; uint64_t total = 0;
 
     std::cout << "\n----- TESTING EXISTS() ----- " << std::endl;
+    auto tstart = LPTimer.getChrono();
     
     std::cout << ":: exists 25 (yes) :: " << std::endl;
-    auto tstart = LPTimer.getChrono();
+    tstart = LPTimer.getChrono();
+    res = std::binary_search(arr.data(), arr.data()+arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::binary_cmov(arr.data(), arr.size(), 25);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary cmov: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
     res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), 25);
     total = LPTimer.getChrono(tstart);
     std::cout << "no simd stl: " << total << " : " << res << std::endl;
@@ -155,6 +166,16 @@ void timeExists() {
     std::cout << "Vec4uq vec: " << total << " : " << res << std::endl;
     
     std::cout << ":: exists " << upper << " (yes) :: " << std::endl;
+    tstart = LPTimer.getChrono();
+    res = std::binary_search(arr.data(), arr.data()+arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::binary_cmov(arr.data(), arr.size(), upper);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary cmov: " << total << " : " << res << std::endl;
+    
     tstart = LPTimer.getChrono();
     res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), upper);
     total = LPTimer.getChrono(tstart);
@@ -177,6 +198,16 @@ void timeExists() {
     
     std::cout << ":: exists (no) :: " << std::endl;
     tstart = LPTimer.getChrono();
+    res = std::binary_search(arr.data(), arr.data()+arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    res = lp::utils::binary_cmov(arr.data(), arr.size(), MAX+1);
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary cmov: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
     res = lp::utils::exists<uint64_t>(arr.data(), arr.size(), MAX+1);
     total = LPTimer.getChrono(tstart);
     std::cout << "no simd stl: " << total << " : " << res << std::endl;
@@ -195,6 +226,38 @@ void timeExists() {
     res = lp::simd::exists_avx(arr.data(), arr.size(), MAX+1);
     total = LPTimer.getChrono(tstart);
     std::cout << "Vec4uq vec: " << total << " : " << res << std::endl;
+}
+
+
+void timeBinary() {
+    LPTimer_t LPTimer;
+    std::vector<uint64_t> arr, arr2;
+    const size_t MAX = ((size_t)1)<<15;
+    const size_t upper = (MAX>>1) + (MAX>>2);
+    for (size_t i=0; i<MAX; ++i) { 
+        arr.push_back(i); 
+        arr2.push_back(i+1); 
+    }
+    bool res; uint64_t total = 0, tstart, loops=(1<<25);
+
+    std::cout << "\n----- TESTING BINARIES() ----- " << std::endl;
+    
+    std::cout << ":: exists (no) :: " << std::endl;
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        res = std::binary_search(arr.data(), arr.data()+arr.size(), MAX+1);
+        res = std::binary_search(arr2.data(), arr2.data()+arr2.size(), MAX+1);
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary stl: " << total << " : " << res << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        res = lp::utils::binary_cmov(arr.data(), arr.size(), MAX+1);
+        res = lp::utils::binary_cmov(arr2.data(), arr2.size(), MAX+1);
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "binary cmov: " << total << " : " << res << std::endl;
 }
 
 int main() {
@@ -297,6 +360,7 @@ int main() {
     /////////////// LPTESTS ///////////////////
     timeExists();
 
+    timeBinary();
 
     return 0;
 }

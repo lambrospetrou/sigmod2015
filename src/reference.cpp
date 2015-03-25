@@ -1116,7 +1116,8 @@ bool inline isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup
     return true;    
 }
 
-bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
+//bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
+bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
     } // end of all tuples for this transaction
@@ -1150,7 +1151,8 @@ auto kernelZero = [](uint64_t t) { return t != 0; };
 //vector<uint64_t> cres;
 //vector<uint64_t> resTuples;
 
-bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
+//bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
+bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
     //vector<uint64_t> cres; 
@@ -1221,18 +1223,20 @@ bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, ali
             const size_t extra = activeSize & 1;
             register uint64_t *resPtr = resTuples.data();
             //register const uint64_t *cresb = cres.data();
-            register const uint64_t *cresb = cres;
+            const uint64_t *cresb = cres;
+            const uint64_t *crese = cres + csz;
             //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
             for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
-                if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
-                if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
-                //if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
-                //if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
+                //if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
+                //if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
+                if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+                if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
                 //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
                 //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
             //if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
-            if (extra && !lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
+            //if (extra && !lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
+            if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
         } else {
             const uint64_t *transPtr = (uint64_t*)(transTuples.data()+tupFromIdx);
             const size_t extra = activeSize & 1;
@@ -1255,6 +1259,7 @@ LBL_CHECK_END:
         //if (activeSize == 0) return false;
         //cerr << "active (after): " << activeSize << endl;
         if (activeSize == 0) return false;
+        if (activeSize < 50 && cbegin < cend) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
@@ -1264,7 +1269,8 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
+    //decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
+    TupleType *tupFrom{const_cast<tuple_t*>(transTuples.data())}, *tupTo{const_cast<tuple_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
@@ -1305,6 +1311,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
+    //if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
