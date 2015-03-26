@@ -1088,7 +1088,7 @@ typedef tuple_t TupleType;
 //typedef vector<Query::Column>::iterator PredIter;
 typedef Query::Column* PredIter;
 
-bool inline isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup) {
+bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
         // make the actual check
@@ -1122,7 +1122,7 @@ bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, Pr
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
     } // end of all tuples for this transaction
     return false;
-    //return std::find_if(tupFrom, tupTo, [&](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
+    //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
 //static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst) {
@@ -1200,10 +1200,9 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
-                for (size_t i=0; i<activeSize; ++i) {
-                    if (((tuple_t)resTuples[i])[c.column] == c.value) resTuples[i] = 0;
+                for (uint64_t *resPtr=resTuples.data(), *resend = resTuples.data()+activeSize; resPtr<resend;) {
+                    if (((tuple_t)*resPtr++)[c.column] == c.value) *(resPtr-1) = 0;
                 }
-                //std::for_each(resTuples.data(), resTuples.data()+activeSize, [&c](uint64_t& t) { if (((tuple_t)t)[c.column] == c.value) t = 0; });
                 goto LBL_CHECK_END;
         }
 
@@ -1221,8 +1220,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             memcpy(cres, transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
             std::sort(cres, cres+csz);
             const size_t extra = activeSize & 1;
-            register uint64_t *resPtr = resTuples.data();
-            //register const uint64_t *cresb = cres.data();
+            uint64_t *resPtr = resTuples.data();
             const uint64_t *cresb = cres;
             const uint64_t *crese = cres + csz;
             //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
@@ -1231,17 +1229,14 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 //if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
                 if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
                 if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
-                //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i])) resTuples[i] = 0;
-                //if (!std::binary_search(cres.begin(), cres.end(), resTuples[i+1])) resTuples[i+1] = 0;
             }
-            //if (extra && !std::binary_search(cres.begin(), cres.end(), resTuples[activeSize-1])) resTuples[activeSize-1] = 0;
             //if (extra && !lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
             if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
         } else {
             const uint64_t *transPtr = (uint64_t*)(transTuples.data()+tupFromIdx);
             const size_t extra = activeSize & 1;
-            register uint64_t *resPtr = resTuples.data();
-            register const uint64_t *resEnd = resPtr+activeSize-extra;
+            uint64_t *resPtr = resTuples.data();
+            const uint64_t *resEnd = resPtr+activeSize-extra;
             //for (size_t i=0; i<activeSize; ++i) {
             for (; resPtr<resEnd; resPtr += 2) {
                 //auto start = LPTimer.getChrono();
@@ -1253,13 +1248,11 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        //activeSize = std::partition(resTuples.begin(), resTuples.begin()+activeSize, kernelZero) - resTuples.begin();
         activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
-        //activeSize = lp::utils::find_zero(resTuples.data(), resTuples.size());
-        //if (activeSize == 0) return false;
         //cerr << "active (after): " << activeSize << endl;
-        if (activeSize == 0) return false;
-        if (activeSize < 50 && cbegin < cend) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        //if (activeSize == 0) return false;
+        //if (activeSize < 100 && cbegin < cend) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
