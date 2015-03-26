@@ -1252,7 +1252,7 @@ LBL_CHECK_END:
         //cerr << "active (after): " << activeSize << endl;
         //if (activeSize == 0) return false;
         //if (activeSize < 100 && cbegin < cend) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
-        if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        if (activeSize < 172) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
