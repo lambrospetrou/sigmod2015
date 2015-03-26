@@ -129,11 +129,10 @@ typedef Query::Column::Op  Op;
 
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
-//typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > aligned_vector;
+//typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > vector_a;
 template<typename T>
-//using aligned_vector = std::vector<T, aligned_allocator<T, sizeof(T)>>;
-using aligned_vector = std::vector<T, aligned_allocator<T, 16>>;
-//using aligned_vector = std::vector<T>;
+using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+//using vector_a = std::vector<T>;
 
 // Custom data structures to hold data
 struct CTransStruct {
@@ -157,12 +156,12 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
-//typedef pair<uint64_t, aligned_vector<CTransStruct>> ColumnTransaction_t;
+//typedef pair<uint64_t, vector_a<CTransStruct>> ColumnTransaction_t;
 struct ColumnTransaction_t {
-    aligned_vector<uint64_t> values;
-    aligned_vector<tuple_t> tuples;
+    vector_a<uint64_t> values;
+    vector_a<tuple_t> tuples;
     uint64_t trans_id;
-    ColumnTransaction_t(uint64_t tid) : values(aligned_vector<uint64_t>()), tuples(aligned_vector<tuple_t>()), trans_id(tid) {}
+    ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<tuple_t>()), trans_id(tid) {}
 } ALIGNED_DATA;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
@@ -1116,7 +1115,7 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleTy
     return true;    
 }
 
-//bool ALWAYS_INLINE isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
+//bool ALWAYS_INLINE isTupleRangeConflict(vector_a<TupleType>::const_iterator tupFrom, vector_a<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
 bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
@@ -1125,7 +1124,7 @@ bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, Pr
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
-//static bool inline isTransactionConflict(aligned_vector<CTransStruct>& transValues, Column pFirst) {
+//static bool inline isTransactionConflict(vector_a<CTransStruct>& transValues, Column pFirst) {
 static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
     auto& transValues = transaction.values;
@@ -1151,7 +1150,6 @@ auto kernelZero = [](uint64_t t) { return t != 0; };
 //vector<uint64_t> cres;
 //vector<uint64_t> resTuples;
 
-//bool isTupleRangeConflict(aligned_vector<TupleType>::const_iterator tupFrom, aligned_vector<TupleType>::const_iterator tupTo, 
 bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
@@ -1251,18 +1249,15 @@ LBL_CHECK_END:
         activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
         //cerr << "active (after): " << activeSize << endl;
         //if (activeSize == 0) return false;
-        //if (activeSize < 100 && cbegin < cend) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
         if (activeSize < 172) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
 
-//static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ) {
 static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    //decltype(transTuples.begin()) tupFrom{transTuples.begin()}, tupTo{transTuples.end()};
     TupleType *tupFrom{const_cast<tuple_t*>(transTuples.data())}, *tupTo{const_cast<tuple_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
@@ -1305,7 +1300,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
     //if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
-    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 64) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
