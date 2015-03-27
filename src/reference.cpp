@@ -156,7 +156,6 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
-//typedef pair<uint64_t, vector_a<CTransStruct>> ColumnTransaction_t;
 struct ColumnTransaction_t {
     vector_a<uint64_t> values;
     vector_a<tuple_t> tuples;
@@ -299,6 +298,7 @@ static uint64_t gTimeSearch = 0;
 
 
 /////////////////////////////////////////// STRUCTURES FOR STATS
+/*
 typedef pair<bool, uint32_t> SColType;
 struct StatStruct {
     // columns info that appear as 1st predicates - bool=True means equality, False anything else
@@ -333,6 +333,7 @@ struct StatComp2_t {
 } StatCompRel;
 static unique_ptr<StatStruct[]> gStats;
 //static vector<SColType> *gStatColumns;
+*/
 
 ////////////////////////////////////////////////////
 
@@ -609,8 +610,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -621,6 +622,10 @@ int main(int argc, char**argv) {
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
     try {
+
+#ifdef LPDEBUG
+        uint64_t totalForgets = 0, totalFlushes = 0;
+#endif
 
         while (true) {
 #ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
@@ -653,6 +658,10 @@ int main(int argc, char**argv) {
                         break;
                     }
                 case MessageHead::Flush:  
+#ifdef LPDEBUG
+                    ++totalFlushes; 
+#endif
+
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
                     //multiPool.waitAll();
@@ -665,6 +674,9 @@ int main(int argc, char**argv) {
                     break;
 
                 case MessageHead::Forget: 
+#ifdef LPDEBUG
+                    ++totalForgets; 
+#endif
                     // check if we have pending transactions to be processed
                     //multiPool.helpExecution();
                     //multiPool.waitAll();
@@ -684,7 +696,7 @@ int main(int argc, char**argv) {
                 case MessageHead::Done: 
                     {
 #ifdef LPDEBUG
-                        cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << endl; 
+                        cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
                         cerr << " search: " << gTimeSearch << endl;
 #endif              
                         workerThreads.destroy();
