@@ -293,10 +293,6 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
-
-static uint64_t gTimeSearch = 0;
-
-
 /////////////////////////////////////////// STRUCTURES FOR STATS
 /*
 typedef pair<bool, uint32_t> SColType;
@@ -652,42 +648,29 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                     ++gTotalTransactions; 
 #endif
-                    {Globals.state = GlobalState::TRANSACTION;
-                        processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg); 
-                        //delete msg;
-                        break;
-                    }
+                    Globals.state = GlobalState::TRANSACTION;
+                    processTransactionMessage(*reinterpret_cast<const Transaction*>(msg->data.data()), msg); 
+                    break;
                 case MessageHead::Flush:  
 #ifdef LPDEBUG
                     ++totalFlushes; 
 #endif
-
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
-                    //multiPool.waitAll();
-                    //parsePendingValidationMessages(workerThreads, numOfThreads);
-
                     checkPendingValidations(&workerThreads);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
                     break;
-
                 case MessageHead::Forget: 
 #ifdef LPDEBUG
                     ++totalForgets; 
 #endif
                     // check if we have pending transactions to be processed
-                    //multiPool.helpExecution();
-                    //multiPool.waitAll();
-                    //parsePendingValidationMessages(workerThreads, numOfThreads);
-
                     checkPendingValidations(&workerThreads);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data()), &workerThreads); 
                     delete msg;
                     break;
-
                 case MessageHead::DefineSchema: 
                     Globals.state = GlobalState::SCHEMA;
                     processDefineSchema(*reinterpret_cast<const DefineSchema*>(msg->data.data()));
@@ -697,7 +680,6 @@ int main(int argc, char**argv) {
                     {
 #ifdef LPDEBUG
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
-                        cerr << " search: " << gTimeSearch << endl;
 #endif              
                         workerThreads.destroy();
                         //multiPool.destroy();
@@ -969,8 +951,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             }
             //colTransactionsORs.push_back(lp_OR(values.data(), trpsz));
 
-            //tuples.insert(tuples.begin(), trp->second.begin(), trp->second.end());
-            sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
+            std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
                     SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
             //cerr << "OR: " << colTransactionsORs.back() << endl;
         }
@@ -985,44 +966,11 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     auto startIndex = LPTimer.getChrono();
 #endif
     //cerr << "::: session start ::::" << endl;
-    //vector<SColType>* cols = &gStats[0].reqCols;
-    /*
-       uint64_t totalCols = 0;
-    //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-    for (uint32_t tid=1; tid<Globals.nThreads; ++tid) {
-    if (gStats[tid].reqCols.size() > cols->size()) cols = &gStats[tid].reqCols;
-    totalCols += gStats[tid].reqCols.size();
-    }
-    cols->reserve(totalCols);
-    for (uint32_t tid=0; tid<Globals.nThreads; ++tid) {
-    auto ccols = &gStats[tid].reqCols;
-    if (unlikely(ccols == cols || ccols->empty())) continue;
-    cols->insert(cols->end(), ccols->begin(), ccols->end());
-    ccols->resize(0);
-    }
-
-    // add the first column for all relations
-    std::sort(cols->begin(), cols->end(), StatComp);
-    auto it = std::unique(cols->begin(), cols->end(), StatCompEq);
-    cols->erase(it, cols->end());
-    //cerr << "unique reqCols: " << cols->size() << endl;
-    //for (auto& p : *cols) cerr << " " << p.second;
-    //for (SColType& cp : *cols) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
-     */
-    /*// - insert all the columns for all relations 
-      for (uint32_t r=0; r<NUM_RELATIONS; ++r) {
-      for (uint32_t c=0; c<gSchema[r]; ++c)
-      cols->emplace_back(false, lp::validation::packRelCol(r, c));
-      }
-     */
-    //gStatColumns = cols;
-    //for (SColType& cp : *gStatColumns) cerr << "==: " << cp.first << " col: " << cp.second << endl; 
     gNextIndex = 0;
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) 
-        gTransParseMapPhase[r].clear();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
 #ifdef LPDEBUG
     LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
 #endif
@@ -1034,9 +982,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     //processUpdateIndexTask(0, 0, nullptr);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
-
-    // clear the 1st predicate columns 
-    //cols->resize(0);
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
@@ -1064,7 +1009,7 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz); // TODO - maybe memset better
+    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     //std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending = 0;
 
@@ -1142,7 +1087,8 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     auto& transValues = transaction.values;
     switch (pFirst.op) {
         case Op::Equal: 
-            return lp::utils::binary_cmov(transValues.data(), transValues.size(), pFirst.value); 
+            //return lp::utils::binary_cmov(transValues.data(), transValues.size(), pFirst.value); 
+            return std::binary_search(transValues.data(), transValues.data() + transValues.size(), pFirst.value); 
         case Op::Less: 
             return transValues[0] < pFirst.value;                   
         case Op::LessOrEqual: 
