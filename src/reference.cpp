@@ -124,12 +124,10 @@ typedef uint64_t* tuple_t;
 typedef Query::Column::Op  Op;
 
 #define CACHE_LINE_SIZE 64
-//#define CACHE_ALIGNMENT 16
 #define CACHE_ALIGNMENT 64
 
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
-//typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > vector_a;
 template<typename T>
 using vector_a = std::vector<T, aligned_allocator<T, 16>>;
 //using vector_a = std::vector<T>;
