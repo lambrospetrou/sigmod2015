@@ -168,15 +168,14 @@ struct ColumnStruct {
     vector<uint64_t> values;
     vector<Metadata_t> metadata;
 
-    //vector<ColumnTransaction_t> transactions;
-    //vector<uint64_t> transactionsORs;
     uint64_t transTo;
-
-
+    std::mutex mtxIndex;
+    bool dirty;
+    
     
     char padding[8]; //for false sharing
     
-    ColumnStruct() : transTo(0) {}
+    ColumnStruct() : transTo(0), dirty(false) {}
 } ALIGNED_DATA;
 struct CTRSLessThan_t {
     ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
@@ -853,19 +852,9 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     //cerr << "::: tid " << tid << "new" << endl;
 
     for (uint64_t ri = gNextIndex++; ri < NUM_RELATIONS; ri=gNextIndex++) {
-        //#pragma omp parallel for schedule(static, 1)  
-        //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
-
-        //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
-        //auto colBegin = colpair.first, colEnd = colpair.second; 
-
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (unlikely(relTrans.empty())) { 
-            // TODO - we have to run this regardless of transactions since some
-            // columns might have to use previous transactions and be called for the first time
-            //updateRequiredColumns(ri, colBegin, colEnd);
-            //updateRequiredColumns(ri);
             continue; 
         }
 
@@ -874,9 +863,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
-        //auto& relColumns = gRelColumns[ri].columns;
         uint32_t relCols = gSchema[ri];
-
+    
         uint64_t lastTransId = relTrans[0].trans_id;
 
         // for each transaction regarding this relation
@@ -930,8 +918,11 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         if (likely(!operations.empty()))
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
-        // update with new transactions
-        //updateRequiredColumns(ri);
+        // TODO - mark the columns as dirty
+        for (uint32_t i=0; i<relCols; ++i) {
+            gRelColumns[ri].columns[i].dirty = true;
+        }
+
     } // end of while true
 }
 
@@ -966,6 +957,8 @@ void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { 
     // TODO - OR USER INPLACE_MERGE of std::
     std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
           SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+
+    relColumn.dirty = false;
 }
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
@@ -1281,11 +1274,22 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 }
 */
 
-static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns) {
+static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t rel) {
     auto& colValues = relColumns[pFirst.column].values;
     auto& colMetadata = relColumns[pFirst.column].metadata;
+
+    // TODO - Make sure the column we are going to check is updated
+    if (relColumns[pFirst.column].dirty) {
+        relColumns[pFirst.column].mtxIndex.lock();
+        if (relColumns[pFirst.column].dirty) {
+            updateIndexRelCol(0, rel, pFirst.column);
+        }
+        relColumns[pFirst.column].mtxIndex.unlock();
+    }
+
     decltype(colValues.begin()) tBegin = colValues.begin(), tEnd=colValues.end();
-    Metadata_t *tupFrom{const_cast<Metadata_t*>(colMetadata.data())}, *tupTo{const_cast<Metadata_t*>(colMetadata.data()+colMetadata.size())};
+    Metadata_t *tupFrom{const_cast<Metadata_t*>(colMetadata.data())}, 
+               *tupTo{const_cast<Metadata_t*>(colMetadata.data()+colMetadata.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
@@ -1406,7 +1410,7 @@ static bool isValidationConflict(LPValidation& v) {
         auto& colMetadata = relColumns[pFirst.column].metadata;
         if (colValues.empty()) continue; //next query since this one is not satisfiable
 
-        if (isConflict(v, pFirst, cbegin+1, cend, relColumns.get())) return true;
+        if (isConflict(v, pFirst, cbegin+1, cend, relColumns.get(), rq.relationId)) return true;
         else continue;
 
         /////////////////////////////
