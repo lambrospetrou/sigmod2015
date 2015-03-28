@@ -471,17 +471,31 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
         }*/
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
+            if (cCol.values.empty()) continue;
             auto& colValues = cCol.values;
             auto& colMetadata = cCol.metadata;
+            /*
             std::sort(SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data()), 
                 SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size()));
-            
+             
             auto ub = upper_bound(colMetadata.begin(), colMetadata.end(),
                         f.transactionId,
                         [](const uint64_t target, const Metadata_t& ct){ return target < ct.first; });
             
             colMetadata.erase(colMetadata.begin(), ub);
             colValues.erase(colValues.begin(), colValues.begin()+(ub-colMetadata.begin()));
+            */
+            auto itbeg = SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data());
+            auto itend = SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size());
+            //for (auto it=itbeg; it!=itend; ++it) cerr << "a: " << (*it).a << " b: " << (*it).b << endl;
+            //cerr << "itbeg: " << (*itbeg).a << endl;
+            auto it = std::remove_if(itbeg, itend,
+                            [&](SIter<Metadata_t, uint64_t>::reference meta) { return meta.a->first <= f.transactionId; });
+            //for (auto it=itbeg; it!=itend; ++it) cerr << "a: " << (*it).a << " b: " << (*it).b << endl;
+            size_t delPos = it - itbeg;
+            //cerr << "itbeg: " << (*itbeg).a << " it: " << (*it).a << " delPos: " << delPos << " sz: " << colValues.size() << endl;
+            colMetadata.erase(colMetadata.begin()+delPos, colMetadata.end());
+            colValues.erase(colValues.begin()+delPos, colValues.end());
         }
         // clean the transactions log 
         //auto& transLog = gRelations[ri].transLog; 
