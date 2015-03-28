@@ -498,7 +498,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
     }
     */
     (void)pool; (void)f;
-/*
+
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
@@ -506,14 +506,19 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
         // clean the index columns
         for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
             auto& cCol = cRelCol.columns[ci];
-            auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
-                        f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
+            auto& colValues = cCol.values;
+            auto& colMetadata = cCol.metadata;
+            std::sort(SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data()), 
+                SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size()));
             
-            cCol.transactions.erase(cCol.transactions.begin(), ub);
-            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
+            auto ub = upper_bound(colMetadata.begin(), colMetadata.end(),
+                        f.transactionId,
+                        [](const uint64_t target, const Metadata_t& ct){ return target < ct.first; });
+            
+            colMetadata.erase(colMetadata.begin(), ub);
+            colValues.erase(colValues.begin(), colValues.begin()+(ub-colMetadata.begin()));
         }
-*/
+
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -523,7 +528,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
             else ++it;
         }
 */
-/*
+
         // delete the transLogTuples
         auto& transLogTuples = gRelations[i].transLogTuples;
         transLogTuples.erase(transLogTuples.begin(), 
@@ -532,7 +537,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
                 );
         //cerr << "size after: " << transLog.size() << endl;
     }
-*/
+
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
