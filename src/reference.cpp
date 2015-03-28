@@ -988,10 +988,12 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startUpdIndex = LPTimer.getChrono();
 #endif
+    /*
     gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
+    */
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
@@ -1286,6 +1288,7 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
         }
         relColumns[pFirst.column].mtxIndex.unlock();
     }
+    if (colValues.empty()) return false;
 
     decltype(colValues.begin()) tBegin = colValues.begin(), tEnd=colValues.end();
     Metadata_t *tupFrom{const_cast<Metadata_t*>(colMetadata.data())}, 
@@ -1405,10 +1408,6 @@ static bool isValidationConflict(LPValidation& v) {
         // just find the range of transactions we want in this relation
         auto& relColumns = gRelColumns[rq.relationId].columns;
         //////////////////////////////
-
-        auto& colValues = relColumns[pFirst.column].values;
-        auto& colMetadata = relColumns[pFirst.column].metadata;
-        if (colValues.empty()) continue; //next query since this one is not satisfiable
 
         if (isConflict(v, pFirst, cbegin+1, cend, relColumns.get(), rq.relationId)) return true;
         else continue;
