@@ -1282,10 +1282,11 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 */
 
 static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t rel) {
+    (void)rel;
     auto& colValues = relColumns[pFirst.column].values;
     auto& colMetadata = relColumns[pFirst.column].metadata;
     /*
-    // TODO - Make sure the column we are going to check is updated
+    // Make sure the column we are going to check is updated
     if (relColumns[pFirst.column].dirty) {
         relColumns[pFirst.column].mtxIndex.lock();
         if (relColumns[pFirst.column].dirty) {
