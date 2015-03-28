@@ -134,9 +134,10 @@ using vector_a = std::vector<T, aligned_allocator<T, 16>>;
 
 // Custom data structures to hold data
 struct CTransStruct {
+    uint64_t trans_id;
     uint64_t value;
     tuple_t tuple;
-    CTransStruct (uint64_t v, tuple_t t) : value(v), tuple(t) {}
+    CTransStruct (uint64_t trid, uint64_t v, tuple_t t) : trans_id(trid), value(v), tuple(t) {}
 };
 struct CTRSValueLessThan_t {
     ALWAYS_INLINE bool operator()(const CTransStruct& l, const CTransStruct& r) {
@@ -165,8 +166,10 @@ typedef pair<uint64_t, tuple_t> Metadata_t;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
 
-    vector<uint64_t> values;
-    vector<Metadata_t> metadata;
+    //vector<uint64_t> values;
+    //vector<Metadata_t> metadata;
+    
+    vector<CTransStruct> values;
 
     uint64_t transTo;
     std::mutex mtxIndex;
@@ -473,15 +476,18 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             auto& cCol = cRelCol.columns[ci];
             if (cCol.values.empty()) continue;
             auto& colValues = cCol.values;
-            auto& colMetadata = cCol.metadata;
+            //auto& colMetadata = cCol.metadata;
             
-            auto itbeg = SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data());
-            auto itend = SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size());
-            auto it = std::remove_if(itbeg, itend,
-                            [=](SIter<Metadata_t, uint64_t>::reference meta) { return meta.a->first <= trans_id; });
-            size_t delPos = it - itbeg;
-            colMetadata.erase(colMetadata.begin()+delPos, colMetadata.end());
-            colValues.erase(colValues.begin()+delPos, colValues.end());
+            //auto itbeg = SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data());
+            //auto itend = SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size());
+            //auto it = std::remove_if(itbeg, itend,
+            //                [=](SIter<Metadata_t, uint64_t>::reference meta) { return meta.a->first <= trans_id; });
+            //size_t delPos = it - itbeg;
+            //colMetadata.erase(colMetadata.begin()+delPos, colMetadata.end());
+            //colValues.erase(colValues.begin()+delPos, colValues.end());
+            
+            colValues.erase(std::remove_if(colValues.begin(), colValues.end(),
+                            [=](const CTransStruct& cval) { return cval.trans_id <= trans_id; }), colValues.end());
         }
         // clean the transactions log 
         //auto& transLog = gRelations[ri].transLog; 
@@ -940,30 +946,30 @@ void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { 
     auto tEnd=relation.transLogTuples.end();
 
     auto& colValues = relColumn.values;
-    auto& colMetadata = relColumn.metadata;
+    //auto& colMetadata = relColumn.metadata;
     size_t szBefore = colValues.size();
 
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
         for (auto tpl : trp->second) {
-            colValues.push_back(tpl[col]);
-            colMetadata.emplace_back(trp->first, tpl);
+            //colValues.push_back(tpl[col]);
+            //colMetadata.emplace_back(trp->first, tpl);
+            colValues.emplace_back(trp->first, tpl[col], tpl);
         }
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
 
-    // TODO - MANY MANY - TODO - MANY THINGS TO DO HERE - Btree - OR UPDATE INCRMENETALLY
-    // TODO - OR USER INPLACE_MERGE of std::
-    //std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
-    //      SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+    /*
     std::sort(SIter<uint64_t, Metadata_t>(colValues.data()+szBefore, colMetadata.data()+szBefore), 
           SIter<uint64_t, Metadata_t>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
-
     std::inplace_merge(SIter<uint64_t, Metadata_t>(colValues.data(), colMetadata.data()),
             SIter<uint64_t, Metadata_t>(colValues.data()+szBefore, colMetadata.data()+szBefore), 
             SIter<uint64_t, Metadata_t>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+    */
+    std::sort(colValues.data()+szBefore, colValues.data()+colValues.size(), ColTransValueLess);
+    std::inplace_merge(colValues.data(), colValues.data()+szBefore, colValues.data()+colValues.size(), ColTransValueLess);
 
     relColumn.dirty = false;
 }
@@ -1284,7 +1290,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t rel) {
     (void)rel;
     auto& colValues = relColumns[pFirst.column].values;
-    auto& colMetadata = relColumns[pFirst.column].metadata;
+    //auto& colMetadata = relColumns[pFirst.column].metadata;
     /*
     // Make sure the column we are going to check is updated
     if (relColumns[pFirst.column].dirty) {
@@ -1298,36 +1304,44 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
     if (colValues.empty()) return false;
 
     decltype(colValues.begin()) tBegin = colValues.begin(), tEnd=colValues.end();
-    Metadata_t *tupFrom{const_cast<Metadata_t*>(colMetadata.data())}, 
-               *tupTo{const_cast<Metadata_t*>(colMetadata.data()+colMetadata.size())};
+    decltype(colValues.begin()) tupFrom = tBegin, tupTo = tEnd;
+    
+    //Metadata_t *tupFrom{const_cast<Metadata_t*>(colMetadata.data())}, 
+    //           *tupTo{const_cast<Metadata_t*>(colMetadata.data()+colMetadata.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (colValues[0] > pFirst.value || colValues.back() < pFirst.value) return false;
-                auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
+                //if (colValues[0] > pFirst.value || colValues.back() < pFirst.value) return false;
+                if (colValues[0].value > pFirst.value || colValues.back().value < pFirst.value) return false;
+                auto tp = std::equal_range(tBegin, tEnd, pFirst.value, ColTransValueLess);
                 if (tp.second == tp.first) return false;
-                tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
+                //tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
+                tupFrom = tp.first; tupTo = tp.second;
                 break;}
         case Op::Less: 
-            if (colValues[0] >= pFirst.value) return false;
-            tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
-            if (tupTo == tupFrom) return false;
+            //if (colValues[0] >= pFirst.value) return false;
+            if (colValues[0].value >= pFirst.value) return false;
+            //tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
+            tupTo = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             break;
         case Op::LessOrEqual: 
-            if (colValues[0] > pFirst.value) return false;
-            tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
-            if (tupTo == tupFrom) return false;
+            //if (colValues[0] > pFirst.value) return false;
+            if (colValues[0].value > pFirst.value) return false;
+            //tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
+            tupTo = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess); 
             break;
         case Op::Greater: 
-            if (colValues.back() <= pFirst.value) return false;
-            tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            if (tupTo == tupFrom) return false;
+            //if (colValues.back() <= pFirst.value) return false;
+            if (colValues.back().value <= pFirst.value) return false;
+            //tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            tupFrom = std::upper_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             break;
         case Op::GreaterOrEqual: 
-            if (colValues.back() < pFirst.value) return false;
-            tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            if (tupTo == tupFrom) return false;
+            //if (colValues.back() < pFirst.value) return false;
+            if (colValues.back().value < pFirst.value) return false;
+            //tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            tupFrom = std::lower_bound(tBegin, tEnd, pFirst.value, ColTransValueLess);
             break;
         default: 
             cbegin = std::prev(cbegin);
@@ -1338,8 +1352,11 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
     //for (auto t : transValues) cerr << t << " ";
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     
+    if (tupTo == tupFrom) return false;
+    
     for(; tupFrom!=tupTo; ++tupFrom) {  
-        if (tupFrom->first>=v.from && tupFrom->first<=v.to && isTupleConflict(cbegin, cend, tupFrom->second)) return true;
+        //if (tupFrom->first>=v.from && tupFrom->first<=v.to && isTupleConflict(cbegin, cend, tupFrom->second)) return true;
+        if (tupFrom->trans_id>=v.from && tupFrom->trans_id<=v.to && isTupleConflict(cbegin, cend, tupFrom->tuple)) return true;
     } // end of all tuples for this transaction
     return false;
 }
