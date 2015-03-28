@@ -1105,7 +1105,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
     //if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
-    if (tupTo - tupFrom < 64) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 32) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
@@ -1188,6 +1188,7 @@ static bool isValidationConflict(LPValidation& v) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
                  
+        /*
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
@@ -1196,14 +1197,14 @@ static bool isValidationConflict(LPValidation& v) {
                         || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
                 && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else if (colCountUniq > 1) {
+        } else*/ if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                        || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
+                if (    !((!(cb.op) && !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                        || (!(cb1.op) && !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
                 && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else {
+        } else  {
             auto& cb = cbegin[0];
             if (!cb.op) { 
                 for(; transFrom<transTo; ++transFrom, ++pos) {  
