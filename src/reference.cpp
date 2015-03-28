@@ -455,8 +455,14 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     //cerr << "::: tid " << tid << "new" << endl;
     //auto& f = gF;
     auto f = *reinterpret_cast<Forget*>(args);
-    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
+    uint64_t totalCols = gRequiredColumns.size();
+    for (uint64_t rc = gNextFRel++; rc < totalCols; rc=gNextFRel++) {
+        uint32_t ri, col;
+        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+    /*
+    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) {     
         auto& cRelCol = gRelColumns[ri];
+    */
         // clean the index columns
         /*
         const uint64_t colsz = gSchema[ri];
@@ -469,8 +475,10 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }*/
-        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            auto& cCol = cRelCol.columns[ci];
+        //for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            //auto& cCol = cRelCol.columns[ci];
+            auto& cRelCol = gRelColumns[ri];
+            auto& cCol = cRelCol.columns[col];
             if (cCol.values.empty()) continue;
             auto& colValues = cCol.values;
             auto& colMetadata = cCol.metadata;
@@ -496,7 +504,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             //cerr << "itbeg: " << (*itbeg).a << " it: " << (*it).a << " delPos: " << delPos << " sz: " << colValues.size() << endl;
             colMetadata.erase(colMetadata.begin()+delPos, colMetadata.end());
             colValues.erase(colValues.begin()+delPos, colValues.end());
-        }
+        //}
         // clean the transactions log 
         //auto& transLog = gRelations[ri].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
@@ -506,11 +514,13 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
         //}
         
         // delete the transLogTuples
+        if (col==0) {
         auto& transLogTuples = gRelations[ri].transLogTuples;
         transLogTuples.erase(transLogTuples.begin(), 
                 upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
                     [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
                 );
+        }
     }
 }
 
