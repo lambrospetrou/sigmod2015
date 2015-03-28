@@ -448,7 +448,7 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 }
 //---------------------------------------------------------------------------
 
-/*
+
 static atomic<uint64_t> gNextFRel;
 void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
@@ -458,6 +458,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
         auto& cRelCol = gRelColumns[ri];
         // clean the index columns
+        /*
         const uint64_t colsz = gSchema[ri];
         for (uint32_t ci=0; ci<colsz; ++ci) {
             auto& cCol = cRelCol.columns[ci];
@@ -467,6 +468,20 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
+        }*/
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            auto& cCol = cRelCol.columns[ci];
+            auto& colValues = cCol.values;
+            auto& colMetadata = cCol.metadata;
+            std::sort(SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data()), 
+                SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size()));
+            
+            auto ub = upper_bound(colMetadata.begin(), colMetadata.end(),
+                        f.transactionId,
+                        [](const uint64_t target, const Metadata_t& ct){ return target < ct.first; });
+            
+            colMetadata.erase(colMetadata.begin(), ub);
+            colValues.erase(colValues.begin(), colValues.begin()+(ub-colMetadata.begin()));
         }
         // clean the transactions log 
         //auto& transLog = gRelations[ri].transLog; 
@@ -484,21 +499,19 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
                 );
     }
 }
-*/
+
         
 static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    /*
-    if (false) {
-        gNextFRel = 0; 
-        pool->startSingleAll(processForgetThreaded, (void*)&f);
-        pool->waitSingleAll();
-    }
-    */
+    
+    gNextFRel = 0; 
+    pool->startSingleAll(processForgetThreaded, (void*)&f);
+    pool->waitSingleAll();
+    
     (void)pool; (void)f;
-
+/*
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         auto& cRelCol = gRelColumns[i];
@@ -519,15 +532,13 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
             colValues.erase(colValues.begin(), colValues.begin()+(ub-colMetadata.begin()));
         }
 
-/*
         // clean the transactions log
-        auto& transLog = gRelations[i].transLog;         
+        //auto& transLog = gRelations[i].transLog;         
         //cerr << "size bef: " << transLog.size() << endl;
-        for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
-            if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
-            else ++it;
-        }
-*/
+        //for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
+        //    if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
+        //    else ++it;
+        //}
 
         // delete the transLogTuples
         auto& transLogTuples = gRelations[i].transLogTuples;
@@ -537,7 +548,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
                 );
         //cerr << "size after: " << transLog.size() << endl;
     }
-
+*/
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
