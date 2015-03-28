@@ -455,14 +455,9 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     //cerr << "::: tid " << tid << "new" << endl;
     //auto& f = gF;
     auto f = *reinterpret_cast<Forget*>(args);
-    uint64_t totalCols = gRequiredColumns.size();
-    for (uint64_t rc = gNextFRel++; rc < totalCols; rc=gNextFRel++) {
-        uint32_t ri, col;
-        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-    /*
+    uint64_t trans_id = f.transactionId;
     for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) {     
         auto& cRelCol = gRelColumns[ri];
-    */
         // clean the index columns
         /*
         const uint64_t colsz = gSchema[ri];
@@ -475,36 +470,20 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             cCol.transactions.erase(cCol.transactions.begin(), ub);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }*/
-        //for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            //auto& cCol = cRelCol.columns[ci];
-            auto& cRelCol = gRelColumns[ri];
-            auto& cCol = cRelCol.columns[col];
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            auto& cCol = cRelCol.columns[ci];
             if (cCol.values.empty()) continue;
             auto& colValues = cCol.values;
             auto& colMetadata = cCol.metadata;
-            /*
-            std::sort(SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data()), 
-                SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size()));
-             
-            auto ub = upper_bound(colMetadata.begin(), colMetadata.end(),
-                        f.transactionId,
-                        [](const uint64_t target, const Metadata_t& ct){ return target < ct.first; });
             
-            colMetadata.erase(colMetadata.begin(), ub);
-            colValues.erase(colValues.begin(), colValues.begin()+(ub-colMetadata.begin()));
-            */
             auto itbeg = SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data());
             auto itend = SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size());
-            //for (auto it=itbeg; it!=itend; ++it) cerr << "a: " << (*it).a << " b: " << (*it).b << endl;
-            //cerr << "itbeg: " << (*itbeg).a << endl;
             auto it = std::remove_if(itbeg, itend,
-                            [&](SIter<Metadata_t, uint64_t>::reference meta) { return meta.a->first <= f.transactionId; });
-            //for (auto it=itbeg; it!=itend; ++it) cerr << "a: " << (*it).a << " b: " << (*it).b << endl;
+                            [=](SIter<Metadata_t, uint64_t>::reference meta) { return meta.a->first <= trans_id; });
             size_t delPos = it - itbeg;
-            //cerr << "itbeg: " << (*itbeg).a << " it: " << (*it).a << " delPos: " << delPos << " sz: " << colValues.size() << endl;
             colMetadata.erase(colMetadata.begin()+delPos, colMetadata.end());
             colValues.erase(colValues.begin()+delPos, colValues.end());
-        //}
+        }
         // clean the transactions log 
         //auto& transLog = gRelations[ri].transLog; 
         //cerr << "size bef: " << transLog.size() << endl;
@@ -514,13 +493,11 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
         //}
         
         // delete the transLogTuples
-        if (col==0) {
         auto& transLogTuples = gRelations[ri].transLogTuples;
         transLogTuples.erase(transLogTuples.begin(), 
                 upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
                     [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
                 );
-        }
     }
 }
 
@@ -960,58 +937,59 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
 static std::atomic<uint32_t> gNextReqCol;
 
+void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
+    auto& relation = gRelations[ri];
+    auto& relColumns = gRelColumns[ri].columns;
+    
+    uint64_t updatedUntil = relColumns[col].transTo;
+    if (relation.transLogTuples.empty() || lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) return;
+    
+    // Use lower_bound to automatically jump to the transaction to start
+    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+    auto tEnd=relation.transLogTuples.end();
+    //auto& colTransactions = relColumns[col].transactions;
+    //auto& colTransactionsORs = relColumns[col].transactionsORs;
+
+    auto& colValues = relColumns[col].values;
+    auto& colMetadata = relColumns[col].metadata;
+    
+    // for all the transactions in the relation
+    for(auto trp=transFrom; trp!=tEnd; ++trp) {
+        // allocate vectors for the current new transaction to put its data
+        //colTransactions.emplace_back(trp->first);
+        //auto& values = colTransactions.back().values;
+        //auto& tuples = colTransactions.back().tuples;
+        //const unsigned int trpsz = trp->second.size();
+        //values.reserve(trpsz);
+        //tuples.reserve(trpsz);
+        //colTransactionsORs.push_back(0);
+        for (auto tpl : trp->second) {
+            //values.push_back(tpl[col]);
+            //tuples.push_back(tpl);
+            //colTransactionsORs.back() |= tpl[col];
+            colValues.push_back(tpl[col]);
+            colMetadata.emplace_back(trp->first, tpl);
+        }
+
+        //std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
+        //      SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
+    }
+    // no need to check for empty since now we update all the columns and there is a check for emptyness above
+    relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+
+    // TODO - MANY MANY - TODO - MANY THINGS TO DO HERE - Btree - OR UPDATE INCRMENETALLY
+    // TODO - OR USER INPLACE_MERGE of std::
+    std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
+          SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+}
+
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
     for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
-
         uint32_t ri, col;
         lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-
-        auto& relation = gRelations[ri];
-        auto& relColumns = gRelColumns[ri].columns;
-        
-        uint64_t updatedUntil = relColumns[col].transTo;
-        if (relation.transLogTuples.empty() || lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) continue;
-        
-        // Use lower_bound to automatically jump to the transaction to start
-        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-        auto tEnd=relation.transLogTuples.end();
-        //auto& colTransactions = relColumns[col].transactions;
-        //auto& colTransactionsORs = relColumns[col].transactionsORs;
-
-        auto& colValues = relColumns[col].values;
-        auto& colMetadata = relColumns[col].metadata;
-        
-        // for all the transactions in the relation
-        for(auto trp=transFrom; trp!=tEnd; ++trp) {
-            // allocate vectors for the current new transaction to put its data
-            //colTransactions.emplace_back(trp->first);
-            //auto& values = colTransactions.back().values;
-            //auto& tuples = colTransactions.back().tuples;
-            //const unsigned int trpsz = trp->second.size();
-            //values.reserve(trpsz);
-            //tuples.reserve(trpsz);
-            //colTransactionsORs.push_back(0);
-            for (auto tpl : trp->second) {
-                //values.push_back(tpl[col]);
-                //tuples.push_back(tpl);
-                //colTransactionsORs.back() |= tpl[col];
-                colValues.push_back(tpl[col]);
-                colMetadata.emplace_back(trp->first, tpl);
-            }
-
-            //std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-            //      SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
-        }
-        // no need to check for empty since now we update all the columns and there is a check for emptyness above
-        relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
-
-        // TODO - MANY MANY - TODO - MANY THINGS TO DO HERE - Btree - OR UPDATE INCRMENETALLY
-        // TODO - OR USER INPLACE_MERGE of std::
-        std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
-              SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
-
+        updateIndexRelCol(tid, ri, col);
     } // end of while columns to update     
 }
 
