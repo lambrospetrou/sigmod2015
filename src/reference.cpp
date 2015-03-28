@@ -462,9 +462,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
         auto& transLogTuples = gRelations[ri].transLogTuples;
         
         if (transLogTuples.empty() || transLogTuples[0].first > f.transactionId) continue;
-        
         //cerr << "forget id: " << f.transactionId << " first: " << transLogTuples[0].first << " updatedUntil: " << cRelCol.columns[0].transTo << endl;
-        
         transLogTuples.erase(transLogTuples.begin(), 
                 upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
                     [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
@@ -1122,7 +1120,8 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     return false;
 }
 
-auto kernelZero = [](uint64_t t) { return t != 0; };
+auto kernelNotZero = [](uint64_t t) { return t != 0; };
+auto kernelZero = [](uint64_t t) { return t == 0; };
 
 //vector<uint64_t> cres;
 //vector<uint64_t> resTuples;
@@ -1223,7 +1222,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
+        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
         //cerr << "active (after): " << activeSize << endl;
         //if (activeSize == 0) return false;
         if (activeSize < 172) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
@@ -1283,6 +1282,106 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 }
 */
 
+bool isTupleRangeConflict(Metadata_t *tupFrom, Metadata_t *tupTo, 
+        PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint64_t trFrom, uint64_t trTo) {
+    // copy the eligible tuples into our mask vector
+    vector<uint64_t> cres; 
+    size_t csz;
+    vector<uint64_t> resTuples;
+    resTuples.reserve(tupTo-tupFrom);
+    //std::copy_if(tupFrom, tupTo, std::back_inserter(resTuples), [=] (const Metadata_t& meta) { return meta.first >= trFrom && meta.first <= trTo; });
+    for (; tupFrom!=tupTo; ++tupFrom) 
+        if (tupFrom->first >= trFrom && tupFrom->first<=trTo) resTuples.push_back((uint64_t)tupFrom->second);
+    size_t activeSize = resTuples.size();
+    //cerr << " -- new check" << endl;
+    for (; cbegin<cend; ++cbegin) {
+        //cerr << "active: " << activeSize << endl;
+        auto& c = *cbegin;    
+        auto& transValues = relColumns[c.column].values;
+        decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+        size_t tupFromIdx{0}, tupToIdx{transValues.size()};
+        switch (c.op) {
+            case Op::Equal: 
+                {
+                    if (transValues[0] > c.value || transValues.back() < c.value) return false;
+                    auto tp = std::equal_range(tBegin, tEnd, c.value);
+                    if (tp.second == tp.first) return false;
+                    tupFromIdx = (tp.first - tBegin); tupToIdx = tupFromIdx + (tp.second-tp.first);
+                    break;}
+            case Op::Less: 
+                if (transValues[0] >= c.value) return false;
+                tupToIdx -= (tEnd-std::lower_bound(tBegin, tEnd, c.value));
+                if (tupToIdx == tupFromIdx) return false;
+                break;
+            case Op::LessOrEqual: 
+                if (transValues[0] > c.value) return false;
+                tupToIdx -= (tEnd-std::upper_bound(tBegin, tEnd, c.value)); 
+                if (tupToIdx == tupFromIdx) return false;
+                break;
+            case Op::Greater: 
+                if (transValues.back() <= c.value) return false;
+                tupFromIdx += (std::upper_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupToIdx == tupFromIdx) return false;
+                break;
+            case Op::GreaterOrEqual: 
+                if (transValues.back() < c.value) return false;
+                tupFromIdx += (std::lower_bound(tBegin, tEnd, c.value)-tBegin);
+                if (tupToIdx == tupFromIdx) return false;
+                break;
+            default: 
+                // check if the active tuples have a value != to the predicate
+                for (uint64_t *resPtr=resTuples.data(), *resend = resTuples.data()+activeSize; resPtr<resend;) {
+                    if (((tuple_t)*resPtr++)[c.column] == c.value) *(resPtr-1) = 0;
+                }
+                goto LBL_CHECK_END;
+        }
+
+        // this check is done for all the operators apart from !=
+        // we have to check if the active tuples are inside the result set returned
+        csz = tupToIdx-tupFromIdx;
+        /*if (csz > 512 && activeSize > 512) {
+            auto& transMeta = relColumns[c.column].metadata;
+            cres.resize(0);
+            for (size_t i=tupFromIdx; i<tupToIdx; ++i) 
+                if (transMeta[i].first >= trFrom && transMeta[i].first <= trTo) cres.push_back((uint64_t)transMeta[i].second);
+            std::sort(cres.begin(), cres.end());
+            csz = cres.size();
+            //cerr << "csz: " << csz << " active: " << activeSize << endl;
+            const size_t extra = activeSize & 1;
+            uint64_t *resPtr = resTuples.data();
+            const uint64_t *cresb = cres.data();
+            const uint64_t *crese = cres.data() + csz;
+            for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
+                if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+                if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
+            }
+            if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
+        } else*/ {
+            auto& transMeta = relColumns[c.column].metadata;
+            const Metadata_t *transPtr = transMeta.data()+tupFromIdx;
+            const size_t extra = activeSize & 1;
+            uint64_t *resPtr = resTuples.data();
+            const uint64_t *resEnd = resPtr+activeSize-extra;
+            for (; resPtr<resEnd; resPtr += 2) {
+                if (std::find_if(transPtr, transPtr + csz, [&](const Metadata_t& meta) {return meta.first>=trFrom && meta.first<=trTo && *resPtr == (uint64_t)meta.second;}) == transPtr + csz) *resPtr = 0;
+                if (std::find_if(transPtr, transPtr + csz, [&](const Metadata_t& meta) {return meta.first>=trFrom && meta.first<=trTo && *(resPtr+1) == (uint64_t)meta.second;}) == transPtr + csz) *(resPtr+1) = 0;
+            }
+                if (std::find_if(transPtr, transPtr + csz, [&](const Metadata_t& meta) {return meta.first>=trFrom && meta.first<=trTo && *resPtr == (uint64_t)meta.second;}) == transPtr + csz) *resPtr = 0;
+        }
+LBL_CHECK_END:
+        // check if we have any valid tuple left otherwise return false
+        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
+        //activeSize = std::remove_if(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
+        //cerr << "active (after): " << activeSize << endl;
+        if (activeSize == 0) return false;
+        if (activeSize < 64) {
+            for(uint64_t *restpl = resTuples.data(), *resend=resTuples.data()+activeSize; restpl!=resend; ++restpl ) {
+                if (isTupleConflict(cbegin+1, cend, (tuple_t)*restpl)) return true;
+            } // end of all tuples for this transaction
+        }
+    }
+    return activeSize > 0;
+}
 static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t rel) {
     (void)rel;
     auto& colValues = relColumns[pFirst.column].values;
@@ -1340,10 +1439,12 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
     //for (auto t : transValues) cerr << t << " ";
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
      
-    for(; tupFrom!=tupTo; ++tupFrom) {  
+    return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, v.from, v.to);
+    /*for(; tupFrom!=tupTo; ++tupFrom) {
         if (tupFrom->first>=v.from && tupFrom->first<=v.to && isTupleConflict(cbegin, cend, tupFrom->second)) return true;
     } // end of all tuples for this transaction
     return false;
+    */
 }
 
 
