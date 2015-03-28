@@ -695,58 +695,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
    }
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
-/*
-//static void updateRequiredColumns(uint64_t ri, vector<SColType>::iterator colBegin, vector<SColType>::iterator colEnd) {
-static void updateRequiredColumns(uint64_t ri) {
-    // PHASE TWO OF THE ALGORITHM IN THIS STAGE IS TO INCREMENTALLY UPDATE
-    // THE INDEXES ONLY FOR THE COLUMNS THAT ARE GOING TO BE REQUESTED IN THE 
-    // FOLOWING VALIDATION SESSION - 1st predicates only for now
-    //for (SColType& cp : *statCols) cerr << "is Op::Equal " << cp.first << " col: " << cp.second << endl; 
-    auto& relation = gRelations[ri];
-    auto& relColumns = gRelColumns[ri].columns;
-    
-    uint64_t updatedUntil = relColumns[0].transTo;
-    // Use lower_bound to automatically jump to the transaction to start
-    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-    auto tEnd=relation.transLogTuples.end();
-    // for each column to be indexed
-    uint32_t colsz=gSchema[ri];
-//#pragma omp parallel for schedule(static, 1) num_threads(4)
-    for (uint32_t col=0; col<colsz; ++col) {
-        //tbb::parallel_for ((uint32_t)0, gSchema[ri], [&] (uint32_t col) {
-    //tbb::parallel_for (tbb::blocked_range<uint32_t>(0, gSchema[ri], 20), [&] (const tbb::blocked_range<uint32_t>& r) {
-    //    for (uint32_t col=r.begin(); col<r.end(); ++col) {
-
-        //uint32_t rel,col;
-        //for (; colBegin!=colEnd; ++colBegin) {
-        //    lp::validation::unpackRelCol(colBegin->second, rel, col);
-        //cerr << "relation: " << ri << " got rel " << rel << " col " << col << endl;
-        auto& colTransactions = relColumns[col].transactions;
-        auto& colTransactionsORs = relColumns[col].transactionsORs;
-
-        // for all the transactions in the relation
-        for(auto trp=transFrom; trp!=tEnd; ++trp) {
-            colTransactionsORs.push_back(0);
-            // allocate vectors for the current new transaction to put its data
-            colTransactions.emplace_back(trp->first, move(vector<CTransStruct>()));
-            colTransactions.back().second.reserve(trp->second.size());
-            auto& vecBack = colTransactions.back().second;
-            for (auto tpl : trp->second) {
-                vecBack.emplace_back(tpl[col], tpl);
-                colTransactionsORs.back() |= tpl[col];
-            }
-            sort(vecBack.begin(), vecBack.end(), ColTransValueLess);
-            //cerr << "OR: " << colTransactionsORs.back() << endl;
-            // add the sentinel value
-            //vecBack.emplace_back(UINT64_MAX, nullptr);
-        }
-        if(!relation.transLogTuples.empty())
-            relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
-        //cerr << "col " << col << " ends to " << relColumns[col].transTo << endl;
-      //      }});
-    }
-}
-*/
 static std::atomic<uint64_t> gNextIndex;
 
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
@@ -757,16 +705,9 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         //#pragma omp parallel for schedule(static, 1)  
         //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
-        //auto colpair = std::equal_range(gStatColumns->begin(), gStatColumns->end(), ri, StatCompRel);
-        //auto colBegin = colpair.first, colEnd = colpair.second; 
-
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (unlikely(relTrans.empty())) { 
-            // TODO - we have to run this regardless of transactions since some
-            // columns might have to use previous transactions and be called for the first time
-            //updateRequiredColumns(ri, colBegin, colEnd);
-            //updateRequiredColumns(ri);
             continue; 
         }
 
@@ -830,9 +771,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // store the operations for the last transaction
         if (likely(!operations.empty()))
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
-
-        // update with new transactions
-        //updateRequiredColumns(ri);
     } // end of while true
 }
 
@@ -842,7 +780,6 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
     for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
-
         uint32_t ri, col;
         lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
 
@@ -868,14 +805,11 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             values.reserve(trpsz);
             tuples.reserve(trpsz);
             colTransactionsORs.push_back(0);
-            //for (unsigned int i=0; i<trpsz; ++i) {
             for (auto tpl : trp->second) {
-                //auto tpl = trp->second[i];
                 values.push_back(tpl[col]);
                 tuples.push_back(tpl);
                 colTransactionsORs.back() |= tpl[col];
             }
-            //colTransactionsORs.push_back(lp_OR(values.data(), trpsz));
 
             std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
                     SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
@@ -928,15 +862,12 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 #endif
 
     // find the MIN validation ID to coordinate the indexing of the results
-    //resIndexOffset = UINT64_MAX;
-    //for (auto& pv : gPendingValidations) if (pv.validationId < resIndexOffset) resIndexOffset = pv.validationId;
     resIndexOffset = gPendingValidations[0].validationId; // only master handles the messages now so they are in order
     
     auto gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
     memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
-    //std::fill(gPendingResults.begin(), gPendingResults.end(), 0);
     gNextPending = 0;
 
     // sort the validations by query count in order to start the heavy ones earlier
@@ -946,9 +877,6 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 
     pool->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();
-
-    //(void)pool;
-    //processPendingValidationsTask(0, 0);
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
@@ -965,9 +893,7 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 // VALIDATION
 //////////////////////////////////////////////////////////
 
-//typedef CTransStruct TupleType;
 typedef tuple_t TupleType;
-//typedef vector<Query::Column>::iterator PredIter;
 typedef Query::Column* PredIter;
 
 bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup) {
@@ -998,7 +924,6 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleTy
     return true;    
 }
 
-//bool ALWAYS_INLINE isTupleRangeConflict(vector_a<TupleType>::const_iterator tupFrom, vector_a<TupleType>::const_iterator tupTo, PredIter cbegin, PredIter cend) {
 bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
@@ -1007,7 +932,6 @@ bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, Pr
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
-//static bool inline isTransactionConflict(vector_a<CTransStruct>& transValues, Column pFirst) {
 static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
     auto& transValues = transaction.values;
@@ -1029,10 +953,8 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     return false;
 }
 
-auto kernelZero = [](uint64_t t) { return t != 0; };
-
-//vector<uint64_t> cres;
-//vector<uint64_t> resTuples;
+auto kernelZero = [](uint64_t t) { return t == 0; };
+auto kernelNotZero = [](uint64_t t) { return t != 0; };
 
 bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
@@ -1105,7 +1027,6 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             uint64_t *resPtr = resTuples.data();
             const uint64_t *cresb = cres;
             const uint64_t *crese = cres + csz;
-            //for (size_t i=0, nsz=activeSize-extra; i<nsz; i+=2) {
             for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
                 //if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
                 //if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
@@ -1119,7 +1040,6 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             const size_t extra = activeSize & 1;
             uint64_t *resPtr = resTuples.data();
             const uint64_t *resEnd = resPtr+activeSize-extra;
-            //for (size_t i=0; i<activeSize; ++i) {
             for (; resPtr<resEnd; resPtr += 2) {
                 //auto start = LPTimer.getChrono();
                 if (!lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
@@ -1130,7 +1050,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelZero) - resTuples.data();
+        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
         //cerr << "active (after): " << activeSize << endl;
         //if (activeSize == 0) return false;
         if (activeSize < 172) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
@@ -1142,7 +1062,8 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    TupleType *tupFrom{const_cast<tuple_t*>(transTuples.data())}, *tupTo{const_cast<tuple_t*>(transTuples.data()+transTuples.size())};
+    TupleType *tupFrom{const_cast<tuple_t*>(transTuples.data())}, 
+              *tupTo{const_cast<tuple_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
