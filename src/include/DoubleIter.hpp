@@ -34,12 +34,22 @@ class SIter {
             rv.bIter += cc;
             return rv;
         }
+        SIter& operator += (std::ptrdiff_t cc) {
+            aIter += cc;
+            bIter += cc;
+            return *this;
+        }
         SIter operator - (std::ptrdiff_t cc) const
         {
             SIter rv = *this;
             rv.aIter -= cc;
             rv.bIter -= cc;
             return rv;
+        }
+        SIter& operator -= (std::ptrdiff_t cc) {
+            aIter -= cc;
+            bIter -= cc;
+            return *this;
         }
         std::ptrdiff_t operator - (SIter other) const
         {

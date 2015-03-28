@@ -941,7 +941,8 @@ void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { 
 
     auto& colValues = relColumn.values;
     auto& colMetadata = relColumn.metadata;
-    
+    size_t szBefore = colValues.size();
+
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -955,8 +956,14 @@ void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { 
 
     // TODO - MANY MANY - TODO - MANY THINGS TO DO HERE - Btree - OR UPDATE INCRMENETALLY
     // TODO - OR USER INPLACE_MERGE of std::
-    std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
-          SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+    //std::sort(SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data(), colMetadata.data()), 
+    //      SIter<uint64_t, pair<uint64_t, tuple_t>>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+    std::sort(SIter<uint64_t, Metadata_t>(colValues.data()+szBefore, colMetadata.data()+szBefore), 
+          SIter<uint64_t, Metadata_t>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
+
+    std::inplace_merge(SIter<uint64_t, Metadata_t>(colValues.data(), colMetadata.data()),
+            SIter<uint64_t, Metadata_t>(colValues.data()+szBefore, colMetadata.data()+szBefore), 
+            SIter<uint64_t, Metadata_t>(colValues.data()+colValues.size(), colMetadata.data()+colMetadata.size()));
 
     relColumn.dirty = false;
 }
@@ -988,12 +995,10 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startUpdIndex = LPTimer.getChrono();
 #endif
-    /*
     gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
-    */
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
@@ -1279,7 +1284,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, uint32_t rel) {
     auto& colValues = relColumns[pFirst.column].values;
     auto& colMetadata = relColumns[pFirst.column].metadata;
-
+    /*
     // TODO - Make sure the column we are going to check is updated
     if (relColumns[pFirst.column].dirty) {
         relColumns[pFirst.column].mtxIndex.lock();
@@ -1288,6 +1293,7 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
         }
         relColumns[pFirst.column].mtxIndex.unlock();
     }
+    */
     if (colValues.empty()) return false;
 
     decltype(colValues.begin()) tBegin = colValues.begin(), tEnd=colValues.end();
