@@ -124,12 +124,10 @@ typedef uint64_t* tuple_t;
 typedef Query::Column::Op  Op;
 
 #define CACHE_LINE_SIZE 64
-//#define CACHE_ALIGNMENT 16
 #define CACHE_ALIGNMENT 64
 
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
-//typedef std::vector<__m128, aligned_allocator<__m128, sizeof(__m128)> > vector_a;
 template<typename T>
 using vector_a = std::vector<T, aligned_allocator<T, 16>>;
 //using vector_a = std::vector<T>;
@@ -156,6 +154,7 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
+// transactions in each relation column - all tuples of same transaction in one vector
 struct ColumnTransaction_t {
     vector_a<uint64_t> values;
     vector_a<tuple_t> tuples;
@@ -183,20 +182,7 @@ struct CTRSLessThan_t {
         return target < o.trans_id;
     }
 } CTRSLessThan;
-/*
-struct CTRSLessThan_t {
-    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
-        return left.first < right.first;
-    }
-    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& o, uint64_t target) {
-        return o.first < target;
-    }
-    ALWAYS_INLINE bool operator() (uint64_t target, const ColumnTransaction_t& o) {
-        return target < o.first;
-    }
-} CTRSLessThan;
-*/
-// transactions in each relation column - all tuples of same transaction in one vector
+
 
 struct RelationColumns {
     std::unique_ptr<ColumnStruct[]> columns;
@@ -293,43 +279,6 @@ static vector<PendingResultType> gPendingResults;
 static vector<pair<uint64_t,bool>> gQueryResults;
 static uint64_t gPVunique;
 
-/////////////////////////////////////////// STRUCTURES FOR STATS
-/*
-typedef pair<bool, uint32_t> SColType;
-struct StatStruct {
-    // columns info that appear as 1st predicates - bool=True means equality, False anything else
-    vector<SColType> reqCols; 
-};
-struct StatCompEq_t {
-    inline bool operator() (const SColType& l, const SColType& r) {
-        return l.second == r.second;
-    }
-} StatCompEq;
-struct StatComp_t {
-    inline bool operator() (const SColType& l, const SColType& r) {
-        return l.second < r.second;
-    }
-    inline bool operator() (const SColType& l, uint32_t target) {
-        return l.second < target;
-    }
-    inline bool operator() (uint32_t target, const SColType& r) {
-        return target < r.second;
-    }
-} StatComp;
-struct StatComp2_t {
-    inline bool operator() (const SColType& l, const SColType& r) {
-        return lp::validation::unpackRel(l.second) < lp::validation::unpackRel(r.second);
-    }
-    inline bool operator() (const SColType& l, uint32_t target) {
-        return lp::validation::unpackRel(l.second) < target;
-    }
-    inline bool operator() (uint32_t target, const SColType& r) {
-        return target < lp::validation::unpackRel(r.second);
-    }
-} StatCompRel;
-static unique_ptr<StatStruct[]> gStats;
-//static vector<SColType> *gStatColumns;
-*/
 
 ////////////////////////////////////////////////////
 
@@ -442,69 +391,28 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 }
 //---------------------------------------------------------------------------
 
-/*
-static atomic<uint64_t> gNextFRel;
-void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
-    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-    //cerr << "::: tid " << tid << "new" << endl;
-    //auto& f = gF;
-    auto f = *reinterpret_cast<Forget*>(args);
-    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
+
+static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         auto& cRelCol = gRelColumns[ri];
-        // clean the index columns
-        const uint64_t colsz = gSchema[ri];
-        for (uint32_t ci=0; ci<colsz; ++ci) {
-            auto& cCol = cRelCol.columns[ci];
-            auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
-                        f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.first; });
-            
-            cCol.transactions.erase(cCol.transactions.begin(), ub);
-            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
-        }
-        // clean the transactions log 
-        //auto& transLog = gRelations[ri].transLog; 
-        //cerr << "size bef: " << transLog.size() << endl;
-        //for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
-        //    if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
-        //    else ++it;
-        //}
-        
-        // delete the transLogTuples
         auto& transLogTuples = gRelations[ri].transLogTuples;
+        
+        if (transLogTuples.empty() || transLogTuples[0].first > trans_id) return;
+
+        // delete the transLogTuples
         transLogTuples.erase(transLogTuples.begin(), 
-                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
+                upper_bound(transLogTuples.begin(), transLogTuples.end(), trans_id,
                     [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
                 );
-    }
-}
-*/
-        
-static void processForget(const Forget& f, ISingleTaskPool* pool) {
-#ifdef LPDEBUG
-    auto start = LPTimer.getChrono();
-#endif
-    /*
-    if (false) {
-        gNextFRel = 0; 
-        pool->startSingleAll(processForgetThreaded, (void*)&f);
-        pool->waitSingleAll();
-    }
-    */
-    (void)pool;
-    // delete the transactions from the columns index
-    for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
-        auto& cRelCol = gRelColumns[i];
         
         // clean the index columns
-        for (uint32_t ci=0; ci<gSchema[i]; ++ci) {
+        auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
+                    trans_id,
+                    [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
+        size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
+        for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
             auto& cCol = cRelCol.columns[ci];
-            auto ub = upper_bound(cCol.transactions.begin(), cCol.transactions.end(),
-                        f.transactionId,
-                        [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
-            
-            cCol.transactions.erase(cCol.transactions.begin(), ub);
-            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
+            cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
+            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
         }
         
 /*
@@ -515,16 +423,34 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
             if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
             else ++it;
         }
-*/      
-        // delete the transLogTuples
-        auto& transLogTuples = gRelations[i].transLogTuples;
-        transLogTuples.erase(transLogTuples.begin(), 
-                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
-                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
-                );
-        //cerr << "size after: " << transLog.size() << endl;
-    }
+*/
+}
 
+static atomic<uint64_t> gNextFRel;
+void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) { 
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+    auto f = *reinterpret_cast<Forget*>(args);
+    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) { 
+        forgetRel(f.transactionId, ri);
+    }
+}
+        
+static void processForget(const Forget& f, ISingleTaskPool* pool) {
+#ifdef LPDEBUG
+    auto start = LPTimer.getChrono();
+#endif
+    
+    gNextFRel = 0; 
+    pool->startSingleAll(processForgetThreaded, (void*)&f);
+    pool->waitSingleAll();
+    
+    /*
+    (void)pool;
+    // delete the transactions from the columns index
+    for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
+        forgetRel(f.transactionId, i);
+    }
+    */
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
