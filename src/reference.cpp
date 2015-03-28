@@ -452,12 +452,24 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 static atomic<uint64_t> gNextFRel;
 void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-    //cerr << "::: tid " << tid << "new" << endl;
+    //cerr << "\n:: FORGET SESSION :: " << endl;
     //auto& f = gF;
     auto f = *reinterpret_cast<Forget*>(args);
     uint64_t trans_id = f.transactionId;
-    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) {     
+    for (uint64_t ri = gNextFRel++; ri < NUM_RELATIONS; ri=gNextFRel++) {
+        // delete the transLogTuples
         auto& cRelCol = gRelColumns[ri];
+        auto& transLogTuples = gRelations[ri].transLogTuples;
+        
+        if (transLogTuples.empty() || transLogTuples[0].first > f.transactionId) continue;
+        
+        //cerr << "forget id: " << f.transactionId << " first: " << transLogTuples[0].first << " updatedUntil: " << cRelCol.columns[0].transTo << endl;
+        
+        transLogTuples.erase(transLogTuples.begin(), 
+                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
+                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
+                );
+
         // clean the index columns
         /*
         const uint64_t colsz = gSchema[ri];
@@ -471,11 +483,11 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+(ub-cCol.transactions.begin()));
         }*/
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            auto& cCol = cRelCol.columns[ci];
+            auto& cCol = cRelCol.columns[ci]; 
             if (cCol.values.empty()) continue;
             auto& colValues = cCol.values;
             auto& colMetadata = cCol.metadata;
-            
+             
             auto itbeg = SIter<Metadata_t, uint64_t>(colMetadata.data(), colValues.data());
             auto itend = SIter<Metadata_t, uint64_t>(colMetadata.data()+colMetadata.size(), colValues.data() + colValues.size());
             auto it = std::remove_if(itbeg, itend,
@@ -491,13 +503,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
         //    if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
         //    else ++it;
         //}
-        
-        // delete the transLogTuples
-        auto& transLogTuples = gRelations[ri].transLogTuples;
-        transLogTuples.erase(transLogTuples.begin(), 
-                upper_bound(transLogTuples.begin(), transLogTuples.end(), f.transactionId,
-                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
-                );
+         
     }
 }
 
@@ -506,7 +512,7 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    
+
     gNextFRel = 0; 
     pool->startSingleAll(processForgetThreaded, (void*)&f);
     pool->waitSingleAll();
@@ -631,8 +637,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1308,18 +1314,22 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
         case Op::Less: 
             //if (colValues[0] >= pFirst.value) return false;
             tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
+            if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
             //if (colValues[0] > pFirst.value) return false;
             tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
+            if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             //if (colValues.back() <= pFirst.value) return false;
             tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             //if (colValues.back() < pFirst.value) return false;
             tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            if (tupTo == tupFrom) return false;
             break;
         default: 
             cbegin = std::prev(cbegin);
@@ -1329,9 +1339,7 @@ static bool isConflict(LPValidation& v, Column pFirst, PredIter cbegin, PredIter
     //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
     //for (auto t : transValues) cerr << t << " ";
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
-    
-    if (tupTo == tupFrom) return false;
-    
+     
     for(; tupFrom!=tupTo; ++tupFrom) {  
         if (tupFrom->first>=v.from && tupFrom->first<=v.to && isTupleConflict(cbegin, cend, tupFrom->second)) return true;
     } // end of all tuples for this transaction
