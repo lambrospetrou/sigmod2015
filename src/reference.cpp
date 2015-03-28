@@ -939,43 +939,28 @@ static std::atomic<uint32_t> gNextReqCol;
 
 void ALWAYS_INLINE updateIndexRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& relation = gRelations[ri];
-    auto& relColumns = gRelColumns[ri].columns;
+    auto& relColumn = gRelColumns[ri].columns[col];
     
-    uint64_t updatedUntil = relColumns[col].transTo;
+    uint64_t updatedUntil = relColumn.transTo;
     if (relation.transLogTuples.empty() || lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) return;
     
     // Use lower_bound to automatically jump to the transaction to start
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
-    //auto& colTransactions = relColumns[col].transactions;
-    //auto& colTransactionsORs = relColumns[col].transactionsORs;
 
-    auto& colValues = relColumns[col].values;
-    auto& colMetadata = relColumns[col].metadata;
+    auto& colValues = relColumn.values;
+    auto& colMetadata = relColumn.metadata;
     
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
-        //colTransactions.emplace_back(trp->first);
-        //auto& values = colTransactions.back().values;
-        //auto& tuples = colTransactions.back().tuples;
-        //const unsigned int trpsz = trp->second.size();
-        //values.reserve(trpsz);
-        //tuples.reserve(trpsz);
-        //colTransactionsORs.push_back(0);
         for (auto tpl : trp->second) {
-            //values.push_back(tpl[col]);
-            //tuples.push_back(tpl);
-            //colTransactionsORs.back() |= tpl[col];
             colValues.push_back(tpl[col]);
             colMetadata.emplace_back(trp->first, tpl);
         }
-
-        //std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-        //      SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
-    relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+    relColumn.transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
 
     // TODO - MANY MANY - TODO - MANY THINGS TO DO HERE - Btree - OR UPDATE INCRMENETALLY
     // TODO - OR USER INPLACE_MERGE of std::
