@@ -728,48 +728,54 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
 static std::atomic<uint32_t> gNextReqCol;
 
+static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
+    auto& relation = gRelations[ri];
+    //auto& relColumns = gRelColumns[ri].columns;
+    auto& relColumn = gRelColumns[ri].columns[col];
+    
+    //uint64_t updatedUntil = relColumns[col].transTo;
+    uint64_t updatedUntil = relColumn.transTo;
+    if (relation.transLogTuples.empty() || (updatedUntil > relation.transLogTuples.back().first)) return;
+    
+    // Use lower_bound to automatically jump to the transaction to start
+    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+    auto tEnd=relation.transLogTuples.end();
+    auto& colTransactions = relColumn.transactions;
+    auto& colTransactionsORs = relColumn.transactionsORs;
+
+    // for all the transactions in the relation
+    for(auto trp=transFrom; trp!=tEnd; ++trp) {
+        // allocate vectors for the current new transaction to put its data
+        colTransactions.emplace_back(trp->first);
+        auto& values = colTransactions.back().values;
+        auto& tuples = colTransactions.back().tuples;
+        const unsigned int trpsz = trp->second.size();
+        values.reserve(trpsz);
+        tuples.reserve(trpsz);
+        colTransactionsORs.push_back(0);
+        for (auto tpl : trp->second) {
+            values.push_back(tpl[col]);
+            tuples.push_back(tpl);
+            colTransactionsORs.back() |= tpl[col];
+        }
+
+        std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
+                SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
+        //cerr << "OR: " << colTransactionsORs.back() << endl;
+    }
+    // no need to check for empty since now we update all the columns and there is a check for emptyness above
+    //relColumn.transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+    relColumn.transTo = relation.transLogTuples.back().first + 1;
+    //cerr << relation.transLogTuples.back().first << " : " << updatedUntil << endl;
+}
+
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
     for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
         uint32_t ri, col;
         lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-
-        auto& relation = gRelations[ri];
-        auto& relColumns = gRelColumns[ri].columns;
-        
-        uint64_t updatedUntil = relColumns[col].transTo;
-        if (relation.transLogTuples.empty() || lp_EQUAL(updatedUntil, relation.transLogTuples.back().first)) continue;
-        
-        // Use lower_bound to automatically jump to the transaction to start
-        auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-        auto tEnd=relation.transLogTuples.end();
-        auto& colTransactions = relColumns[col].transactions;
-        auto& colTransactionsORs = relColumns[col].transactionsORs;
-
-        // for all the transactions in the relation
-        for(auto trp=transFrom; trp!=tEnd; ++trp) {
-            // allocate vectors for the current new transaction to put its data
-            colTransactions.emplace_back(trp->first);
-            auto& values = colTransactions.back().values;
-            auto& tuples = colTransactions.back().tuples;
-            const unsigned int trpsz = trp->second.size();
-            values.reserve(trpsz);
-            tuples.reserve(trpsz);
-            colTransactionsORs.push_back(0);
-            for (auto tpl : trp->second) {
-                values.push_back(tpl[col]);
-                tuples.push_back(tpl);
-                colTransactionsORs.back() |= tpl[col];
-            }
-
-            std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-                    SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
-            //cerr << "OR: " << colTransactionsORs.back() << endl;
-        }
-        // no need to check for empty since now we update all the columns and there is a check for emptyness above
-        //if(!relation.transLogTuples.empty())
-            relColumns[col].transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
+        updateRelCol(tid, ri, col);
     } // end of while columns to update     
 }
 
