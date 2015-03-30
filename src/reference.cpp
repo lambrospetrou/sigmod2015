@@ -518,13 +518,7 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-#ifdef LPDEBUG
-    auto startVals = LPTimer.getChrono();
-#endif
                         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
-#ifdef LPDEBUG
-    LPTimer.validations += LPTimer.getChrono(startVals);
-#endif
 
                         break;
                     }
