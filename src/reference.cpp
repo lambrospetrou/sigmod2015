@@ -35,7 +35,7 @@
 #include "include/ReaderIO.hpp"
 #include "include/LPThreadpool.hpp"
 #include "include/SingleTaskPool.hpp"
-#include "include/MultiTaskPool.hpp"
+//#include "include/MultiTaskPool.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -72,18 +72,6 @@
 
 #include "include/ReferenceTypes.hpp"
 #include "include/LPQueryTypes.hpp"
-
-
-#ifdef LPOMPTBB
-#include <tbb/tbb.h>
-#include <tbb/parallel_for.h>
-#include <tbb/task_scheduler_init.h>
-#include "include/TBBUtils.hpp"
-
-#include <omp.h>
-#endif
-
-
 
 
 //---------------------------------------------------------------------------
@@ -330,7 +318,7 @@ static void processDefineSchema(const DefineSchema& d) {
 static uint64_t gTotalTransactions = 0, gTotalTuples = 0, gTotalValidations = 0;
 #endif
 //---------------------------------------------------------------------------
-static void processValidationQueries(const ValidationQueries& v, ReceivedMessage *msg, uint64_t tid = 0) {
+static void ALWAYS_INLINE processValidationQueries(const ValidationQueries& v, ReceivedMessage *msg, uint64_t tid = 0) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();    
 #endif 
@@ -459,36 +447,6 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 
-
-void inline parseValidation(uint32_t nThreads, uint32_t tid, void *args) {
-    (void)tid; (void)nThreads;
-#ifdef LPDEBUG
-    auto start = LPTimer.getChrono();
-#endif
-    ReceivedMessage *msg = reinterpret_cast<ReceivedMessage*>(args);
-    processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg, tid); 
-    // TODO - do not delete the vector since it contains the data for the validation being used
-    //delete msg;
-#ifdef LPDEBUG
-    LPTimer.validations += LPTimer.getChrono(start);
-#endif
-}
-
-
-
-
-#ifdef LPOMPTBB
-void inline initOpenMP(uint32_t nThreads) {
-    //omp_set_dynamic(0);           // Explicitly disable dynamic teams
-    omp_set_num_threads(nThreads);  // Use 4 threads for all consecutive parallel regions
-}
-void inline initTBB(uint32_t nThreads) {
-   (void)nThreads;
-   //tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic); 
-   //tbb::task_scheduler_init init(nThreads); 
-}
-#endif 
-
 int main(int argc, char**argv) {
     uint64_t numOfThreads = 1;
     if (argc > 1) {
@@ -498,11 +456,6 @@ int main(int argc, char**argv) {
     }
     //cerr << "Number of threads: " << numOfThreads << endl;
     Globals.nThreads = numOfThreads;
-
-#ifdef LPOMPTBB
-    initOpenMP(numOfThreads);
-    initTBB(numOfThreads);
-#endif
 
     std::ifstream ifs; bool isTestdriver = false;  
     ReaderIO* msgReader;
@@ -565,8 +518,13 @@ int main(int argc, char**argv) {
 #ifdef LPDEBUG
                         ++gTotalValidations; // this is just to count the total validations....not really needed!
 #endif
-                        //multiPool.addTask(parseValidation, static_cast<void*>(msg)); 
+#ifdef LPDEBUG
+    auto startVals = LPTimer.getChrono();
+#endif
                         processValidationQueries(*reinterpret_cast<const ValidationQueries*>(msg->data.data()), msg); 
+#ifdef LPDEBUG
+    LPTimer.validations += LPTimer.getChrono(startVals);
+#endif
 
                         break;
                     }
@@ -1233,8 +1191,6 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
-    //for (uint64_t vi = gNextPending--; vi < totalPending; vi=gNextPending--) {
-        //d:cerr << vi << " ";
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
