@@ -931,19 +931,21 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
     //resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
-    resTuples.resize(tupTo-tupFrom);
+    //resTuples.resize(tupTo-tupFrom);
     memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
     //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
-    vector<uint8_t> tplBitVector(tplsz);
-    vector<uint8_t> tplBitVectorRes(tplsz);
-    for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = (uint8_t)1;
+    vector<uint8_t> tplBitVector(tplsz); uint8_t *bitv = tplBitVector.data();
+    vector<uint8_t> tplBitVectorRes(tplsz); uint8_t *bitvres = tplBitVectorRes.data();
+    for (auto& tpl : resTuples) bitv[tpl.tpl_id] = (uint8_t)1;
     //for (; tupFrom!=tupTo; ++tupFrom) {resTuples.push_back(*tupFrom); tplBitVector[tupFrom->tpl_id] = 1;}
 
     size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
         //cerr << "active: " << activeSize << endl;
+        auto resb = resTuples.data(), rese = resTuples.data() + activeSize;
+        
         auto& c = *cbegin;    
         auto& cTransactions = relColumns[c.column].transactions[pos];
         auto& transValues = cTransactions.values;
@@ -980,7 +982,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (auto tpl=resTuples.data(), tplend=tpl+activeSize; tpl<tplend; ++tpl) {
-                    tplBitVector[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
+                    bitv[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
                     //tpl.tuple = 0; 
                 }
                 goto LBL_CHECK_END;
@@ -989,74 +991,26 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         {
-            auto resb = resTuples.data(), rese = resTuples.data() + activeSize;
             // reset the bitvector for the results 
-            size_t minid = resb->tpl_id, maxid = resb->tpl_id;
-            for (auto tpl=resb+1; tpl<rese; ++tpl) {
-                if (tpl->tpl_id < minid) minid = tpl->tpl_id;
-                else if (tpl->tpl_id > maxid) maxid = tpl->tpl_id;
-            }
-            //lp::simd::zero(tplBitVectorRes.data(), tplsz);
-            lp::simd::zero(tplBitVectorRes.data()+minid, maxid-minid+1);
+            lp::simd::zero(bitvres, tplsz);
             // update the result bits
-            auto& transTuples = cTransactions.tuples;
-            for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
+            auto transTuples = cTransactions.tuples.data();
+            for (size_t i=tupFromIdx; i<tupToIdx; ++i) bitvres[transTuples[i].tpl_id] = (uint8_t)1;
             // update our initial results bits
             //lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
             // remove those that are invalid
-            for (auto tpl=resTuples.data(), tplend=tpl+activeSize; tpl<tplend; ++tpl) {
-                tplBitVector[tpl->tpl_id] &= tplBitVectorRes[tpl->tpl_id];
-                //if (!tplBitVector[tpl->tpl_id])  { tpl->tuple = 0; }
-                //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
+            for (auto tpl=resb; tpl<rese; ++tpl) {
+                //bitv[tpl->tpl_id] &= bitvres[tpl->tpl_id];
+                if (!bitvres[tpl->tpl_id]) { bitv[tpl->tpl_id] = 0; }
             }
             
         }
-        /*
-        if (csz > 512 && activeSize > 512) {
-            //cerr << "csz: " << csz << " active: " << activeSize << endl;
-            //cres.resize(0);
-            //for (size_t i=tupFromIdx; i<tupToIdx; ++i) cres.push_back((uint64_t)transTuples[i]);
-            //cres.resize(csz);
-            //memcpy(cres.data(), transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
-            //std::sort(cres.begin(), cres.end());
-            uint64_t *cres = (uint64_t*)alloca(csz*sizeof(uint64_t));
-            memcpy(cres, transTuples.data()+tupFromIdx, sizeof(tuple_t)*csz);
-            std::sort(cres, cres+csz);
-            const size_t extra = activeSize & 1;
-            uint64_t *resPtr = resTuples.data();
-            const uint64_t *cresb = cres;
-            const uint64_t *crese = cres + csz;
-            for (auto nsz=resPtr+activeSize-extra; resPtr<nsz; resPtr += 2) {
-                //if (!lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
-                //if (!lp::utils::binary_cmov(cresb, csz, *(resPtr + 1))) *(resPtr+1) = 0; 
-                if (!std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
-                if (!std::binary_search(cresb, crese, *(resPtr + 1))) *(resPtr+1) = 0; 
-            }
-            //if (extra && !lp::utils::binary_cmov(cresb, csz, *resPtr)) *resPtr = 0;
-            if (extra && !std::binary_search(cresb, crese, *resPtr)) *resPtr = 0;
-        } else {
-            const uint64_t *transPtr = (uint64_t*)(transTuples.data()+tupFromIdx);
-            const size_t extra = activeSize & 1;
-            uint64_t *resPtr = resTuples.data();
-            const uint64_t *resEnd = resPtr+activeSize-extra;
-            for (; resPtr<resEnd; resPtr += 2) {
-                //auto start = LPTimer.getChrono();
-                if (!lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
-                if (!lp::simd::exists_avx(transPtr, csz, *(resPtr+1))) *(resPtr+1) = 0; 
-                //gTimeSearch += LPTimer.getChrono(start);
-            }
-            if (extra && !lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
-        }
-        */
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        //activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
-        
-        //if (!std::any_of(tplBitVector.begin(), tplBitVector.end(), kernelOne)) return false;
         //cerr << "active " << activeSize;
-        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, 
+        activeSize = std::partition(resb, rese, 
                 //[](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
-                [&tplBitVector](const Metadata_t& meta) { return tplBitVector[meta.tpl_id]; }) - resTuples.data();
+                [&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resTuples.data();
         //cerr << " active after " << activeSize << endl;
         if (activeSize == 0) return false;
         if (cbegin+1 == cend) return true;
