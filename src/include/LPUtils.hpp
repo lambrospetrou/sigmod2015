@@ -66,45 +66,16 @@ namespace lp {
         template<typename T, unsigned int asz = 16> using a16_t __attribute__ ((__aligned__(asz)))= T;
 
         void ALWAYS_INLINE and_left_auto(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
-            for (size_t i=0; i<sz; ++i) {
-                l[i] &= r[i];
-            }
+            //for (size_t i=0; i<sz; ++i) { l[i] &= r[i]; }
+            const a16_t<uint8_t> *lend = l + sz;
+            for (; l<lend; ) { *l++ &= *r++; }
         }
-        void ALWAYS_INLINE and_left(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
-            const size_t extra = sz&3; // sz%4
-            const size_t nsz = sz-extra;
-            for (size_t i=0; i<nsz; i+=4) {
-                l[i] &= r[i]; l[i+1] &= r[i+1]; l[i+2] &= r[i+2]; l[i+3] &= r[i+3];
-            }
-            switch (extra) {
-                case 0: return;
-                case 1: 
-                    l[nsz] &= r[nsz]; return;
-                case 2:
-                    l += nsz; r += nsz;
-                    l[0] &= r[0]; l[1] &= r[1]; return;
-                case 3:
-                    l += nsz; r += nsz;
-                    l[0] &= r[0]; l[1] &= r[1]; l[2] &= r[2]; return;
-            }
-        }
-        void ALWAYS_INLINE and_left_8(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
-            for (size_t i=0; i<sz; i+=8) {
-                l[i] &= r[i];     l[i+1] &= r[i+1]; l[i+2] &= r[i+2]; l[i+3] &= r[i+3]; 
-                l[i+4] &= r[i+4]; l[i+5] &= r[i+5]; l[i+6] &= r[i+6]; l[i+7] &= r[i+7];         
-            }
-        }
-        void ALWAYS_INLINE and_left_4(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
-            for (size_t i=0; i<sz; i+=4) {
-                l[i] &= r[i]; l[i+1] &= r[i+1]; l[i+2] &= r[i+2]; l[i+3] &= r[i+3]; 
-            }
-        }
-        void ALWAYS_INLINE and_left_opt(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
-            Vec16uc veca, vecb;
-            for (size_t i=0; i<sz; i+=16) {
-                veca.load(l+i); vecb.load(r+i);
+        void ALWAYS_INLINE and_left_opt(uint8_t *__restrict__ l, uint8_t *__restrict__ r, const size_t sz) {
+            Vec16uc veca, vecb; const uint8_t *lend = l + sz;
+            for (; l<lend; l += 16, r += 16) {
+                veca.load(l); vecb.load(r);
                 veca &= vecb;
-                veca.store(l+i);
+                veca.store(l);
             }
         }
 

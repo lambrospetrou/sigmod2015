@@ -936,10 +936,10 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
-    tplsz += tplsz & (size_t)15; // %16
+    //tplsz += (tplsz & 15); // %16
     vector<uint8_t> tplBitVector(tplsz);
     vector<uint8_t> tplBitVectorRes(tplsz);
-    for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = 1;
+    for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = (uint8_t)1;
     //for (; tupFrom!=tupTo; ++tupFrom) {resTuples.push_back(*tupFrom); tplBitVector[tupFrom->tpl_id] = 1;}
 
     size_t activeSize = resTuples.size();
@@ -985,7 +985,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 //}
                 //for (auto& tpl : resTuples) {
                 for (size_t i=0; i<activeSize; ++i) {
-                    if (resTuples[i].tuple[c.column] == c.value)  { tplBitVector[resTuples[i].tpl_id] = 0; resTuples[i].tuple = 0; }
+                    if (resTuples[i].tuple[c.column] == c.value)  { tplBitVector[resTuples[i].tpl_id] = (uint8_t)0; resTuples[i].tuple = 0; }
                 }
                 goto LBL_CHECK_END;
         }
@@ -996,12 +996,15 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             auto& transTuples = cTransactions.tuples;
             //csz = tupToIdx-tupFromIdx;
             // assign only to those that have already true
-            memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
+            //memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
+            //const size_t nsz = tplsz; 
+            uint8_t *a = tplBitVectorRes.data();
+            for (size_t i=0; i<tplsz; ++i) a[i] = (uint8_t)0;
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
-            //lp::simd::and_left_a(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
-            lp::simd::and_left_opt(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            //lp::simd::and_left_opt(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            lp::simd::and_left_auto(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
             for (auto& tpl : resTuples) {
-                if (0 == tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
+                if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
                 //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
             }
         }

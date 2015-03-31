@@ -265,24 +265,19 @@ void timeBinary() {
 
 void timeAndLeft() {
     LPTimer_t LPTimer;
-    std::vector<uint8_t> arr, arr4, arr8, arr16;
-    std::vector<uint8_t> arr2, arr42, arr82, arr162;
-    const size_t MAX = ((size_t)1)<<10;
+    std::vector<uint8_t> arr, arr2;
+    std::vector<uint8_t> arr16, arr162;
+    aligned_vector<uint8_t> arr16_a, arr162_a;
+    const size_t MAX = ((size_t)1)<<12;
     for (size_t i=0; i<MAX; ++i) { 
-        arr.push_back(i);
-        arr4.push_back(i); 
-        arr8.push_back(i); 
-        arr16.push_back(i); 
-        arr2.push_back(i);
-        arr42.push_back(i); 
-        arr82.push_back(i); 
-        arr162.push_back(i); 
+        arr.push_back(i%2);
+        arr2.push_back(i%2+1);
+        arr16.push_back(i%2); 
+        arr162.push_back(i%2+1); 
+        arr16_a.push_back(i%2); 
+        arr162_a.push_back(i%2+1); 
     }
-    arr4.resize(arr4.size() + (arr4.size()&3));
-    arr8.resize(arr8.size() + (arr8.size()&7));
     arr16.resize(arr16.size() + (arr16.size()&15));
-    arr42.resize(arr42.size() + (arr42.size()&3));
-    arr82.resize(arr82.size() + (arr82.size()&7));
     arr162.resize(arr162.size() + (arr162.size()&15));
     uint64_t total = 0, tstart, loops=(1<<25);
 
@@ -304,24 +299,14 @@ void timeAndLeft() {
     
     tstart = LPTimer.getChrono();
     for (uint64_t i=0; i<loops; ++i) {
-        lp::simd::and_left(arr.data(), arr2.data(), arr.size());
+        lp::simd::and_left_opt(arr16_a.data(), arr162_a.data(), arr16_a.size());
     }
     total = LPTimer.getChrono(tstart);
-    std::cout << "and_left (switch): " << total << std::endl;
-    
-    tstart = LPTimer.getChrono();
-    for (uint64_t i=0; i<loops; ++i) {
-        lp::simd::and_left_4(arr4.data(), arr42.data(), arr4.size());
+    std::cout << "and_left_opt (aligned vector): " << total << std::endl;
+
+    for (size_t i=0; i<arr.size(); ++i) {
+        if (arr[i] != arr16[i] || arr[i] != arr16_a[i]) { std::cerr << "not equal " << (uint32_t)arr[i] << ":" << (uint32_t)arr16[i] << ":" << (uint32_t)arr16_a[i] << std::endl; return; }
     }
-    total = LPTimer.getChrono(tstart);
-    std::cout << "and_left_4: " << total << std::endl;
-    
-    tstart = LPTimer.getChrono();
-    for (uint64_t i=0; i<loops; ++i) {
-        lp::simd::and_left_8(arr8.data(), arr82.data(), arr8.size());
-    }
-    total = LPTimer.getChrono(tstart);
-    std::cout << "and_left_8: " << total << std::endl;
 }
 
 int main() {

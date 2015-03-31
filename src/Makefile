@@ -8,7 +8,7 @@ RELEASE_CFLAGS=-march=native -std=c++11 -Ofast -O3 -W -Wall -Wextra -Wunused $(M
 
 all: reference
     
-reference: reference.cpp; g++ -L./include/asm  $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread -laelf64o -fabi-version=0 -fopt-info-vec #-fopt-info-vec-missed 
+reference: reference.cpp; g++ -g -L./include/asm  $(RELEASE_CFLAGS) -o$@ reference.cpp -lpthread -laelf64o -fabi-version=0 -fopt-info-vec #-fopt-info-vec-missed 
 #reference: reference.cpp; g++ $(RELEASE_CFLAGS) -I/usr/local/lib/tbb/include  -L/usr/local/lib/tbb/lib/intel64/gcc4.4 -fopenmp -o$@ reference.cpp -lpthread -ltbb -g
 
 clean:
