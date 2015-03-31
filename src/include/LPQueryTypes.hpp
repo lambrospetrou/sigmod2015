@@ -233,7 +233,7 @@ namespace lp {
             for (uint32_t c=0; c<colsz; ++c) {
                 //if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
                 //if (isQueryColumnUnsolvable(*colBegin, sat)) return true;
-                if (!lp_EQUAL(colBegin[c].column, lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
+                if ((colBegin[c].column != lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
                 if (isQueryColumnUnsolvable(colBegin[c], sat)) return true;
             }
             return false;
