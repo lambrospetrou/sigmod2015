@@ -870,12 +870,12 @@ typedef Metadata_t TupleType;
 typedef Query::Column* PredIter;
 
 bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t& tup) {
-    for (; cbegin<cend; ++cbegin) {
-        auto& c = *cbegin;
+    for (; cbegin<cend;) {
+        auto& c = *cbegin++;
         // make the actual check
         switch (c.op) {
             case Op::Equal: 
-                if(!(tup[c.column] == c.value)) return false; 
+                if((tup[c.column] != c.value)) return false; 
                 break;
             case Op::Less: 
                 if((tup[c.column]>=c.value)) return false; 
@@ -898,8 +898,39 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t
 }
 
 bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
-    for(; tupFrom!=tupTo; ++tupFrom) {  
+    if (cbegin == cend && tupTo-tupFrom != 0) return true;
+    for(; tupFrom!=tupTo; ++tupFrom) {
         if (isTupleConflict(cbegin, cend, tupFrom->tuple)) return true;
+        /*
+        auto& tup = tupFrom->tuple;
+        register bool res = true;
+        for (auto cb=cbegin; cb<cend;) {
+            auto& c = *cb++;
+            // make the actual check
+            switch (c.op) {
+                case Op::Equal: 
+                    res &= (tup[c.column] == c.value); 
+                    break;
+                case Op::Less: 
+                    res &= (tup[c.column] < c.value); 
+                    break;
+                case Op::LessOrEqual: 
+                    res &= (tup[c.column] <= c.value); 
+                    break;
+                case Op::Greater: 
+                    res &= (tup[c.column] > c.value); 
+                    break;
+                case Op::GreaterOrEqual: 
+                    res &= (tup[c.column] >= c.value); 
+                    break;
+                case Op::NotEqual: 
+                    res &= (tup[c.column] - c.value != 0); 
+                    break;
+            }
+            if (!res) break;
+            else if (cb == cend) return true;
+        } // end of single query predicates
+        */
     } // end of all tuples for this transaction
     return false;
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
@@ -986,11 +1017,10 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             default: 
                 // check if the active tuples have a value != to the predicate
                 for (auto tpl=resb; tpl<rese; ++tpl) {
-                    //bitv[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
                     //tpl->tuple = (tpl->tuple[c.column] == c.value) ? 0 : tpl->tuple; 
-                    //tpl->tpl_id = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : tpl->tpl_id; 
+                    tpl->tpl_id = (tpl->tuple[c.column] == c.value) ? 0 : tpl->tpl_id; 
                     //if (tpl->tuple[c.column] == c.value) tpl->tuple = 0; 
-                    if (tpl->tuple[c.column] == c.value) tpl->tpl_id = 0; 
+                    //if (tpl->tuple[c.column] == c.value) tpl->tpl_id = 0; 
                 }
                 goto LBL_CHECK_END;
         }
@@ -998,22 +1028,14 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         {
-            // reset the bitvector for the results 
+            // reset the bitvector for the results and update with new results
             lp::simd::zero(bitvres, tplsz);
-            // update the result bits
             auto transTuples = cTransactions.tuples.data();
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) bitvres[transTuples[i].tpl_id] = (uint8_t)1;
-            // update our initial results bits
-            //lp::simd::and_left(bitv, bitvres, tplsz);
             // remove those that are invalid
-             
             for (auto tpl=resb; tpl<rese; ++tpl) {
-                //bitv[tpl->tpl_id] &= bitvres[tpl->tpl_id];
-                if (!bitvres[tpl->tpl_id]) { 
-                    //bitv[tpl->tpl_id] = 0; 
-                    //tpl->tuple = 0; 
-                    tpl->tpl_id = 0; 
-                }
+                //tpl->tuple = (bitvres[tpl->tpl_id]) ? tpl->tuple : 0; 
+                tpl->tpl_id = (bitvres[tpl->tpl_id]) ? tpl->tpl_id : 0; 
             }
             
             
@@ -1024,7 +1046,6 @@ LBL_CHECK_END:
         activeSize = std::partition(resb, rese, 
                 //[](const Metadata_t& meta) { return meta.tuple; }) - resb;
                 [](const Metadata_t& meta) { return meta.tpl_id; }) - resb;
-                //[&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
         //cerr << " active after " << activeSize << endl;
         //if (activeSize == 0) return false;
         //if (activeSize & (cbegin+1 == cend)) return true;
