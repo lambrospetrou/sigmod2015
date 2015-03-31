@@ -1011,7 +1011,7 @@ LBL_CHECK_END:
         activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
         //cerr << "active (after): " << activeSize << endl;
         //if (activeSize == 0) return false;
-        if (activeSize < 172) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
@@ -1077,74 +1077,17 @@ static bool isValidationConflict(LPValidation& v) {
     */
     const char* qreader = vq.queries;
     uint32_t columnCount;
-   /*
-    vector<pair<uint32_t, Column>> allPreds;
+    
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        const Query *rq = (reinterpret_cast<const Query*>(qreader));
-        columnCount = rq->columnCount;
-        cerr << "-- query: rel: " << rq->relationId << " columns: " << rq->columnCount << endl;
-        for (uint32_t j=0; j<rq->columnCount; ++j) {
-            cerr << rq->columns[j];
-            allPreds.emplace_back(i, rq->columns[j]);
-        }
-        cerr << endl;
-    }
-    qreader = vq.queries;
-
-    auto comp = [](const pair<uint32_t, Column>& l, pair<uint32_t, Column>& r) {
-                return ColumnCompCol(l.second, r.second);
-            };
-    auto compeq = [](const pair<uint32_t, Column>& l, pair<uint32_t, Column>& r) {
-                return !ColumnCompCol(l.second, r.second) && !ColumnCompCol(l.second, r.second);
-            };
-    sort(allPreds.begin(), allPreds.end(), comp);
-    auto uniqit = std::unique(allPreds.begin(), allPreds.end(), compeq);
-    cerr << "uniques: " << std::distance(allPreds.begin(), uniqit) << " : " << allPreds.size() << endl;
-    cerr << "\npredicates sorted :::" << endl;
-    for (auto c : allPreds) {
-        cerr << c.first << "_" << c.second << " ";
-    }
-    cerr << endl;
-
-    cerr << "checked: " << endl;
-    */
-    
-    
-    vector<Query*> queries; queries.reserve(vq.queryCount);
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        queries.push_back(const_cast<Query*>(reinterpret_cast<const Query*>(qreader)));
-        columnCount = queries.back()->columnCount;
-    }
-    std::sort(queries.begin(), queries.end(), [](const Query* l, const Query* r) { return l->relationId < r->relationId; });
-    uint32_t lastRel = UINT32_MAX;
-    
-    decltype(gRelations[0].transLogTuples.begin()) transFromCheck;
-    size_t transFrom0, transTo0;
-    //qreader = vq.queries;
-    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        //Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //columnCount = rq.columnCount;
-    for (auto qptr : queries) {
-        Query& rq=*qptr;
+        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq.columnCount;
         //cerr << " " << i;
-
-        if (lastRel != rq.relationId) { 
-            auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
-            transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
         
-            auto& relColumns = gRelColumns[rq.relationId].columns;
-            auto& transactions = relColumns[0].transactions;
-            transFrom0 = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan)-transactions.begin();
-            transTo0 = std::upper_bound(transactions.begin()+transFrom0, transactions.end(), v.to, CTRSLessThan)-transactions.begin();
-            lastRel = rq.relationId;
-        } 
-
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
-            //auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
-            //auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
-            //if (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to) {
-            if (transFromCheck == gRelations[rq.relationId].transLogTuples.end() || transFromCheck->first > v.to) {
+            auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
+            auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
+            if (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to) {
                 // no transactions exist for this query
                 continue;
             } else { 
@@ -1163,10 +1106,8 @@ static bool isValidationConflict(LPValidation& v) {
         // just find the range of transactions we want in this relation
         auto& relColumns = gRelColumns[rq.relationId].columns;
         auto& transactions = relColumns[pFirst.column].transactions;
-        //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-        //auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        auto transFrom = transactions.begin() + transFrom0;
-        auto transTo = transactions.begin() + transTo0;
+        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
+        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
 
         //uint32_t transDiff = transTo - transFrom;
         //cerr << (transTo - transFrom) << endl;
