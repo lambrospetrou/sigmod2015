@@ -263,6 +263,67 @@ void timeBinary() {
     std::cout << "binary cmov: " << total << " : " << res << std::endl;
 }
 
+void timeAndLeft() {
+    LPTimer_t LPTimer;
+    std::vector<uint8_t> arr, arr4, arr8, arr16;
+    std::vector<uint8_t> arr2, arr42, arr82, arr162;
+    const size_t MAX = ((size_t)1)<<10;
+    for (size_t i=0; i<MAX; ++i) { 
+        arr.push_back(i);
+        arr4.push_back(i); 
+        arr8.push_back(i); 
+        arr16.push_back(i); 
+        arr2.push_back(i);
+        arr42.push_back(i); 
+        arr82.push_back(i); 
+        arr162.push_back(i); 
+    }
+    arr4.resize(arr4.size() + (arr4.size()&3));
+    arr8.resize(arr8.size() + (arr8.size()&7));
+    arr16.resize(arr16.size() + (arr16.size()&15));
+    arr42.resize(arr42.size() + (arr42.size()&3));
+    arr82.resize(arr82.size() + (arr82.size()&7));
+    arr162.resize(arr162.size() + (arr162.size()&15));
+    uint64_t total = 0, tstart, loops=(1<<25);
+
+    std::cout << "\n----- TESTING AND-LEFT() ----- " << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        lp::simd::and_left_auto(arr.data(), arr2.data(), arr.size());
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "and_left_auto: " << total << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        lp::simd::and_left_opt(arr16.data(), arr162.data(), arr16.size());
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "and_left_opt: " << total << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        lp::simd::and_left(arr.data(), arr2.data(), arr.size());
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "and_left (switch): " << total << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        lp::simd::and_left_4(arr4.data(), arr42.data(), arr4.size());
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "and_left_4: " << total << std::endl;
+    
+    tstart = LPTimer.getChrono();
+    for (uint64_t i=0; i<loops; ++i) {
+        lp::simd::and_left_8(arr8.data(), arr82.data(), arr8.size());
+    }
+    total = LPTimer.getChrono(tstart);
+    std::cout << "and_left_8: " << total << std::endl;
+}
+
 int main() {
 
     // Fixed Size Arrays
@@ -361,9 +422,10 @@ int main() {
     }
 
     /////////////// LPTESTS ///////////////////
-    timeExists();
+    //timeExists();
+    //timeBinary();
 
-    timeBinary();
+    timeAndLeft();
 
     return 0;
 }

@@ -492,8 +492,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -928,20 +928,21 @@ auto kernelNotZero = [](uint64_t t) { return t != 0; };
 bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, 
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
-    //vector<uint64_t> cres; 
-    //size_t csz;
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
-    resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
-    //memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
+    //resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
+    resTuples.resize(tupTo-tupFrom);
+    memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
     //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
-    size_t activeSize = resTuples.size();
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
+    tplsz += tplsz & (size_t)15; // %16
     vector<uint8_t> tplBitVector(tplsz);
     vector<uint8_t> tplBitVectorRes(tplsz);
     for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = 1;
+    //for (; tupFrom!=tupTo; ++tupFrom) {resTuples.push_back(*tupFrom); tplBitVector[tupFrom->tpl_id] = 1;}
 
+    size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
         //cerr << "active: " << activeSize << endl;
         auto& c = *cbegin;    
@@ -997,10 +998,11 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             // assign only to those that have already true
             memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
-            //if (!std::any_of(tplBitVector.begin(), tplBitVector.end(), kernelOne)) return false;
-            for (size_t i=0; i<tplsz; ++i) { tplBitVector[i] &= tplBitVectorRes[i]; }
+            //lp::simd::and_left_a(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            lp::simd::and_left_opt(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
             for (auto& tpl : resTuples) {
-                if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
+                if (0 == tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
+                //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
             }
         }
         /*
@@ -1050,8 +1052,8 @@ LBL_CHECK_END:
                 [](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
         //cerr << " active after " << activeSize << endl;
         if (activeSize == 0) return false;
-
-        //if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        if (cbegin+1 == cend) return true;
+        if (activeSize < 96) return isTupleRangeConflict(resTuples.data(), resTuples.data()+activeSize, ++cbegin, cend);
     }
     return true;
 }
@@ -1102,7 +1104,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 96) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
