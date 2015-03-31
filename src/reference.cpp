@@ -941,10 +941,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     //memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
-    //vector<uint8_t> tplBitVector(tplsz); uint8_t *bitv = tplBitVector.data();
     vector<uint8_t> tplBitVectorRes(tplsz); uint8_t *bitvres = tplBitVectorRes.data();
-    //for (auto& tpl : resTuples) bitv[tpl.tpl_id] = (uint8_t)1;
-    //for (; tupFrom!=tupTo; ++tupFrom) {resTuples.push_back(*tupFrom); tplBitVector[tupFrom->tpl_id] = 1;}
 
     size_t activeSize = resTuples.size();
     for (; cbegin<cend; ++cbegin) {
@@ -1156,10 +1153,11 @@ static bool isValidationConflict(LPValidation& v) {
                 } // end of all the transactions for this relation for this specific query
             }
         }
-        /*
+        
         //cerr << ":: val " << v.validationId << endl;
-        for(; transFrom<transTo; ++transFrom) {  
-            if (isTransactionConflict(transFrom->second, pFirst)) { return true; }
+        /*
+        for(; transFrom<transTo; ++transFrom, ++pos) {  
+            if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
         } // end of all the transactions for this relation for this specific query
         */
     }// end for all queries
