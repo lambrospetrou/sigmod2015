@@ -477,8 +477,8 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        //msgReader = ReaderIOFactory::createAsync(stdin);
-        msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::createAsync(stdin);
+        //msgReader = ReaderIOFactory::create(stdin);
     }
 
     // do some initial reserves or initializations
@@ -645,6 +645,9 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 }
 
 
+void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args);
+static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col);
+
 /*
    struct TRMapPhase {
    uint64_t trans_id;
@@ -654,15 +657,14 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
    }
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
-static std::atomic<uint64_t> gNextIndex;
+static std::atomic<uint64_t> gNextIndex;  // for the index
+static std::atomic<uint32_t> gNextReqCol; // for the update columns
 
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
 
     for (uint64_t ri = gNextIndex++; ri < NUM_RELATIONS; ri=gNextIndex++) {
-        //#pragma omp parallel for schedule(static, 1)  
-        //for(uint64_t ri = 0; ri < NUM_RELATIONS; ++ri) {
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
@@ -730,10 +732,11 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // store the operations for the last transaction
         if (likely(!operations.empty()))
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
-    } // end of while true
-}
+    } // end of all relations
 
-static std::atomic<uint32_t> gNextReqCol;
+    // TODO - MERGE THE UPDATE INDEX - WITH UPDATE COLUMNS - TODO
+    //processUpdateIndexTask(nThreads, tid, nullptr);
+}
 
 static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& relation = gRelations[ri];
@@ -794,6 +797,7 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #endif
     //cerr << "::: session start ::::" << endl;
     gNextIndex = 0;
+    gNextReqCol = 0;
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
@@ -805,13 +809,14 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startUpdIndex = LPTimer.getChrono();
 #endif
-    gNextReqCol = 0;
+    //gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
+
 }
 
 
@@ -930,15 +935,14 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     // copy the eligible tuples into our mask vector
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
-    //resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
-    resTuples.resize(tupTo-tupFrom);
-    memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
-    //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
+    resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
+    //resTuples.resize(tupTo-tupFrom);
+    //memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
-    vector<uint8_t> tplBitVector(tplsz); uint8_t *bitv = tplBitVector.data();
+    //vector<uint8_t> tplBitVector(tplsz); uint8_t *bitv = tplBitVector.data();
     vector<uint8_t> tplBitVectorRes(tplsz); uint8_t *bitvres = tplBitVectorRes.data();
-    for (auto& tpl : resTuples) bitv[tpl.tpl_id] = (uint8_t)1;
+    //for (auto& tpl : resTuples) bitv[tpl.tpl_id] = (uint8_t)1;
     //for (; tupFrom!=tupTo; ++tupFrom) {resTuples.push_back(*tupFrom); tplBitVector[tupFrom->tpl_id] = 1;}
 
     size_t activeSize = resTuples.size();
@@ -954,36 +958,36 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         switch (c.op) {
             case Op::Equal: 
                 {
-                    if (transValues[0] > c.value || transValues.back() < c.value) return false;
+                    //if (transValues[0] > c.value || transValues.back() < c.value) return false;
                     auto tp = std::equal_range(tBegin, tEnd, c.value);
                     if (tp.second == tp.first) return false;
                     tupFromIdx = (tp.first - tBegin); tupToIdx = tupFromIdx + (tp.second-tp.first);
                     break;}
             case Op::Less: 
-                if (transValues[0] >= c.value) return false;
+                //if (transValues[0] >= c.value) return false;
                 tupToIdx -= (tEnd-std::lower_bound(tBegin, tEnd, c.value));
                 if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::LessOrEqual: 
-                if (transValues[0] > c.value) return false;
+                //if (transValues[0] > c.value) return false;
                 tupToIdx -= (tEnd-std::upper_bound(tBegin, tEnd, c.value)); 
                 if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::Greater: 
-                if (transValues.back() <= c.value) return false;
+                //if (transValues.back() <= c.value) return false;
                 tupFromIdx += (std::upper_bound(tBegin, tEnd, c.value)-tBegin);
                 if (tupToIdx == tupFromIdx) return false;
                 break;
             case Op::GreaterOrEqual: 
-                if (transValues.back() < c.value) return false;
+                //if (transValues.back() < c.value) return false;
                 tupFromIdx += (std::lower_bound(tBegin, tEnd, c.value)-tBegin);
                 if (tupToIdx == tupFromIdx) return false;
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
-                for (auto tpl=resTuples.data(), tplend=tpl+activeSize; tpl<tplend; ++tpl) {
-                    bitv[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
-                    //tpl.tuple = 0; 
+                for (auto tpl=resb; tpl<rese; ++tpl) {
+                    //bitv[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
+                    tpl->tuple = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : tpl->tuple; 
                 }
                 goto LBL_CHECK_END;
         }
@@ -997,26 +1001,29 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             auto transTuples = cTransactions.tuples.data();
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) bitvres[transTuples[i].tpl_id] = (uint8_t)1;
             // update our initial results bits
-            lp::simd::and_left(bitv, bitvres, tplsz);
+            //lp::simd::and_left(bitv, bitvres, tplsz);
             // remove those that are invalid
-            /*
+             
             for (auto tpl=resb; tpl<rese; ++tpl) {
                 //bitv[tpl->tpl_id] &= bitvres[tpl->tpl_id];
-                if (!bitvres[tpl->tpl_id]) { bitv[tpl->tpl_id] = 0; }
+                if (!bitvres[tpl->tpl_id]) { 
+                    //bitv[tpl->tpl_id] = 0; 
+                    tpl->tuple = 0; 
+                }
             }
-            */
+            
             
         }
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
         //cerr << "active " << activeSize;
         activeSize = std::partition(resb, rese, 
-                //[](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
-                [&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
+                [](const Metadata_t& meta) { return !!meta.tuple; }) - resb;
+                //[&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
         //cerr << " active after " << activeSize << endl;
         //if (activeSize == 0) return false;
-        if (activeSize & (cbegin+1 == cend)) return true;
-        if (activeSize < 128) return isTupleRangeConflict(resb, resb+activeSize, ++cbegin, cend);
+        //if (activeSize & (cbegin+1 == cend)) return true;
+        if (activeSize < 64) return isTupleRangeConflict(resb, resb+activeSize, ++cbegin, cend);
     }
     return true;
 }
@@ -1031,28 +1038,28 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     switch (pFirst.op) {
         case Op::Equal: 
             {
-                if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
+                //if (transValues[0] > pFirst.value || transValues.back() < pFirst.value) return false;
                 auto tp = std::equal_range(tBegin, tEnd, pFirst.value);
                 if (tp.second == tp.first) return false;
                 tupFrom += (tp.first - tBegin); tupTo -= (tEnd-tp.second);
                 break;}
         case Op::Less: 
-            if (transValues[0] >= pFirst.value) return false;
+            //if (transValues[0] >= pFirst.value) return false;
             tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
             if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
-            if (transValues[0] > pFirst.value) return false;
+            //if (transValues[0] > pFirst.value) return false;
             tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
             if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
-            if (transValues.back() <= pFirst.value) return false;
+            //if (transValues.back() <= pFirst.value) return false;
             tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
             if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
-            if (transValues.back() < pFirst.value) return false;
+            //if (transValues.back() < pFirst.value) return false;
             tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
             if (tupTo == tupFrom) return false;
             break;
@@ -1067,7 +1074,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 64) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
@@ -1168,15 +1175,15 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
-    //for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
-    for (uint64_t vi = gNextPending.fetch_add(2); vi < totalPending; vi=gNextPending.fetch_add(2)) {
+    for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
+    //for (uint64_t vi = gNextPending.fetch_add(2); vi < totalPending; vi=gNextPending.fetch_add(2)) {
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         //if(isValidationConflict(v)) { atoRes = true; }
         atoRes = isValidationConflict(v);
         delete v.rawMsg;
-        
+        /* 
         if (vi+1 < totalPending) {
             ++vi;
             auto& v = gPendingValidations[vi];
@@ -1186,6 +1193,7 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
             atoRes = isValidationConflict(v);
             delete v.rawMsg;
         }
+        */
     } // while true take more validations 
 }
 
