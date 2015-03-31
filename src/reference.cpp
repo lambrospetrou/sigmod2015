@@ -46,6 +46,7 @@
 #include <unordered_map>
 #include <set>
 #include <vector>
+#include <bitset>
 #include <cstdint>
 #include <algorithm>
 #include <utility>
@@ -762,12 +763,10 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
 
         std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
                 SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
-        //cerr << "OR: " << colTransactionsORs.back() << endl;
+        //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
-    //relColumn.transTo = max(relation.transLogTuples.back().first+1, updatedUntil);
     relColumn.transTo = relation.transLogTuples.back().first + 1;
-    //cerr << relation.transLogTuples.back().first << " : " << updatedUntil << endl;
 }
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
@@ -1119,8 +1118,9 @@ static bool isValidationConflict(LPValidation& v) {
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
-            auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
-            if (transFromCheck == transToCheck) { 
+            //auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
+            //if (transFromCheck == transToCheck) { 
+            if (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to) {
                 // no transactions exist for this query
                 continue;
             } else { 
