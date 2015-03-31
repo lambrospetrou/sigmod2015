@@ -145,7 +145,7 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
 
 // transactions in each relation column - all tuples of same transaction in one vector
 struct Metadata_t {
-    uint64_t tpl_id;
+    uint32_t tpl_id;
     tuple_t tuple;
 };
 struct ColumnTransaction_t {
@@ -762,7 +762,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         values.resize(trpsz); uint64_t *valPtr = values.data();
         tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
         colTransactionsORs.push_back(0);
-        size_t tpl_id = 0;
+        uint32_t tpl_id = 0;
         for (auto tpl : trp->second) {
             //values.push_back(tpl[col]); //tuples.push_back(tpl);
             *valPtr++ = (tpl[col]); //tuples.push_back(tpl);
@@ -987,7 +987,10 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 // check if the active tuples have a value != to the predicate
                 for (auto tpl=resb; tpl<rese; ++tpl) {
                     //bitv[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
-                    tpl->tuple = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : tpl->tuple; 
+                    //tpl->tuple = (tpl->tuple[c.column] == c.value) ? 0 : tpl->tuple; 
+                    //tpl->tpl_id = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : tpl->tpl_id; 
+                    //if (tpl->tuple[c.column] == c.value) tpl->tuple = 0; 
+                    if (tpl->tuple[c.column] == c.value) tpl->tpl_id = 0; 
                 }
                 goto LBL_CHECK_END;
         }
@@ -1008,7 +1011,8 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 //bitv[tpl->tpl_id] &= bitvres[tpl->tpl_id];
                 if (!bitvres[tpl->tpl_id]) { 
                     //bitv[tpl->tpl_id] = 0; 
-                    tpl->tuple = 0; 
+                    //tpl->tuple = 0; 
+                    tpl->tpl_id = 0; 
                 }
             }
             
@@ -1018,7 +1022,8 @@ LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
         //cerr << "active " << activeSize;
         activeSize = std::partition(resb, rese, 
-                [](const Metadata_t& meta) { return !!meta.tuple; }) - resb;
+                //[](const Metadata_t& meta) { return meta.tuple; }) - resb;
+                [](const Metadata_t& meta) { return meta.tpl_id; }) - resb;
                 //[&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
         //cerr << " active after " << activeSize << endl;
         //if (activeSize == 0) return false;
