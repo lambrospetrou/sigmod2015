@@ -7,6 +7,9 @@
    Compile with ( use at least gcc 4.7 ):
    g++ -Ofast -ftree-vectorizer-verbose=7 -march=native -std=c++11 -o autovect autovect.cpp
 
+
+   lp command
+   g++ -Ofast -march=native -std=c++11 -o autovect src/testingSIMD.cpp -fopt-info-vec -fabi-version=0
  */
 
 #include <math.h>

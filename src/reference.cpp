@@ -1062,8 +1062,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    //if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
-    if (tupTo - tupFrom < 32) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }

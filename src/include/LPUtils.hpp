@@ -122,9 +122,12 @@ namespace lp {
                 case 1: 
                     return *a == val;
                 case 2:
-                    return *a++ == val || *a == val;
+                    //return *a++ == val || *a == val;
+                    return *a == val || *(a+1) == val;
                 case 3:
-                    return *a++ == val || *a++ == val || *a == val;
+                    //return *a++ == val || *a++ == val || *a == val;
+                    return *a == val || *(a+1) == val || *(a+2) == val;
+                    //return horizontal_or(Vec4uq(*a, *(a+1), *(a+2), 0) == val);
             }
             return false;
         }
