@@ -1168,13 +1168,24 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
-    for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
+    //for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
+    for (uint64_t vi = gNextPending.fetch_add(2); vi < totalPending; vi=gNextPending.fetch_add(2)) {
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         //if(isValidationConflict(v)) { atoRes = true; }
         atoRes = isValidationConflict(v);
         delete v.rawMsg;
+        
+        if (vi+1 < totalPending) {
+            ++vi;
+            auto& v = gPendingValidations[vi];
+            uint64_t resPos = v.validationId - resIndexOffset;
+            auto& atoRes = gPendingResults[resPos];
+            //if(isValidationConflict(v)) { atoRes = true; }
+            atoRes = isValidationConflict(v);
+            delete v.rawMsg;
+        }
     } // while true take more validations 
 }
 
