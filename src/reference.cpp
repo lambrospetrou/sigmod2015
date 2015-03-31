@@ -979,12 +979,12 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
-                //for (uint64_t *resPtr=resTuples.data(), *resend = resTuples.data()+activeSize; resPtr<resend;) {
-                //    if (((tuple_t)*resPtr++)[c.column] == c.value) *(resPtr-1) = 0;
-                //}
-                //for (auto& tpl : resTuples) {
-                for (size_t i=0; i<activeSize; ++i) {
-                    if (resTuples[i].tuple[c.column] == c.value)  { tplBitVector[resTuples[i].tpl_id] = (uint8_t)0; resTuples[i].tuple = 0; }
+                for (auto& tpl : resTuples) {
+                    /*if (tpl.tuple[c.column] == c.value)  { 
+                        tplBitVector[tpl.tpl_id] = (uint8_t)0; 
+                        tpl.tuple = 0; 
+                    }*/
+                    tplBitVector[tpl.tpl_id] = (tpl.tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
                 }
                 goto LBL_CHECK_END;
         }
@@ -993,16 +993,20 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         // we have to check if the active tuples are inside the result set returned
         {
             auto& transTuples = cTransactions.tuples;
-            // assign only to those that have already true
-            //memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
-            uint8_t *a = tplBitVectorRes.data();
-            for (size_t i=0; i<tplsz; ++i) a[i] = (uint8_t)0;
+            // reset the bitvector for the results 
+            lp::simd::zero(tplBitVectorRes.data(), tplsz);
+            // update the result bits
+            //for (size_t i=0; i<tplsz; ++i) bv[i] = (uint8_t)0;
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
+            // update our initial results bits
             lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            // remove those that are invalid
+            /*
             for (auto& tpl : resTuples) {
                 if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
                 //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
             }
+            */
         }
         /*
         if (csz > 512 && activeSize > 512) {
@@ -1048,7 +1052,8 @@ LBL_CHECK_END:
         //if (!std::any_of(tplBitVector.begin(), tplBitVector.end(), kernelOne)) return false;
         //cerr << "active " << activeSize;
         activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, 
-                [](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
+                //[](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
+                [&tplBitVector](const Metadata_t& meta) { return tplBitVector[meta.tpl_id]; }) - resTuples.data();
         //cerr << " active after " << activeSize << endl;
         if (activeSize == 0) return false;
         if (cbegin+1 == cend) return true;
