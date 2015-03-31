@@ -870,7 +870,7 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t
         // make the actual check
         switch (c.op) {
             case Op::Equal: 
-                if(!lp_EQUAL(tup[c.column], c.value)) return false; 
+                if(!(tup[c.column] == c.value)) return false; 
                 break;
             case Op::Less: 
                 if((tup[c.column]>=c.value)) return false; 
@@ -885,7 +885,7 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t
                 if((tup[c.column]<c.value)) return false; 
                 break;
             case Op::NotEqual: 
-                if(lp_EQUAL(tup[c.column], c.value)) return false; 
+                if(tup[c.column] == c.value) return false; 
                 break;
         } 
     } // end of single query predicates
@@ -1014,9 +1014,9 @@ LBL_CHECK_END:
                 //[](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
                 [&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
         //cerr << " active after " << activeSize << endl;
-        if (activeSize == 0) return false;
-        if (cbegin+1 == cend) return true;
-        if (activeSize < 128) return isTupleRangeConflict(resTuples.data(), resTuples.data()+activeSize, ++cbegin, cend);
+        //if (activeSize == 0) return false;
+        if (activeSize & (cbegin+1 == cend)) return true;
+        if (activeSize < 128) return isTupleRangeConflict(resb, resb+activeSize, ++cbegin, cend);
     }
     return true;
 }
