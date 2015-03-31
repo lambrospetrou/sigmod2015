@@ -144,11 +144,17 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
 }
 
 // transactions in each relation column - all tuples of same transaction in one vector
+struct Metadata_t {
+    uint64_t tpl_id;
+    tuple_t tuple;
+};
 struct ColumnTransaction_t {
     vector_a<uint64_t> values;
-    vector_a<tuple_t> tuples;
+    //vector_a<tuple_t> tuples;
+    vector_a<Metadata_t> tuples;
     uint64_t trans_id;
-    ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<tuple_t>()), trans_id(tid) {}
+    //ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<tuple_t>()), trans_id(tid) {}
+    ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()), trans_id(tid) {}
 } ALIGNED_DATA;
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
@@ -486,8 +492,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -749,20 +755,23 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         auto& values = colTransactions.back().values;
         auto& tuples = colTransactions.back().tuples;
         const unsigned int trpsz = trp->second.size();
-        //values.reserve(trpsz); //tuples.reserve(trpsz);
+        values.reserve(trpsz); tuples.reserve(trpsz);
         values.resize(trpsz); uint64_t *valPtr = values.data();
+        tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
         colTransactionsORs.push_back(0);
+        size_t tpl_id = 0;
         for (auto tpl : trp->second) {
             //values.push_back(tpl[col]); //tuples.push_back(tpl);
             *valPtr++ = (tpl[col]); //tuples.push_back(tpl);
+            *tplPtr++ = {tpl_id++, tpl}; //tuples.push_back(tpl);
             colTransactionsORs.back() |= tpl[col];
         }
-        
-        tuples.resize(trpsz);
-        memcpy(tuples.data(), trp->second.data(), trp->second.size()*sizeof(tuple_t));
 
-        std::sort(SIter<uint64_t, tuple_t>(values.data(), tuples.data()), 
-                SIter<uint64_t, tuple_t>(values.data()+trpsz, tuples.data()+trpsz));
+        //tuples.resize(trpsz);
+        //memcpy(tuples.data(), trp->second.data(), trp->second.size()*sizeof(tuple_t));
+
+        std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
+                SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
         //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
@@ -851,10 +860,11 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 // VALIDATION
 //////////////////////////////////////////////////////////
 
-typedef tuple_t TupleType;
+//typedef tuple_t TupleType;
+typedef Metadata_t TupleType;
 typedef Query::Column* PredIter;
 
-bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleType& tup) {
+bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t& tup) {
     for (; cbegin<cend; ++cbegin) {
         auto& c = *cbegin;
         // make the actual check
@@ -884,7 +894,7 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const TupleTy
 
 bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
     for(; tupFrom!=tupTo; ++tupFrom) {  
-        if (isTupleConflict(cbegin, cend, *tupFrom)) return true;
+        if (isTupleConflict(cbegin, cend, tupFrom->tuple)) return true;
     } // end of all tuples for this transaction
     return false;
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
@@ -911,6 +921,7 @@ static bool inline isTransactionConflict(const ColumnTransaction_t& transaction,
     return false;
 }
 
+auto kernelOne = [](uint8_t t) { return t == 1; };
 auto kernelZero = [](uint64_t t) { return t == 0; };
 auto kernelNotZero = [](uint64_t t) { return t != 0; };
 
@@ -918,20 +929,26 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     // copy the eligible tuples into our mask vector
     //vector<uint64_t> cres; 
-    size_t csz;
-    vector<uint64_t> resTuples; 
-    //resTuples.resize(0);
+    //size_t csz;
+    vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
-    for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back((uint64_t)*tupFrom);
+    resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
+    //memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
+    //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
     size_t activeSize = resTuples.size();
+
+    size_t tplsz = relColumns[0].transactions[pos].values.size();
+    vector<uint8_t> tplBitVector(tplsz);
+    vector<uint8_t> tplBitVectorRes(tplsz);
+    for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = 1;
+
     for (; cbegin<cend; ++cbegin) {
         //cerr << "active: " << activeSize << endl;
         auto& c = *cbegin;    
         auto& cTransactions = relColumns[c.column].transactions[pos];
         auto& transValues = cTransactions.values;
-        auto& transTuples = cTransactions.tuples;
         decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-        size_t tupFromIdx{0}, tupToIdx{transTuples.size()};
+        size_t tupFromIdx{0}, tupToIdx{transValues.size()};
         switch (c.op) {
             case Op::Equal: 
                 {
@@ -962,15 +979,31 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
-                for (uint64_t *resPtr=resTuples.data(), *resend = resTuples.data()+activeSize; resPtr<resend;) {
-                    if (((tuple_t)*resPtr++)[c.column] == c.value) *(resPtr-1) = 0;
+                //for (uint64_t *resPtr=resTuples.data(), *resend = resTuples.data()+activeSize; resPtr<resend;) {
+                //    if (((tuple_t)*resPtr++)[c.column] == c.value) *(resPtr-1) = 0;
+                //}
+                //for (auto& tpl : resTuples) {
+                for (size_t i=0; i<activeSize; ++i) {
+                    if (resTuples[i].tuple[c.column] == c.value)  { tplBitVector[resTuples[i].tpl_id] = 0; resTuples[i].tuple = 0; }
                 }
                 goto LBL_CHECK_END;
         }
 
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
-        csz = tupToIdx-tupFromIdx;
+        {
+            auto& transTuples = cTransactions.tuples;
+            //csz = tupToIdx-tupFromIdx;
+            // assign only to those that have already true
+            memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
+            for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
+            //if (!std::any_of(tplBitVector.begin(), tplBitVector.end(), kernelOne)) return false;
+            for (size_t i=0; i<tplsz; ++i) { tplBitVector[i] &= tplBitVectorRes[i]; }
+            for (auto& tpl : resTuples) {
+                if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
+            }
+        }
+        /*
         if (csz > 512 && activeSize > 512) {
             //cerr << "csz: " << csz << " active: " << activeSize << endl;
             //cres.resize(0);
@@ -1006,12 +1039,19 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             }
             if (extra && !lp::simd::exists_avx(transPtr, csz, *resPtr)) *resPtr = 0;
         }
+        */
 LBL_CHECK_END:
         // check if we have any valid tuple left otherwise return false
-        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
-        //cerr << "active (after): " << activeSize << endl;
-        //if (activeSize == 0) return false;
-        if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
+        //activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, kernelNotZero) - resTuples.data();
+        
+        //if (!std::any_of(tplBitVector.begin(), tplBitVector.end(), kernelOne)) return false;
+        //cerr << "active " << activeSize;
+        activeSize = std::partition(resTuples.data(), resTuples.data()+activeSize, 
+                [](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
+        //cerr << " active after " << activeSize << endl;
+        if (activeSize == 0) return false;
+
+        //if (activeSize < 128) return isTupleRangeConflict(reinterpret_cast<tuple_t*>(resTuples.data()), reinterpret_cast<tuple_t*>(resTuples.data()+activeSize), ++cbegin, cend);
     }
     return true;
 }
@@ -1020,8 +1060,8 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
-    TupleType *tupFrom{const_cast<tuple_t*>(transTuples.data())}, 
-              *tupTo{const_cast<tuple_t*>(transTuples.data()+transTuples.size())};
+    TupleType *tupFrom{const_cast<Metadata_t*>(transTuples.data())}, 
+              *tupTo{const_cast<Metadata_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
     switch (pFirst.op) {
         case Op::Equal: 
