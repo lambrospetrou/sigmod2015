@@ -979,12 +979,9 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 break;
             default: 
                 // check if the active tuples have a value != to the predicate
-                for (auto& tpl : resTuples) {
-                    /*if (tpl.tuple[c.column] == c.value)  { 
-                        tplBitVector[tpl.tpl_id] = (uint8_t)0; 
-                        tpl.tuple = 0; 
-                    }*/
-                    tplBitVector[tpl.tpl_id] = (tpl.tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
+                for (auto tpl=resTuples.data(), tplend=tpl+activeSize; tpl<tplend; ++tpl) {
+                    tplBitVector[tpl->tpl_id] = (tpl->tuple[c.column] == c.value) ? (uint8_t)0 : (uint8_t)1; 
+                    //tpl.tuple = 0; 
                 }
                 goto LBL_CHECK_END;
         }
@@ -992,21 +989,27 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         // this check is done for all the operators apart from !=
         // we have to check if the active tuples are inside the result set returned
         {
-            auto& transTuples = cTransactions.tuples;
+            auto resb = resTuples.data(), rese = resTuples.data() + activeSize;
             // reset the bitvector for the results 
-            lp::simd::zero(tplBitVectorRes.data(), tplsz);
+            size_t minid = resb->tpl_id, maxid = resb->tpl_id;
+            for (auto tpl=resb+1; tpl<rese; ++tpl) {
+                if (tpl->tpl_id < minid) minid = tpl->tpl_id;
+                else if (tpl->tpl_id > maxid) maxid = tpl->tpl_id;
+            }
+            //lp::simd::zero(tplBitVectorRes.data(), tplsz);
+            lp::simd::zero(tplBitVectorRes.data()+minid, maxid-minid+1);
             // update the result bits
-            //for (size_t i=0; i<tplsz; ++i) bv[i] = (uint8_t)0;
+            auto& transTuples = cTransactions.tuples;
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
             // update our initial results bits
-            lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            //lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
             // remove those that are invalid
-            /*
-            for (auto& tpl : resTuples) {
-                if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
+            for (auto tpl=resTuples.data(), tplend=tpl+activeSize; tpl<tplend; ++tpl) {
+                tplBitVector[tpl->tpl_id] &= tplBitVectorRes[tpl->tpl_id];
+                //if (!tplBitVector[tpl->tpl_id])  { tpl->tuple = 0; }
                 //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
             }
-            */
+            
         }
         /*
         if (csz > 512 && activeSize > 512) {
