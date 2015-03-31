@@ -486,8 +486,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
@@ -1108,6 +1108,19 @@ static bool isValidationConflict(LPValidation& v) {
 
     cerr << "checked: " << endl;
     */
+    
+    /*
+    vector<Query*> queries; queries.reserve(vq.queryCount);
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        queries.push_back(const_cast<Query*>(reinterpret_cast<const Query*>(qreader)));
+        columnCount = queries.back()->columnCount;
+    }
+    std::sort(queries.begin(), queries.end(), [](const Query* l, const Query* r) { return l->relationId < r->relationId; });
+    //for (auto q : queries) cerr << q->relationId << " ";
+    */
+    //cerr << "\n----\n";
+    
+    qreader = vq.queries;
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
@@ -1118,8 +1131,6 @@ static bool isValidationConflict(LPValidation& v) {
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
             auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
-            //auto transToCheck = std::upper_bound(transFromCheck, transactionsCheck.end(), v.to, TransLogComp);
-            //if (transFromCheck == transToCheck) { 
             if (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to) {
                 // no transactions exist for this query
                 continue;
@@ -1141,7 +1152,13 @@ static bool isValidationConflict(LPValidation& v) {
         auto& transactions = relColumns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        
+
+        uint32_t transDiff = transTo - transFrom;
+        //cerr << (transTo - transFrom) << endl;
+
+        //cerr << rq.relationId << " ";
+
+
         uint32_t pos = std::distance(transactions.begin(), transFrom);
 
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
