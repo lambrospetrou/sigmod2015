@@ -70,7 +70,8 @@ namespace lp {
             const a16_t<uint8_t> *lend = l + sz;
             for (; l<lend; ) { *l++ &= *r++; }
         }
-        void ALWAYS_INLINE and_left_opt(uint8_t *__restrict__ l, uint8_t *__restrict__ r, const size_t sz) {
+        //void ALWAYS_INLINE and_left_opt(uint8_t *__restrict__ l, uint8_t *__restrict__ r, const size_t sz) {
+        void ALWAYS_INLINE and_left_opt(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
             Vec16uc veca, vecb; const uint8_t *lend = l + sz;
             for (; l<lend; l += 16, r += 16) {
                 veca.load(l); vecb.load(r);
@@ -78,7 +79,9 @@ namespace lp {
                 veca.store(l);
             }
         }
-
+        void ALWAYS_INLINE and_left(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {
+            return and_left_auto(l, r, sz);
+        }
 
 
         uint64_t ALWAYS_INLINE or_all(auint64<16> *__restrict__ a, const unsigned int sz) {

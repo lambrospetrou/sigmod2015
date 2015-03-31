@@ -936,7 +936,6 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
 
     size_t tplsz = relColumns[0].transactions[pos].values.size();
-    //tplsz += (tplsz & 15); // %16
     vector<uint8_t> tplBitVector(tplsz);
     vector<uint8_t> tplBitVectorRes(tplsz);
     for (auto& tpl : resTuples) tplBitVector[tpl.tpl_id] = (uint8_t)1;
@@ -994,15 +993,12 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         // we have to check if the active tuples are inside the result set returned
         {
             auto& transTuples = cTransactions.tuples;
-            //csz = tupToIdx-tupFromIdx;
             // assign only to those that have already true
             //memset(tplBitVectorRes.data(), 0, tplsz*sizeof(uint8_t));
-            //const size_t nsz = tplsz; 
             uint8_t *a = tplBitVectorRes.data();
             for (size_t i=0; i<tplsz; ++i) a[i] = (uint8_t)0;
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) tplBitVectorRes[transTuples[i].tpl_id] = (uint8_t)1;
-            //lp::simd::and_left_opt(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
-            lp::simd::and_left_auto(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
             for (auto& tpl : resTuples) {
                 if (!tplBitVector[tpl.tpl_id])  { tpl.tuple = 0; }
                 //tpl.tuple = tplBitVector[tpl.tpl_id] ? tpl.tuple : 0;
