@@ -931,7 +931,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
     //resTuples.insert(resTuples.begin(), tupFrom, tupTo); 
-    //resTuples.resize(tupTo-tupFrom);
+    resTuples.resize(tupTo-tupFrom);
     memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
     //for (; tupFrom!=tupTo; ++tupFrom) resTuples.push_back(*tupFrom);
 
@@ -997,12 +997,14 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
             auto transTuples = cTransactions.tuples.data();
             for (size_t i=tupFromIdx; i<tupToIdx; ++i) bitvres[transTuples[i].tpl_id] = (uint8_t)1;
             // update our initial results bits
-            //lp::simd::and_left(tplBitVector.data(), tplBitVectorRes.data(), tplsz);
+            lp::simd::and_left(bitv, bitvres, tplsz);
             // remove those that are invalid
+            /*
             for (auto tpl=resb; tpl<rese; ++tpl) {
                 //bitv[tpl->tpl_id] &= bitvres[tpl->tpl_id];
                 if (!bitvres[tpl->tpl_id]) { bitv[tpl->tpl_id] = 0; }
             }
+            */
             
         }
 LBL_CHECK_END:
@@ -1010,11 +1012,11 @@ LBL_CHECK_END:
         //cerr << "active " << activeSize;
         activeSize = std::partition(resb, rese, 
                 //[](const Metadata_t& meta) { return meta.tuple != 0; }) - resTuples.data();
-                [&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resTuples.data();
+                [&bitv](const Metadata_t& meta) { return bitv[meta.tpl_id]; }) - resb;
         //cerr << " active after " << activeSize << endl;
         if (activeSize == 0) return false;
         if (cbegin+1 == cend) return true;
-        if (activeSize < 96) return isTupleRangeConflict(resTuples.data(), resTuples.data()+activeSize, ++cbegin, cend);
+        if (activeSize < 128) return isTupleRangeConflict(resTuples.data(), resTuples.data()+activeSize, ++cbegin, cend);
     }
     return true;
 }
@@ -1065,7 +1067,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
-    if (tupTo - tupFrom < 96) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    if (tupTo - tupFrom < 128) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
