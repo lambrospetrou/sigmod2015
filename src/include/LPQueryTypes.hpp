@@ -181,7 +181,7 @@ namespace lp {
                         if (sat.eq >= p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
                     } else {
-                        sat.pastOps |= (uint8_t)2;
+                        //sat.pastOps |= (uint8_t)2;
                         //sat.pastOps[Op::Less] = true;
                         if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
                     }
@@ -191,7 +191,7 @@ namespace lp {
                         if (sat.eq > p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
                     } else {
-                        sat.pastOps |= (uint8_t)4;
+                        //sat.pastOps |= (uint8_t)4;
                         //sat.pastOps[Op::LessOrEqual] = true;
                         if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
                     }
@@ -201,7 +201,7 @@ namespace lp {
                         if (sat.eq <= p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
                     } else {
-                        sat.pastOps |= (uint8_t)8;
+                        //sat.pastOps |= (uint8_t)8;
                         //sat.pastOps[Op::Greater] = true;
                         if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
                     }
@@ -211,7 +211,7 @@ namespace lp {
                         if (sat.eq < p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
                     } else {
-                        sat.pastOps |= (uint8_t)16;
+                        //sat.pastOps |= (uint8_t)16;
                         //sat.pastOps[Op::GreaterOrEqual] = true;
                         if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
                     }
