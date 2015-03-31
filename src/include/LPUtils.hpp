@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 #include "agner/vectorclass.h"
 #include "aligned_allocator.hpp"
@@ -66,9 +67,9 @@ namespace lp {
         template<typename T, unsigned int asz = 16> using a16_t __attribute__ ((__aligned__(asz)))= T;
 
         void ALWAYS_INLINE zero(uint8_t * l, const size_t sz) {
-            //memset(l, 0, tplsz));
-            const uint8_t *lend = l + sz;
-            for (; l<lend; ) { *l++ = (uint8_t)0; }
+            memset(l, (uint8_t)0, sz);
+            //const uint8_t *lend = l + sz;
+            //for (; l<lend; ) { *l++ = (uint8_t)0; }
         }
         
         void ALWAYS_INLINE and_left_auto(a16_t<uint8_t> *__restrict__ l, a16_t<uint8_t> *__restrict__ r, const size_t sz) {

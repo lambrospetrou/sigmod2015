@@ -152,11 +152,11 @@ namespace lp {
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
             bool pastOps[6];
             Satisfiability():eq(UINT64_MAX),lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
-                A_memset(pastOps, 0, 6);
+                memset(pastOps, 0, 6);
             }
             inline void reset() {
                 eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
-                A_memset(pastOps, 0, 6);
+                memset(pastOps, 0, 6);
             }
         };
 
