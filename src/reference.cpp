@@ -749,24 +749,12 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         auto& tuples = colTransactions.back().tuples;
         const unsigned int trpsz = trp->second.size();
         //values.reserve(trpsz); //tuples.reserve(trpsz);
-        values.resize(trpsz); //tuples.reserve(trpsz);
+        values.resize(trpsz); uint64_t *valPtr = values.data();
         colTransactionsORs.push_back(0);
-        //for (auto tpl : trp->second) {
-        //    values.push_back(tpl[col]); //tuples.push_back(tpl);
-        //    colTransactionsORs.back() |= tpl[col];
-        //}
-        tuple_t *tplPtr = trp->second.data();
-        const uint32_t extra = trpsz & 1;
-        const tuple_t *tplPtrEnd = tplPtr + trpsz - extra;
-        for (uint32_t pos=0; tplPtr != tplPtrEnd; tplPtr+=2, pos+=2) {
-            values[pos] = ((*tplPtr)[col]); //tuples.push_back(tpl);
-            values[pos+1] = ((*(tplPtr+1))[col]); //tuples.push_back(tpl);
-            colTransactionsORs.back() |= (*tplPtr)[col] | (*(tplPtr+1))[col];
-        }
-        if (extra) {
-            //values.push_back((*tplPtr)[col]); //tuples.push_back(tpl);
-            values[trpsz-1] = ((*tplPtr)[col]); //tuples.push_back(tpl);
-            colTransactionsORs.back() |= (*tplPtr)[col];
+        for (auto tpl : trp->second) {
+            //values.push_back(tpl[col]); //tuples.push_back(tpl);
+            *valPtr++ = (tpl[col]); //tuples.push_back(tpl);
+            colTransactionsORs.back() |= tpl[col];
         }
         
         tuples.resize(trpsz);
