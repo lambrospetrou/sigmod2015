@@ -14,10 +14,18 @@
 #include "LPUtils.hpp"
 #include "ReferenceTypes.hpp"
 
-//#include "circularfifo_memory_relaxed_aquire_release.hpp"
-//using namespace memory_relaxed_aquire_release;
+#define MOODY
+
+#ifndef MOODY
+#include "circularfifo_memory_relaxed_aquire_release.hpp"
+using namespace memory_relaxed_aquire_release;
+#endif
+
+#ifdef MOODY
 //#include "concurrentqueue.h"
 #include "readerwriterqueue.h"
+#endif
+
 
 namespace lp {
 
@@ -26,10 +34,13 @@ namespace lp {
         std::vector<char> data;
     };
 
-    //typedef CircularFifo<ReceivedMessage*, 5000> LPMsgQ;
+#ifndef MOODY
+    typedef CircularFifo<ReceivedMessage*, 1000> LPMsgQ;
+#endif
+#ifdef MOODY
     //typedef moodycamel::ConcurrentQueue<ReceivedMessage*> LPMsgQ;
     typedef moodycamel::ReaderWriterQueue<ReceivedMessage*> LPMsgQ;
-
+#endif
     class ReaderIO {
         public:
             ReaderIO() {
@@ -164,7 +175,12 @@ namespace lp {
             // this will be called by an outsider - Single Reader ONLY
             inline ReceivedMessage* __attribute__((always_inline)) nextMsg() override {
                 ReceivedMessage *msg; 
+#ifdef MOODY
                 while (!mMsgQ->try_dequeue(msg)) {/*cerr<<"m ";*/ lp::lp_spin_sleep(std::chrono::microseconds(0));}
+#endif
+#ifndef MOODY
+                while (!mMsgQ->pop(msg)) {/*cerr<<"m ";*/ lp::lp_spin_sleep(std::chrono::microseconds(0));}
+#endif
                 return msg;   
             }
         
@@ -179,15 +195,23 @@ namespace lp {
                     ReceivedMessage *msg = msgReader->nextMsg();
                     if (unlikely(msg->head.type == MessageHead::Done)) {
                         // exit the loop since the reader has finished its job
-                        //while (!msgQ.push(msg)) { lp_spin_sleep(); }
+#ifndef MOODY
+                        while (!msgQ->push(msg)) { lp_spin_sleep(); }
+#endif
+#ifdef MOODY
                         while (!msgQ->enqueue(msg)) { lp::lp_spin_sleep(); }
+#endif
 #ifdef LPDEBUG
                         //LPTimer.readingTotal += LPTimer.getChrono(start);
 #endif
                         return;
                     }
-                    //while (!msgQ.push(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
+#ifndef MOODY
+                    while (!msgQ->push(msg)) { /*cerr << "r" << std::endl;*/ lp_spin_sleep(std::chrono::microseconds(0)); }
+#endif
+#ifdef MOODY
                     while (!msgQ->enqueue(msg)) { /*cerr << "r" << std::endl;*/ lp::lp_spin_sleep(std::chrono::microseconds(0)); }
+#endif
                 }
                 return;
             }

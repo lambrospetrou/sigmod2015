@@ -118,8 +118,8 @@ typedef Query::Column::Op  Op;
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
 template<typename T>
-using vector_a = std::vector<T, aligned_allocator<T, 16>>;
-//using vector_a = std::vector<T>;
+//using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+using vector_a = std::vector<T>;
 
 // Custom data structures to hold data
 struct CTransStruct {
@@ -477,16 +477,16 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
     }
 
     // do some initial reserves or initializations
-    gPendingValidations.reserve(2048); 
-    for (uint32_t i=0; i<NUM_RELATIONS; ++i) gTransParseMapPhase[i].reserve(512);
+    gPendingValidations.reserve(512); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
-        gRelations[i].transLog.reserve(512);
-        gRelations[i].transLogTuples.reserve(1024);
+        gTransParseMapPhase[i].reserve(512);
+        gRelations[i].transLog.reserve(128);
+        gRelations[i].transLogTuples.reserve(512);
     }
     // allocate global structures based on thread number
     //gStats.reset(new StatStruct[numOfThreads+1]);
@@ -682,7 +682,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
-        operations.reserve(512);
+        operations.reserve(64);
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
