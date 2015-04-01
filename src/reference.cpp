@@ -1086,7 +1086,7 @@ static bool isValidationConflict(LPValidation& v) {
     */
     const char* qreader = vq.queries;
     uint32_t columnCount;
-    
+    /*
     vector<uint32_t> relcnts(NUM_RELATIONS);
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
@@ -1095,8 +1095,8 @@ static bool isValidationConflict(LPValidation& v) {
     }
     cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
     for (auto cnt : relcnts) cerr << " " << cnt;
-
     qreader = vq.queries;
+    */
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
