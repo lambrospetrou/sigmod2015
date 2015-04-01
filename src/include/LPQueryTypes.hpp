@@ -150,6 +150,7 @@ namespace lp {
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
             return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
+        /*
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;
             std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
@@ -157,7 +158,7 @@ namespace lp {
             lpq.colCountUniq = std::distance(q->columns, colEnd);
             return lpq.colCountUniq;
         }
-
+        */
         struct Satisfiability {
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
             //bool pastOps[6];
@@ -235,17 +236,13 @@ namespace lp {
             return ( (sat.lt <= sat.gt) || ((sat.pastOps&(uint8_t)1) && ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
         }
 
-        bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
-            if (colBegin == colEnd) return false;
+        bool ALWAYS_INLINE isQueryUnsolvable(Column *colBegin, Column *colEnd) {
+            //if (colBegin == colEnd) return false;
             Satisfiability sat;
             uint32_t lastCol = UINT32_MAX;
             for (; colBegin != colEnd;) {
                 if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
                 if (isQueryColumnUnsolvable(*colBegin++, sat)) return true;
-            //const uint32_t colsz = (colEnd-colBegin);
-            //for (uint32_t c=0; c<colsz; ++c) {
-                //if ((colBegin[c].column != lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
-                //if (isQueryColumnUnsolvable(colBegin[c], sat)) return true;
             }
             return false;
         }

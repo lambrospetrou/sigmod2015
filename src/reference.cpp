@@ -975,7 +975,7 @@ auto kernelOne = [](uint8_t t) { return t == 1; };
 auto kernelZero = [](uint64_t t) { return t == 0; };
 auto kernelNotZero = [](uint64_t t) { return t != 0; };
 
-bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend, const TransactionStruct& transaction) {
+bool isTupleRangeConflict(const TupleType *tupFrom, const TupleType *tupTo, PredIter cbegin, PredIter cend, const TransactionStruct& transaction) {
     // copy the eligible tuples into our mask vector
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
@@ -1066,7 +1066,7 @@ LBL_CHECK_END:
 static bool isTransactionConflict(const TransactionStruct& transaction, Column pFirst, PredIter cbegin, PredIter cend) {
     auto& transValues = transaction.columns[pFirst.column].values;
     auto& transTuples = transaction.columns[pFirst.column].tuples;
-    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+    decltype(transValues.data()) tBegin = transValues.data(), tEnd=transValues.data()+transValues.size();
     TupleType *tupFrom{const_cast<Metadata_t*>(transTuples.data())}, 
               *tupTo{const_cast<Metadata_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
@@ -1164,12 +1164,6 @@ static bool isValidationConflict(LPValidation& v) {
             cend = cbegin + colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
-        /*
-        auto& relColumns = gRelColumns[rq.relationId].columns;
-        auto& transactions = relColumns[pFirst.column].transactions;
-        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
-        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-        */
         auto& transactions = gRelColumns[rq.relationId].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLess);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, TRSLess);
@@ -1182,7 +1176,7 @@ static bool isValidationConflict(LPValidation& v) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
                  
-        
+        /* 
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
             for(; transFrom<transTo; ++transFrom) {  
@@ -1191,7 +1185,7 @@ static bool isValidationConflict(LPValidation& v) {
                         || (!(cb2.op) & !lp_EQUAL((transFrom->valORs[cb2.column] & cb2.value), cb2.value)))
                 && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else if (colCountUniq > 1) {
+        } else*/ if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom) {  
                 if (    !((!(cb.op) && !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
