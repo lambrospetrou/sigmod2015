@@ -152,7 +152,7 @@ struct ColumnTransaction_t {
     vector_a<uint64_t> values;
     vector_a<Metadata_t> tuples;
     ColumnTransaction_t() : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()) {}
-} ALIGNED_DATA;
+};
 
 struct TransactionStruct {
     uint64_t trans_id;
@@ -178,6 +178,8 @@ struct TRSLess_t {
 
 struct RelationColumns {
     vector<TransactionStruct> transactions;
+    uint64_t nextUpdate;
+    RelationColumns() : nextUpdate(0) {}
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 static vector<uint32_t> gRequiredColumns;
@@ -402,9 +404,10 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         // clean the index columns
         auto& cRelCol = gRelColumns[ri].transactions;
         cRelCol.erase(cRelCol.begin(), 
-                upper_bound(cRelCol.begin(), cRelCol.end(), trans_id,
+                upper_bound(cRelCol.begin(), cRelCol.end(), trans_id, 
                     [](const uint64_t target, const TransactionStruct& o){ return target < o.trans_id; })
                 );
+                
         /*
         auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
                     trans_id,
@@ -656,7 +659,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args);
-static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col);
 
 /*
    struct TRMapPhase {
@@ -681,7 +683,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         if (unlikely(relTrans.empty())) { 
             continue; 
         }
-
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
 
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
@@ -699,6 +700,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
                 if (likely(!operations.empty())) {
+                    //cerr << " last trans_id: " << lastTransId << " : " << operations.size() << endl;
                     relation.transLogTuples.emplace_back(lastTransId, operations);
                     relIndex.emplace_back(lastTransId, relCols);
                 }
@@ -743,6 +745,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // store the last transaction data
         // store the operations for the last transaction
         if (likely(!operations.empty())) {
+            //cerr << " last trans_id: " << lastTransId << " : " << operations.size() << endl;
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
             relIndex.emplace_back(lastTransId, relCols);
         }
@@ -797,12 +800,12 @@ static void updateRelTrans(uint32_t tid, uint32_t ri) { (void)tid;
     if (relation.transLogTuples.empty()) return;
     
     auto& relIndex = gRelColumns[ri].transactions;
-    uint64_t nextUpdate = relIndex.empty() ? 0 : relIndex.back().trans_id;
+    uint64_t nextUpdate = gRelColumns[ri].nextUpdate;
     if (nextUpdate > relation.transLogTuples.back().first) return;
 
     // Use lower_bound to automatically jump to the transaction to start
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), nextUpdate, TransLogComp);
-    auto tEnd=relation.transLogTuples.end();
+    auto tEnd = relation.transLogTuples.end();
     
     size_t transPos = (transFrom - relation.transLogTuples.begin());
 
@@ -814,7 +817,7 @@ static void updateRelTrans(uint32_t tid, uint32_t ri) { (void)tid;
         auto& ors = curTrans.valORs;
         auto& curCols = curTrans.columns;
 
-        const unsigned int trpsz = trp->second.size();
+        const size_t trpsz = trp->second.size();
         for (uint32_t ci=0; ci<relCols; ++ci) {
             auto& values = curCols[ci].values;
             auto& tuples = curCols[ci].tuples;
@@ -833,6 +836,7 @@ static void updateRelTrans(uint32_t tid, uint32_t ri) { (void)tid;
         }
         //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
     }
+    gRelColumns[ri].nextUpdate = relation.transLogTuples.back().first + 1;
 }
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
@@ -961,9 +965,9 @@ bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, Pr
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
-static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
+static bool inline isTransactionConflict(const TransactionStruct& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
-    auto& transValues = transaction.values;
+    auto& transValues = transaction.columns[pFirst.column].values;
     switch (pFirst.op) {
         case Op::Equal: 
             //return lp::utils::binary_cmov(transValues.data(), transValues.size(), pFirst.value); 
@@ -986,8 +990,7 @@ auto kernelOne = [](uint8_t t) { return t == 1; };
 auto kernelZero = [](uint64_t t) { return t == 0; };
 auto kernelNotZero = [](uint64_t t) { return t != 0; };
 
-bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, 
-        PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
+bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend, const TransactionStruct& transaction) {
     // copy the eligible tuples into our mask vector
     vector<Metadata_t> resTuples; 
     resTuples.reserve(tupTo-tupFrom);
@@ -995,7 +998,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
     //resTuples.resize(tupTo-tupFrom);
     //memcpy(resTuples.data(), &*tupFrom, (tupTo-tupFrom)*sizeof(Metadata_t)); 
 
-    size_t tplsz = relColumns[0].transactions[pos].values.size();
+    size_t tplsz = transaction.columns[0].values.size();
     vector<uint8_t> tplBitVectorRes(tplsz); uint8_t *bitvres = tplBitVectorRes.data();
 
     size_t activeSize = resTuples.size();
@@ -1004,7 +1007,7 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         auto resb = resTuples.data(), rese = resTuples.data() + activeSize;
         
         auto& c = *cbegin;    
-        auto& cTransactions = relColumns[c.column].transactions[pos];
+        auto& cTransactions = transaction.columns[c.column];
         auto& transValues = cTransactions.values;
         decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
         size_t tupFromIdx{0}, tupToIdx{transValues.size()};
@@ -1075,9 +1078,9 @@ LBL_CHECK_END:
     return true;
 }
 
-static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
-    auto& transValues = transaction.values;
-    auto& transTuples = transaction.tuples;
+static bool isTransactionConflict(const TransactionStruct& transaction, Column pFirst, PredIter cbegin, PredIter cend) {
+    auto& transValues = transaction.columns[pFirst.column].values;
+    auto& transTuples = transaction.columns[pFirst.column].tuples;
     decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
     TupleType *tupFrom{const_cast<Metadata_t*>(transTuples.data())}, 
               *tupTo{const_cast<Metadata_t*>(transTuples.data()+transTuples.size())};
@@ -1113,6 +1116,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
         default: 
             cbegin = std::prev(cbegin);
     }
+    
     //cerr << "\n||| Transaction tuples |||" << endl;
     //cerr << "-- orig: " << transValues.size() << endl;
     //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
@@ -1121,8 +1125,10 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //cerr << "tup diff " << (tupTo - tupFrom) << endl; 
     //if (std::distance(tupFrom, tupTo) == 0) return false;
     
+    //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
+    //return isTupleRangeConflict(tupFrom, tupTo, cbegin-1, cend);
     if (tupTo - tupFrom < 64) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
-    else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
+    else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, transaction);
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
 }
 
@@ -1146,6 +1152,7 @@ static bool isValidationConflict(LPValidation& v) {
     for (auto cnt : relcnts) cerr << " " << cnt;
     qreader = vq.queries;
     */
+
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
@@ -1172,18 +1179,20 @@ static bool isValidationConflict(LPValidation& v) {
             cend = cbegin + colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
+        /*
         auto& relColumns = gRelColumns[rq.relationId].columns;
         auto& transactions = relColumns[pFirst.column].transactions;
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
-
+        */
+        auto& transactions = gRelColumns[rq.relationId].transactions;
+        auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLess);
+        auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, TRSLess);
+        
         //uint32_t transDiff = transTo - transFrom;
         //cerr << (transTo - transFrom) << endl;
 
         //cerr << rq.relationId << " ";
-
-
-        uint32_t pos = std::distance(transactions.begin(), transFrom);
 
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
@@ -1199,16 +1208,16 @@ static bool isValidationConflict(LPValidation& v) {
             } // end of all the transactions for this relation for this specific query
         } else*/ if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (    !((!(cb.op) && !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                        || (!(cb1.op) && !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value)))
-                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
+            for(; transFrom<transTo; ++transFrom) {  
+                if (    !((!(cb.op) && !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
+                        || (!(cb1.op) && !lp_EQUAL((transFrom->valORs[cb1.column] & cb1.value), cb1.value)))
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else  {
+        } else {
             auto& cb = cbegin[0];
             if (!cb.op) { 
-                for(; transFrom<transTo; ++transFrom, ++pos) {  
-                    if (!(!lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
+                for(; transFrom<transTo; ++transFrom) {  
+                    if (!(!lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
                     && isTransactionConflict(*transFrom, pFirst)) { return true; }
                 } // end of all the transactions for this relation for this specific query
             } else {
@@ -1219,9 +1228,9 @@ static bool isValidationConflict(LPValidation& v) {
         }
         
         //cerr << ":: val " << v.validationId << endl;
-        /*
-        for(; transFrom<transTo; ++transFrom, ++pos) {  
-            if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
+        /* 
+        for(; transFrom<transTo; ++transFrom) {  
+            if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
         } // end of all the transactions for this relation for this specific query
         */
     }// end for all queries
