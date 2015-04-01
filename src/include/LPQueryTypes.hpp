@@ -60,11 +60,21 @@ namespace lp {
 
     struct ColumnCompQuality_t {
         inline bool operator() (const Query::Column& left, const Query::Column& right) {
+            /*
             if ((left.op == Op::Equal) & (right.op != Op::Equal)) return true;
             else if ((left.op != Op::Equal) & (right.op == Op::Equal)) return false;
             else if ((left.op == Op::NotEqual) & (right.op != Op::NotEqual)) return false;
             else if ((left.op != Op::NotEqual) & (right.op == Op::NotEqual)) return true;
             return (left.column < right.column);
+            */
+            if ((left.op == Op::Equal)) {
+                if (right.op != Op::Equal) return true;
+                else return left.column < right.column;
+            } else if (right.op == Op::Equal) {
+                return false;
+            } else {
+                return left.op > right.op;
+            }
         }
     } ColumnCompQuality;
 

@@ -331,22 +331,24 @@ static void ALWAYS_INLINE processValidationQueries(const ValidationQueries& v, R
 #endif 
     (void)tid;
 
-    // TODO - OPTIMIZATION CAN BE DONE IF I JUST COPY THE WHOLE DATA instead of parsing it
     // try to put all the queries into a vector
-    /*
-    vector<LPQuery> queries;
-    queries.reserve(v.queryCount);
+/*    
     const char* qreader=v.queries;
+    //cerr << "\n----- val: " << v.validationId << " : " << v.from << "-" << v.to << " ------" << endl;
     for (uint32_t i=0;i<v.queryCount;++i) {
         const Query *q=reinterpret_cast<const Query*>(qreader);
-        queries.emplace_back(const_cast<Query*>(q));
+        //cerr << "\t| q: " << q->relationId << endl;
+        for (size_t ci=0; ci<q->columnCount; ++ci) {
+            //cerr << q->columns[ci] << " ";
+            cerr << q->columns[ci].column << " :" << q->columns[ci].op << endl;
+        }
+        //cerr << endl;
         qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
     }
-    */
+*/
+
     //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
     //gPendingValidationsMutex.lock();
-    //gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(queries));    
-    //gPendingValidations.emplace_back(v.validationId, v.from, v.to, msg, move(vector<LPQuery>()));    
     gPendingValidations.emplace_back(v.validationId, v.from, v.to, v.queryCount, msg);    
     // update the global pending validations to reflect this new one
     ++gPVunique;
@@ -478,8 +480,8 @@ int main(int argc, char**argv) {
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
         //msgReader = ReaderIOFactory::createAsync(stdin);
-        msgReader = ReaderIOFactory::create(stdin);
-        //msgReader = ReaderIOFactory::create(cin);
+        //msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::create(cin);
     }
 
     // do some initial reserves or initializations
@@ -493,8 +495,8 @@ int main(int argc, char**argv) {
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     // leave two available workes - master - Reader
     //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
