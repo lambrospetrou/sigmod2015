@@ -152,7 +152,7 @@ struct ColumnTransaction_t {
     vector_a<uint64_t> values;
     vector_a<Metadata_t> tuples;
     ColumnTransaction_t() : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()) {}
-};
+} ALIGNED_DATA;
 
 struct TransactionStruct {
     uint64_t trans_id;
@@ -404,22 +404,7 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         // clean the index columns
         auto& cRelCol = gRelColumns[ri].transactions;
         cRelCol.erase(cRelCol.begin(), 
-                upper_bound(cRelCol.begin(), cRelCol.end(), trans_id, 
-                    [](const uint64_t target, const TransactionStruct& o){ return target < o.trans_id; })
-                );
-                
-        /*
-        auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
-                    trans_id,
-                    [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
-        size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
-        for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
-            auto& cCol = cRelCol.columns[ci];
-            cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
-            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
-        }
-        */
-        
+                upper_bound(cRelCol.begin(), cRelCol.end(), trans_id, TRSLess));
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -899,13 +884,13 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
         gPendingResults.resize(gPVunique);
     //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
-    gNextPending = 0;
 
     // sort the validations by query count in order to start the heavy ones earlier
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), 
       //      [](const LPValidation& left, const LPValidation& right){ return left.queryCount > right.queryCount; });
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
+    gNextPending = 0;
     pool->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();
 
