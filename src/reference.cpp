@@ -837,10 +837,11 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     // find the MIN validation ID to coordinate the indexing of the results
     resIndexOffset = gPendingValidations[0].validationId; // only master handles the messages now so they are in order
     
-    auto gPRsz = gPendingResults.size();
+    const size_t gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
+    //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
+    for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
     gNextPending = 0;
 
     // sort the validations by query count in order to start the heavy ones earlier
