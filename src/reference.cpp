@@ -1182,16 +1182,16 @@ static bool isValidationConflict(LPValidation& v) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
                  
-        /*
+        
         if (colCountUniq > 2) {
             auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
-            for(; transFrom<transTo; ++transFrom, ++pos) {  
-                if (    !((!(cb.op) & !lp_EQUAL((relColumns[cb.column].transactionsORs[pos] & cb.value), cb.value))
-                        || (!(cb1.op) & !lp_EQUAL((relColumns[cb1.column].transactionsORs[pos] & cb1.value), cb1.value))
-                        || (!(cb2.op) & !lp_EQUAL((relColumns[cb2.column].transactionsORs[pos] & cb2.value), cb2.value)))
-                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
+            for(; transFrom<transTo; ++transFrom) {  
+                if (    !((!(cb.op) & !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
+                        || (!(cb1.op) & !lp_EQUAL((transFrom->valORs[cb1.column] & cb1.value), cb1.value))
+                        || (!(cb2.op) & !lp_EQUAL((transFrom->valORs[cb2.column] & cb2.value), cb2.value)))
+                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
             } // end of all the transactions for this relation for this specific query
-        } else*/ if (colCountUniq > 1) {
+        } else if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom) {  
                 if (    !((!(cb.op) && !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
@@ -1213,7 +1213,7 @@ static bool isValidationConflict(LPValidation& v) {
         }
         
         //cerr << ":: val " << v.validationId << endl;
-        /* 
+        /*
         for(; transFrom<transTo; ++transFrom) {  
             if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
         } // end of all the transactions for this relation for this specific query
