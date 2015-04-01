@@ -480,17 +480,19 @@ int main(int argc, char**argv) {
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
         //msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
-        msgReader = ReaderIOFactory::create(cin);
+        msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::create(cin);
     }
 
     // do some initial reserves or initializations
+    
     gPendingValidations.reserve(512); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         gTransParseMapPhase[i].reserve(512);
         gRelations[i].transLog.reserve(128);
         gRelations[i].transLogTuples.reserve(512);
     }
+    
     // allocate global structures based on thread number
     //gStats.reset(new StatStruct[numOfThreads+1]);
 
@@ -1085,11 +1087,21 @@ static bool isValidationConflict(LPValidation& v) {
     const char* qreader = vq.queries;
     uint32_t columnCount;
     
+    vector<uint32_t> relcnts(NUM_RELATIONS);
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq.columnCount;
+        ++relcnts[rq.relationId];
+    }
+    cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
+    for (auto cnt : relcnts) cerr << " " << cnt;
+
+    qreader = vq.queries;
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
         //cerr << " " << i;
-        
+       
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
