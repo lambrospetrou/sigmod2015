@@ -221,6 +221,7 @@ namespace lp {
             // check for equality and constrasting ranges OR  check non-overlapping ranges
             //if ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) )
                 //return true;
+            //return false;
             return ( (sat.lt <= sat.gt) || ((sat.pastOps&(uint8_t)1) && ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
         }
 
@@ -228,13 +229,13 @@ namespace lp {
             if (colBegin == colEnd) return false;
             Satisfiability sat;
             uint32_t lastCol = UINT32_MAX;
-            const uint32_t colsz = (colEnd-colBegin);
-            //for (; colBegin != colEnd; ++colBegin) {
-            for (uint32_t c=0; c<colsz; ++c) {
-                //if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
-                //if (isQueryColumnUnsolvable(*colBegin, sat)) return true;
-                if ((colBegin[c].column != lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
-                if (isQueryColumnUnsolvable(colBegin[c], sat)) return true;
+            for (; colBegin != colEnd;) {
+                if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
+                if (isQueryColumnUnsolvable(*colBegin++, sat)) return true;
+            //const uint32_t colsz = (colEnd-colBegin);
+            //for (uint32_t c=0; c<colsz; ++c) {
+                //if ((colBegin[c].column != lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
+                //if (isQueryColumnUnsolvable(colBegin[c], sat)) return true;
             }
             return false;
         }
@@ -255,8 +256,8 @@ namespace lp {
             //std::cerr << "after uniq: " << colCountUniq << std::endl;
             
             //std::partial_sort(colBegin, colBegin+std::min(q->columnCount, (uint32_t)2), colEnd, ColumnCompQuality);
-            std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)3), colEnd, ColumnCompQuality);
-            //std::sort(colBegin, colEnd, ColumnCompQuality);
+            //std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)3), colEnd, ColumnCompQuality);
+            std::sort(colBegin, colEnd, ColumnCompQuality);
             return true;
         }
         bool inline satisfiable(LPQuery& q) { 

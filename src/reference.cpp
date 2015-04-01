@@ -477,8 +477,9 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::create(cin);
     }
 
     // do some initial reserves or initializations
@@ -602,8 +603,8 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t *ptr = new uint64_t[o.rowCount];
-            //for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c];
-            memcpy(ptr, o.keys, sizeof(uint64_t)*o.rowCount);
+            for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c];
+            //memcpy(ptr, o.keys, sizeof(uint64_t)*o.rowCount);
             //gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
             //gRelTransMutex[o.relationId].unlock(); 
@@ -623,9 +624,9 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t* tptr = new uint64_t[relCols*o.rowCount];
-            //uint32_t sz = relCols*o.rowCount;
-            //for (uint32_t c=0; c<sz; ++c) tptr[c] = o.values[c];
-            memcpy(tptr, o.values, sizeof(uint64_t)*relCols*o.rowCount);
+            uint32_t sz = relCols*o.rowCount;
+            for (uint32_t c=0; c<sz; ++c) tptr[c] = o.values[c];
+            //memcpy(tptr, o.values, sizeof(uint64_t)*relCols*o.rowCount);
             //gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr);
             //gRelTransMutex[o.relationId].unlock(); 
@@ -1004,7 +1005,6 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
                 tpl->tuple = (bitvres[tpl->tpl_id]) ? tpl->tuple : 0; 
                 //tpl->tpl_id = (bitvres[tpl->tpl_id]) ? tpl->tpl_id : 0; 
             }
-            
             
         }
 LBL_CHECK_END:
