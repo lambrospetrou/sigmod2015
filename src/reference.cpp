@@ -150,40 +150,39 @@ struct Metadata_t {
 };
 struct ColumnTransaction_t {
     vector_a<uint64_t> values;
-    //vector_a<tuple_t> tuples;
     vector_a<Metadata_t> tuples;
+    ColumnTransaction_t() : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()) {}
+} ALIGNED_DATA;
+
+struct TransactionStruct {
     uint64_t trans_id;
-    //ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<tuple_t>()), trans_id(tid) {}
-    ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()), trans_id(tid) {}
+    std::unique_ptr<ColumnTransaction_t[]> columns;
+    std::unique_ptr<uint64_t[]> valORs;
+
+    TransactionStruct(uint64_t trid, uint32_t cols) : trans_id(trid) {
+        columns.reset(new ColumnTransaction_t[cols]);
+        valORs.reset(new uint64_t[cols]());
+    }
 } ALIGNED_DATA;
-struct ColumnStruct {
-    // the trans_id the transactions are updated to inclusive
-    vector<ColumnTransaction_t> transactions;
-    vector<uint64_t> transactionsORs;
-    uint64_t transTo;
-    
-    char padding[8]; //for false sharing
-    
-    ColumnStruct() : transTo(0) {}
-} ALIGNED_DATA;
-struct CTRSLessThan_t {
-    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& left, const ColumnTransaction_t& right) {
+struct TRSLess_t {
+    ALWAYS_INLINE bool operator() (const TransactionStruct& left, const TransactionStruct& right) {
         return left.trans_id < right.trans_id;
     }
-    ALWAYS_INLINE bool operator() (const ColumnTransaction_t& o, uint64_t target) {
+    ALWAYS_INLINE bool operator() (const TransactionStruct& o, uint64_t target) {
         return o.trans_id < target;
     }
-    ALWAYS_INLINE bool operator() (uint64_t target, const ColumnTransaction_t& o) {
+    ALWAYS_INLINE bool operator() (uint64_t target, const TransactionStruct& o) {
         return target < o.trans_id;
     }
-} CTRSLessThan;
-
+} TRSLess;
 
 struct RelationColumns {
-    std::unique_ptr<ColumnStruct[]> columns;
+    vector<TransactionStruct> transactions;
 };
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 static vector<uint32_t> gRequiredColumns;
+
+/////////////////////////////////////////////////////////////////////////////
 
 struct RelTransLog {
     uint64_t trans_id;
@@ -310,14 +309,15 @@ static void processDefineSchema(const DefineSchema& d) {
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
     //cerr << endl << "relations: " << NUM_RELATIONS << endl;
+    /*
     const uint32_t rels = d.relationCount;
     for(uint32_t ri=0; ri<rels; ++ri) {
         //cerr << " " << gSchema[ci];
-        gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
         const uint32_t colsz = gSchema[ri];
-        for (uint32_t ci=0; ci<colsz; ++ci)
-            gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
+        //for (uint32_t ci=0; ci<colsz; ++ci)
+          //  gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
     }
+    */
 }
 //---------------------------------------------------------------------------
 
@@ -390,9 +390,7 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 
 
 static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
-        auto& cRelCol = gRelColumns[ri];
         auto& transLogTuples = gRelations[ri].transLogTuples;
-        
         if (transLogTuples.empty() || transLogTuples[0].first > trans_id) return;
 
         // delete the transLogTuples
@@ -402,6 +400,12 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
                 );
         
         // clean the index columns
+        auto& cRelCol = gRelColumns[ri].transactions;
+        cRelCol.erase(cRelCol.begin(), 
+                upper_bound(cRelCol.begin(), cRelCol.end(), trans_id,
+                    [](const uint64_t target, const TransactionStruct& o){ return target < o.trans_id; })
+                );
+        /*
         auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
                     trans_id,
                     [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
@@ -411,6 +415,7 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
             cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
             cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
         }
+        */
         
 /*
         // clean the transactions log
@@ -506,7 +511,7 @@ int main(int argc, char**argv) {
     //multiPool.initThreads();
     //multiPool.startAll();
 
-    cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
+    cerr << "TransactionStruct: " << sizeof(TransactionStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
     try {
 
@@ -682,7 +687,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
-        //auto& relColumns = gRelColumns[ri].columns;
+        auto& relIndex = gRelColumns[ri].transactions;
         uint32_t relCols = gSchema[ri];
 
         uint64_t lastTransId = relTrans[0].trans_id;
@@ -693,8 +698,10 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         for (auto& trans : relTrans) {
             if (trans.trans_id != lastTransId) {
                 // store the tuples for the last transaction just finished
-                if (likely(!operations.empty()))
+                if (likely(!operations.empty())) {
                     relation.transLogTuples.emplace_back(lastTransId, operations);
+                    relIndex.emplace_back(lastTransId, relCols);
+                }
                 lastTransId = trans.trans_id;
                 operations.resize(0);
             }
@@ -735,14 +742,16 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         }
         // store the last transaction data
         // store the operations for the last transaction
-        if (likely(!operations.empty()))
+        if (likely(!operations.empty())) {
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
+            relIndex.emplace_back(lastTransId, relCols);
+        }
     } // end of all relations
 
     // TODO - MERGE THE UPDATE INDEX - WITH UPDATE COLUMNS - TODO
     //processUpdateIndexTask(nThreads, tid, nullptr);
 }
-
+/*
 static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& relation = gRelations[ri];
     auto& relColumn = gRelColumns[ri].columns[col];
@@ -775,9 +784,6 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
             colTransactionsORs.back() |= tpl[col];
         }
 
-        //tuples.resize(trpsz);
-        //memcpy(tuples.data(), trp->second.data(), trp->second.size()*sizeof(tuple_t));
-
         std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
                 SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
         //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
@@ -785,14 +791,58 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
 }
+*/
+static void updateRelTrans(uint32_t tid, uint32_t ri) { (void)tid;
+    auto& relation = gRelations[ri];
+    if (relation.transLogTuples.empty()) return;
+    
+    auto& relIndex = gRelColumns[ri].transactions;
+    uint64_t nextUpdate = relIndex.empty() ? 0 : relIndex.back().trans_id;
+    if (nextUpdate > relation.transLogTuples.back().first) return;
 
+    // Use lower_bound to automatically jump to the transaction to start
+    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), nextUpdate, TransLogComp);
+    auto tEnd=relation.transLogTuples.end();
+    
+    size_t transPos = (transFrom - relation.transLogTuples.begin());
+
+    const uint32_t relCols = gSchema[ri];
+
+    // for all the transactions in the relation
+    for(auto trp=transFrom; trp!=tEnd; ++trp) {
+        auto& curTrans = relIndex[transPos++];
+        auto& ors = curTrans.valORs;
+        auto& curCols = curTrans.columns;
+
+        const unsigned int trpsz = trp->second.size();
+        for (uint32_t ci=0; ci<relCols; ++ci) {
+            auto& values = curCols[ci].values;
+            auto& tuples = curCols[ci].tuples;
+            auto& cors = ors[ci];
+            values.reserve(trpsz); tuples.reserve(trpsz);
+            values.resize(trpsz); uint64_t *valPtr = values.data();
+            tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
+            uint32_t tpl_id = 0;
+            for (auto tpl : trp->second) {
+                *valPtr++ = (tpl[ci]);
+                cors |= tpl[ci];
+                *tplPtr++ = {tpl_id++, tpl};
+            }
+            std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
+                SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
+        }
+        //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
+    }
+}
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-    uint64_t totalCols = gRequiredColumns.size();
-    for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
-        uint32_t ri, col;
-        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-        updateRelCol(tid, ri, col);
+    //uint64_t totalCols = gRequiredColumns.size();
+    //for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
+    for (uint64_t rc = gNextReqCol++; rc < NUM_RELATIONS; rc=gNextReqCol++) {
+        //uint32_t ri, col;
+        //lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+        //updateRelCol(tid, ri, col);
+        updateRelTrans(tid, rc);
     } // end of while columns to update     
 }
 
@@ -802,7 +852,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #endif
     //cerr << "::: session start ::::" << endl;
     gNextIndex = 0;
-    gNextReqCol = 0;
     pool->startSingleAll(processPendingIndexTask);
     pool->waitSingleAll();
 
@@ -814,7 +863,7 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startUpdIndex = LPTimer.getChrono();
 #endif
-    //gNextReqCol = 0;
+    gNextReqCol = 0;
     //processUpdateIndexTask(0, 0, nullptr);
     pool->startSingleAll(processUpdateIndexTask);
     pool->waitSingleAll();
