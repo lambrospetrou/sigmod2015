@@ -1126,18 +1126,107 @@ static bool isValidationConflict(LPValidation& v) {
     */
     const char* qreader = vq.queries;
     uint32_t columnCount;
-    /*
-    vector<uint32_t> relcnts(NUM_RELATIONS);
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
-        ++relcnts[rq.relationId];
-    }
-    cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
-    for (auto cnt : relcnts) cerr << " " << cnt;
-    qreader = vq.queries;
-    */
+    
+    struct RelInfo {
+        vector<Query*> queries;
+        TransactionStruct *transFrom;
+        TransactionStruct *transTo;
+        RelInfo() : transFrom(nullptr), transTo(nullptr) {}
+    };
 
+    vector<RelInfo> rels(NUM_RELATIONS);
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq->columnCount;
+        auto& rel = rels[rq->relationId];
+        if (rel.transFrom == nullptr) {
+            auto& transactions = gRelColumns[rq->relationId].transactions;
+            rel.transFrom = std::lower_bound(transactions.data(), transactions.data()+transactions.size(), v.from, TRSLess);
+            rel.transTo = std::upper_bound(rel.transFrom, transactions.data()+transactions.size(), v.to, TRSLess);
+        }
+        if (rq->columnCount == 0){ 
+            if (rel.transTo!=rel.transFrom) return true;
+            else continue;
+        }
+        if (rel.transTo == rel.transFrom) continue; // no need to check query since there are no transactions
+        uint32_t colCountUniq = lp::query::preprocess(*rq); 
+        if (lp::query::satisfiable(rq, colCountUniq)) {
+            rq->columnCount = colCountUniq;
+            rel.queries.push_back(rq);
+        }
+    }
+    //cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
+    //for (auto cnt : relcnts) cerr << " " << cnt;
+    
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        if (rels[ri].queries.empty()) continue;
+
+        //auto& transactionsCheck = gRelations[ri].transLogTuples;
+        //auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
+        //bool notHasTuples = (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to);
+
+        //auto& transactions = gRelColumns[ri].transactions;
+        //auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, TRSLess);
+        //auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, TRSLess);
+        //bool notHasTuples = (transFrom == transTo);
+        auto transFrom = rels[ri].transFrom;
+        auto transTo = rels[ri].transTo;
+
+        for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+            //    if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+            //} // end of all the transactions for this relation for this specific query
+
+        for (auto& q : rels[ri].queries) {
+            auto& rq = *q;
+            /*
+            if (unlikely(rq.columnCount == 0)) { 
+                // no transactions exist for this relation range
+                if (notHasTuples) { continue; } 
+                // transactions exist for this query so it is a conflict
+                else { return true; } 
+            }
+            */
+
+            uint32_t colCountUniq = rq.columnCount; 
+            //uint32_t colCountUniq = lp::query::preprocess(rq); 
+            //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
+
+            auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
+                cend = cbegin + colCountUniq;
+            auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
+            auto cbSecond = cbegin+1;
+             
+            if (colCountUniq > 1) {
+                auto& cb=cbegin[0], cb1=cbegin[1];
+                //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                    if (    !((!(cb.op) && !lp_EQUAL((trFrom->valORs[cb.column] & cb.value), cb.value))
+                            || (!(cb1.op) && !lp_EQUAL((trFrom->valORs[cb1.column] & cb1.value), cb1.value)))
+                    && isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+                //} // end of all the transactions for this relation for this specific query
+            } else {
+                auto& cb = cbegin[0];
+                if (!cb.op) { 
+                    //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                        if (!(!lp_EQUAL((trFrom->valORs[cb.column] & cb.value), cb.value))
+                        && isTransactionConflict(*trFrom, pFirst)) { return true; }
+                    //} // end of all the transactions for this relation for this specific query
+                } else {
+                    //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                        if (isTransactionConflict(*trFrom, pFirst)) { return true; }
+                    //} // end of all the transactions for this relation for this specific query
+                }
+            }
+            
+            
+            //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+            //    if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+            //} // end of all the transactions for this relation for this specific query
+            //if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+        }
+        } // end of relation queries
+    } // end of all relations
+
+    /*
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
@@ -1157,7 +1246,7 @@ static bool isValidationConflict(LPValidation& v) {
         }
         
         uint32_t colCountUniq = lp::query::preprocess(rq); 
-        if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
+        if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
         //cerr << "passed" << endl;
         
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
@@ -1176,16 +1265,7 @@ static bool isValidationConflict(LPValidation& v) {
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
                  
-        /* 
-        if (colCountUniq > 2) {
-            auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
-            for(; transFrom<transTo; ++transFrom) {  
-                if (    !((!(cb.op) & !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
-                        || (!(cb1.op) & !lp_EQUAL((transFrom->valORs[cb1.column] & cb1.value), cb1.value))
-                        || (!(cb2.op) & !lp_EQUAL((transFrom->valORs[cb2.column] & cb2.value), cb2.value)))
-                && isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
-            } // end of all the transactions for this relation for this specific query
-        } else*/ if (colCountUniq > 1) {
+        if (colCountUniq > 1) {
             auto& cb=cbegin[0], cb1=cbegin[1];
             for(; transFrom<transTo; ++transFrom) {  
                 if (    !((!(cb.op) && !lp_EQUAL((transFrom->valORs[cb.column] & cb.value), cb.value))
@@ -1207,12 +1287,11 @@ static bool isValidationConflict(LPValidation& v) {
         }
         
         //cerr << ":: val " << v.validationId << endl;
-        /*
-        for(; transFrom<transTo; ++transFrom) {  
-            if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
-        } // end of all the transactions for this relation for this specific query
-        */
+        //for(; transFrom<transTo; ++transFrom) {  
+        //    if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
+        //} // end of all the transactions for this relation for this specific query
     }// end for all queries
+    */
     return false;
 }
 
