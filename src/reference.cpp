@@ -957,7 +957,8 @@ bool isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo,
         auto& c = *cbegin;    
         auto& cTransactions = relColumns[c.column].transactions[pos];
         auto& transValues = cTransactions.values;
-        decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+        //decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+        decltype(transValues.data()) tBegin = transValues.data(), tEnd=transValues.data()+transValues.size();
         size_t tupFromIdx{0}, tupToIdx{transValues.size()};
         switch (c.op) {
             case Op::Equal: 
@@ -1029,7 +1030,7 @@ LBL_CHECK_END:
 static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst, PredIter cbegin, PredIter cend, ColumnStruct *relColumns, unsigned int pos) {
     auto& transValues = transaction.values;
     auto& transTuples = transaction.tuples;
-    decltype(transValues.begin()) tBegin = transValues.begin(), tEnd=transValues.end();
+    decltype(transValues.data()) tBegin = transValues.data(), tEnd=transValues.data()+transValues.size();
     TupleType *tupFrom{const_cast<Metadata_t*>(transTuples.data())}, 
               *tupTo{const_cast<Metadata_t*>(transTuples.data()+transTuples.size())};
     // find the valid tuples using range binary searches based on the first predicate
