@@ -150,6 +150,7 @@ namespace lp {
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
             return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
+        /*
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;
             std::sort(q->columns, q->columns+q->columnCount, ColumnCompCol);
@@ -157,7 +158,7 @@ namespace lp {
             lpq.colCountUniq = std::distance(q->columns, colEnd);
             return lpq.colCountUniq;
         }
-
+        */
         struct Satisfiability {
             uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
             //bool pastOps[6];
