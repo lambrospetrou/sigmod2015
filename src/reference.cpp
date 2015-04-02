@@ -1327,6 +1327,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
     }
 }
 
+
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
