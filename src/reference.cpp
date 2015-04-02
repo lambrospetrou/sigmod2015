@@ -194,7 +194,19 @@ struct QMeta_t{
     uint64_t to;
     Query *rq;
     LPValidation *lpv;
+    uint64_t value;
 };
+struct QMVLess_t {
+    ALWAYS_INLINE bool operator() (const QMeta_t& left, const QMeta_t& right) {
+        return left.value < right.value;
+    }
+    ALWAYS_INLINE bool operator() (const QMeta_t& o, uint64_t target) {
+        return o.value < target;
+    }
+    ALWAYS_INLINE bool operator() (uint64_t target, const QMeta_t& o) {
+        return target < o.value;
+    }
+} QMVLess;
 struct CQ_t {
     vector<QMeta_t> queries;
 };
@@ -861,20 +873,42 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 continue; 
             }
             rq->columnCount = colCountUniq;
-            /*
+            
             //cerr << (Query::Column)rq->columns[0] << endl;
-            auto& pFirst = (Query::Column)rq->columns[0];
+            auto pFirst = (Query::Column)rq->columns[0];
             if (pFirst.column == 0 && pFirst.op == Op::Equal) {
-                    
+/*
+                struct QMeta_t{
+                    uint64_t from;
+                    uint64_t to;
+                    Query *rq;
+                    LPValidation *lpv;
+                    uint64_t value;
+                };
+*/
+                //cerr << " -- from: " << vq.from << endl;
+                //cerr << " -- to: " << vq.to << endl;
+                //cerr << " -- val: " << vq.validationId << endl;
+                gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
             } else {
                 v.queries.push_back(rq);
             }
-            */
-            v.queries.push_back(rq);
+            
+            //v.queries.push_back(rq);
         }
         
-    }
+    } // end for all validations
 
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        // only for column 0 for now
+        auto& rq = gRelQ[ri].columns[0].queries;
+        sort(rq.begin(), rq.end(), 
+                [](const QMeta_t& l, const QMeta_t& r) {
+                    if (l.value < r.value) return true;
+                    else if (r.value < l.value) return false;
+                    else return l.to < r.to;
+                });
+    }
 
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
@@ -918,6 +952,11 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     }
     gPendingValidations.clear();
     gPVunique = 0;
+
+    // clear query index
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        gRelQ[ri].columns[0].queries.resize(0);
+    }
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += LPTimer.getChrono(start);
 #endif
@@ -1245,12 +1284,53 @@ static bool isValidationConflict(LPValidation& v) {
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        auto& rq = gRelQ[ri].columns[0].queries;
+        if (rq.empty()) continue;
+        QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
+        auto& trans = gRelations[ri].transLogTuples;
+        for (auto& trp : trans) {
+            for (auto tpl : trp.second) {
+                auto res = std::equal_range(qb, qe, tpl[0], QMVLess);
+                // check if any query asked for this tuple
+                if (res.first == res.second) continue;
+                //cerr << "diff : " << (res.second - res.first) << endl;
+                // the queries as sorted by trans.to so we start from the end until a trans less
+                for (size_t i=0, qsz=res.second-res.first; i<qsz; ++i) {
+                    auto& cmeta = *--res.second;
+                    //if (cmeta.to < trp.first || cmeta.from > trp.first) continue; // no more queries for this tuple
+                    if (cmeta.to < trp.first) break; // no more queries for this tuple
+                    else if (cmeta.from > trp.first) continue;
+/*
+                struct QMeta_t{
+                    uint64_t from;
+                    uint64_t to;
+                    Query *rq;
+                    LPValidation *lpv;
+                    uint64_t value;
+                };
+*/
+                    //cerr << " -- from: " << cmeta.from << endl;
+                    //cerr << " -- to: " << cmeta.to << endl;
+                    //cerr << " -- val: " << cmeta.lpv->validationId << endl;
+                    uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
+                    if (!gPendingResults[resPos] && isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                tpl)) {
+                        gPendingResults[resPos] = true;
+                    }
+                } // end of this tuple
+            } // end of this transaction
+        } // end of all transactions for this relation
+    }
+
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
+        if (atoRes) continue;
         //if(isValidationConflict(v)) { atoRes = true; }
         atoRes = isValidationConflict(v);
         delete v.rawMsg;
