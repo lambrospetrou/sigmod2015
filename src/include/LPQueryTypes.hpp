@@ -160,18 +160,14 @@ namespace lp {
         }
         */
         struct Satisfiability {
-            uint64_t eq=UINT64_MAX; //, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
-            //bool pastOps[6];
+            uint64_t eq=UINT64_MAX, lt = UINT64_MAX, leq = UINT64_MAX, gt = 0, geq = 0;
             uint8_t EQExists;
             
-            Satisfiability():eq(UINT64_MAX) {//,lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0), pastOps(0) {
-                //memset(pastOps, 0, 6);
+            Satisfiability():eq(UINT64_MAX), lt(UINT64_MAX), leq(UINT64_MAX), gt(0), geq(0) {
                 EQExists = 0;
             }
             inline void reset() {
-                eq=UINT64_MAX; //lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
-                //memset(pastOps, 0, 6);
-                //pastOps = (uint8_t)0;
+                eq=UINT64_MAX; lt = UINT64_MAX; leq = UINT64_MAX; gt = 0; geq = 0;
                 EQExists = (uint8_t)0;
             }
         };
@@ -180,83 +176,66 @@ namespace lp {
             switch (p.op) {
                 case Op::Equal:
                     // already found an equality check
-                    //if ((sat.pastOps&(uint8_t)1) && (sat.eq != p.value)) return true;
                     if ((sat.EQExists) && (sat.eq != p.value)) return true;
-                    //sat.pastOps[0] = true; 
-                    //sat.pastOps |= (uint8_t)1;
                     sat.EQExists = 1;
                     sat.eq = p.value;
                     break;
                 case Op::NotEqual:
                     // both equality and inequality with same value
-                    //if ((sat.pastOps&(uint8_t)1) && (sat.eq == p.value)) return true;
                     if (sat.EQExists && (sat.eq == p.value)) return true;
-                    //sat.pastOps[Op::NotEqual] = true; // TODO - check what to do
                     break;
                 case Op::Less:
-                    //if ((sat.pastOps&(uint8_t)1)) {
                     if (sat.EQExists) {
                         if (sat.eq >= p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
-                    }/* else {
-                        //sat.pastOps |= (uint8_t)2;
-                        //sat.pastOps[Op::Less] = true;
+                    } else {
                         if (p.value < sat.lt) { sat.lt = p.value; sat.leq = p.value - 1; }
-                    }*/
+                    }
                     break;
                 case Op::LessOrEqual:
-                    //if ((sat.pastOps&(uint8_t)1)) {
                     if (sat.EQExists) {
                         if (sat.eq > p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
-                    } /*else {
-                        //sat.pastOps |= (uint8_t)4;
-                        //sat.pastOps[Op::LessOrEqual] = true;
+                    } else {
                         if (p.value < sat.leq) { sat.leq = p.value; sat.lt = p.value + 1; }
-                    }*/
+                    }
                     break;
                 case Op::Greater:
-                    //if ((sat.pastOps&(uint8_t)1)) {
                     if (sat.EQExists) {
                         if (sat.eq <= p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
-                    }/* else {
-                        //sat.pastOps |= (uint8_t)8;
-                        //sat.pastOps[Op::Greater] = true;
+                    } else {
                         if (p.value > sat.gt) { sat.gt = p.value; sat.geq = p.value + 1; }
-                    }*/
+                    }
                     break;
                 case Op::GreaterOrEqual:
-                    //if ((sat.pastOps&(uint8_t)1)) {
                     if (sat.EQExists) {
                         if (sat.eq < p.value) return true;
                         p.op = Op::Equal; p.value = sat.eq;
-                    }/* else {
-                        //sat.pastOps |= (uint8_t)16;
-                        //sat.pastOps[Op::GreaterOrEqual] = true;
+                    } else {
                         if (p.value > sat.geq) { sat.geq = p.value; sat.gt = p.value - 1; }
-                    }*/
+                    }
                     break;
             }
 
             // check for equality and constrasting ranges OR  check non-overlapping ranges
-            //if ( (sat.lt - sat.gt <= 0) || (sat.pastOps[0] & ((sat.eq < sat.gt) | (sat.eq > sat.lt))) )
-                //return true;
-            return false;
-            //return ( (sat.lt <= sat.gt) || ((sat.pastOps&(uint8_t)1) && ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
+            //return false;
+            return ( (sat.lt <= sat.gt) || (sat.EQExists && ((sat.eq < sat.gt) | (sat.eq > sat.lt))) );
         }
 
         bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
             if (colBegin == colEnd) return false;
+            //if (colBegin->op != Op::Equal) return false;
             Satisfiability sat;
+            //constexpr static size_t relCols = 200;
+            //static Satisfiability sat[relCols];
+            //for (size_t i=0; i<relCols; ++i) sat[i].reset();
+            
             uint32_t lastCol = UINT32_MAX;
-            for (; colBegin != colEnd;) {
+            for (; colBegin != colEnd; ++colBegin) {
                 if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
-                if (isQueryColumnUnsolvable(*colBegin++, sat)) return true;
-            //const uint32_t colsz = (colEnd-colBegin);
-            //for (uint32_t c=0; c<colsz; ++c) {
-                //if ((colBegin[c].column != lastCol)) { sat.reset(); lastCol=colBegin[c].column; }
-                //if (isQueryColumnUnsolvable(colBegin[c], sat)) return true;
+                if (isQueryColumnUnsolvable(*colBegin, sat)) return true;
+                //if (isQueryColumnUnsolvable(*colBegin, sat[colBegin->column])) return true;
             }
             return false;
         }
@@ -269,31 +248,21 @@ namespace lp {
                 // the query is not-satisfiable so it should be skipped-pruned
                 return false;
             }
-
+            
             //std::cerr << "\nbefore uniq: " << colCountUniq << std::endl;
-            //std::sort(q->columns, q->columns+colCountUniq, ColumnCompCol);
             colCountUniq = std::distance(q->columns, std::unique(q->columns, q->columns+colCountUniq, ColumnCompColEq));
             colEnd = qc + colCountUniq;
             //std::cerr << "after uniq: " << colCountUniq << std::endl;
             
-            //std::partial_sort(colBegin, colBegin+std::min(q->columnCount, (uint32_t)2), colEnd, ColumnCompQuality);
-            //std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)3), colEnd, ColumnCompQuality);
+            //std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)2), colEnd, ColumnCompQuality);
             std::sort(colBegin, colEnd, ColumnCompQuality);
             return true;
         }
+        /*
         bool inline satisfiable(LPQuery& q) { 
-            /*
-            Column * qc = const_cast<Column*>(q.rawQuery->columns);
-            auto colBegin = qc, colEnd = qc + q.colCountUniq;
-            if (isQueryUnsolvable(colBegin, colEnd)) {
-                // the query is not-satisfiable so it should be skipped-pruned
-                return false;
-            }
-            std::partial_sort(colBegin, colBegin+std::min(q.colCountUniq, (uint32_t)4), colEnd, ColumnCompQuality);
-            return true;
-            */
             return satisfiable(q.rawQuery, q.colCountUniq);
         }
+        */
 /*
         bool parse(const Query *q, uint32_t relCols, LPQuery *nQ, uint32_t tid = 0) {
             (void)relCols; (void)tid;
