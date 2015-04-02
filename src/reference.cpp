@@ -250,7 +250,7 @@ struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
-    
+
     char padding[8]; //for false sharing
 } ALIGNED_DATA;
 struct TransLogComp_t {
@@ -876,7 +876,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
-            if (pFirst.column == 0 && pFirst.op == Op::Equal) {
+            if (pFirst.op == Op::Equal) {
                 //cerr << "0" << endl;
 /*
                 struct QMeta_t{
@@ -901,14 +901,16 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
     } // end for all validations
 
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        // only for column 0 for now
-        auto& rq = gRelQ[ri].columns[0].queries;
-        sort(rq.begin(), rq.end(), 
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            auto& rq = gRelQ[ri].columns[ci].queries;
+            if (rq.empty()) continue;
+            sort(rq.begin(), rq.end(), 
                 [](const QMeta_t& l, const QMeta_t& r) {
                     if (l.value < r.value) return true;
                     else if (r.value < l.value) return false;
                     else return l.to < r.to;
                 });
+        }
     }
 
 #ifdef LPDEBUG
@@ -956,7 +958,9 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 
     // clear query index
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        gRelQ[ri].columns[0].queries.resize(0);
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            gRelQ[ri].columns[ci].queries.resize(0);
+        }
     }
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += LPTimer.getChrono(start);
@@ -1286,43 +1290,52 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "----- NEW VAL SESSION -----" << endl;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        auto& rq = gRelQ[ri].columns[0].queries;
-        if (rq.empty()) continue;
-        //cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
-        QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
-        //auto& trans = gRelations[ri].transLogTuples;
-        auto& trans = gRelColumns[ri].columns[0].transactions;
-        for (auto& trp : trans) {
-            //for (auto tpl : trp.second) {
-            for (auto ctpl=trp.tuples.data(), ctple=trp.tuples.data()+trp.tuples.size(); ctpl<ctple; ++ctpl) {
-                auto tpl = ctpl->tuple;
-                auto res = std::equal_range(qb, qe, tpl[0], QMVLess);
-                // check if any query asked for this tuple
-                if (res.first == res.second) { 
-                    // skip the same values
-                    while (ctpl<ctple && ctpl->tuple[0] == tpl[0]) ++ctpl;
-                    --ctpl;
-                    continue; 
-                }
-                //cerr << "diff : " << (res.second - res.first) << " check: " << (res.first-qb) << "-" << (res.second-qb) << "/" << (qe-qb) << endl;
-                // the queries as sorted by trans.to so we start from the end until a trans less
-                for (size_t i=0, qsz=res.second-res.first; i<qsz; ++i) {
-                    auto& cmeta = *--res.second;
-                    //if (cmeta.to < trp.first) break; // no more queries for this tuple
-                    //else if (cmeta.from > trp.first) continue;
-                    if (cmeta.from > trp.trans_id) continue;
-                    else if (cmeta.to < trp.trans_id) break; // no more queries for this tuple
-                    //cerr << " -- from: " << cmeta.from << endl;
-                    //cerr << " -- to: " << cmeta.to << endl;
-                    //cerr << " -- val: " << cmeta.lpv->validationId << endl;
-                    uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
-                    if (!gPendingResults[resPos] && isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                tpl)) {
-                        gPendingResults[resPos] = true;
+        for (uint32_t ci=0, csz=gSchema[ri]; ci<csz; ++ci) {
+            auto& rq = gRelQ[ri].columns[ci].queries;
+            if (rq.empty()) continue;
+            //cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
+            QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
+            //auto& trans = gRelations[ri].transLogTuples;
+            auto& trans = gRelColumns[ri].columns[ci].transactions;
+            for (auto& trp : trans) {
+                //for (auto tpl : trp.second) {
+                for (auto ctpl=trp.tuples.data(), ctple=trp.tuples.data()+trp.tuples.size(); ctpl<ctple; ++ctpl) {
+                    auto tpl = ctpl->tuple;
+                    auto res = std::equal_range(qb, qe, tpl[ci], QMVLess);
+                    // check if any query asked for this tuple
+                    if (res.first == res.second) { 
+                        // skip the same values
+                        while (ctpl<ctple && ctpl->tuple[ci] == tpl[ci]) ++ctpl;
+                        --ctpl;
+                        continue; 
                     }
-                } // end of this tuple
-            } // end of this transaction
+                    while (true) {
+                        tpl = ctpl->tuple;
+                        //cerr << "diff : " << (res.second - res.first) << " check: " << (res.first-qb) << "-" << (res.second-qb) << "/" << (qe-qb) << endl;
+                        // the queries as sorted by trans.to so we start from the end until a trans less
+                        auto cq = res.second;
+                        for (size_t i=0, qsz=res.second-res.first; i<qsz; ++i) {
+                            auto& cmeta = *--cq;
+                            uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
+                            if (gPendingResults[resPos]) { continue; }
+                            //if (cmeta.to < trp.first) break; // no more queries for this tuple
+                            //else if (cmeta.from > trp.first) continue;
+                            if (cmeta.from > trp.trans_id) continue;
+                            else if (cmeta.to < trp.trans_id) break; // no more queries for this tuple
+                            //cerr << " -- from: " << cmeta.from << endl;
+                            //cerr << " -- to: " << cmeta.to << endl;
+                            //cerr << " -- val: " << cmeta.lpv->validationId << endl;
+                            if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                        ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                        tpl)) {
+                                gPendingResults[resPos] = true;
+                            }
+                        } // end of this tuple
+                        if (ctpl+1==ctple || (ctpl+1)->tuple[ci] != tpl[ci]) break;
+                        else ++ctpl;
+                    }
+                } // end of this transaction
+            } // end of columns for this relation
         } // end of all transactions for this relation
     }
 }
