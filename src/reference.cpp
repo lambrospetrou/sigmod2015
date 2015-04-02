@@ -1065,7 +1065,7 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     
     if (tupTo - tupFrom < 64) return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
     else return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
-    //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend, relColumns, pos);
+    //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
 }
 
 static bool isValidationConflict(LPValidation& v) {
