@@ -1126,7 +1126,7 @@ static bool isValidationConflict(LPValidation& v) {
     */
     const char* qreader = vq.queries;
     uint32_t columnCount;
-    
+/*    
     struct RelInfo {
         vector<Query*> queries;
         TransactionStruct *transFrom;
@@ -1171,25 +1171,14 @@ static bool isValidationConflict(LPValidation& v) {
         //bool notHasTuples = (transFrom == transTo);
         auto transFrom = rels[ri].transFrom;
         auto transTo = rels[ri].transTo;
-
+if (transTo - transFrom < 32) {
         for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
             //    if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
             //} // end of all the transactions for this relation for this specific query
 
         for (auto& q : rels[ri].queries) {
             auto& rq = *q;
-            /*
-            if (unlikely(rq.columnCount == 0)) { 
-                // no transactions exist for this relation range
-                if (notHasTuples) { continue; } 
-                // transactions exist for this query so it is a conflict
-                else { return true; } 
-            }
-            */
-
             uint32_t colCountUniq = rq.columnCount; 
-            //uint32_t colCountUniq = lp::query::preprocess(rq); 
-            //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
 
             auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
                 cend = cbegin + colCountUniq;
@@ -1217,16 +1206,56 @@ static bool isValidationConflict(LPValidation& v) {
                 }
             }
             
-            
             //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
             //    if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
             //} // end of all the transactions for this relation for this specific query
             //if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
         }
         } // end of relation queries
-    } // end of all relations
 
-    /*
+} else {
+
+        for (auto& q : rels[ri].queries) {
+            auto& rq = *q;
+            uint32_t colCountUniq = rq.columnCount; 
+
+            auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
+                cend = cbegin + colCountUniq;
+            auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
+            auto cbSecond = cbegin+1;
+             
+            if (colCountUniq > 1) {
+                auto& cb=cbegin[0], cb1=cbegin[1];
+                for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                    if (    !((!(cb.op) && !lp_EQUAL((trFrom->valORs[cb.column] & cb.value), cb.value))
+                            || (!(cb1.op) && !lp_EQUAL((trFrom->valORs[cb1.column] & cb1.value), cb1.value)))
+                    && isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+                } // end of all the transactions for this relation for this specific query
+            } else {
+                auto& cb = cbegin[0];
+                if (!cb.op) { 
+                    for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                        if (!(!lp_EQUAL((trFrom->valORs[cb.column] & cb.value), cb.value))
+                        && isTransactionConflict(*trFrom, pFirst)) { return true; }
+                    } // end of all the transactions for this relation for this specific query
+                } else {
+                    for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+                        if (isTransactionConflict(*trFrom, pFirst)) { return true; }
+                    } // end of all the transactions for this relation for this specific query
+                }
+            }
+            
+            //for(auto trFrom=transFrom; trFrom<transTo; ++trFrom) {  
+            //    if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+            //} // end of all the transactions for this relation for this specific query
+            //if (isTransactionConflict(*trFrom, pFirst, cbSecond, cend)) { return true; }
+        } // end of relation queries
+}
+
+
+    } // end of all relations
+*/
+    
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
@@ -1291,7 +1320,7 @@ static bool isValidationConflict(LPValidation& v) {
         //    if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend)) { return true; }
         //} // end of all the transactions for this relation for this specific query
     }// end for all queries
-    */
+    
     return false;
 }
 
