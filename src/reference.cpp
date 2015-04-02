@@ -185,6 +185,25 @@ struct RelationColumns {
 static std::unique_ptr<RelationColumns[]> gRelColumns;
 static vector<uint32_t> gRequiredColumns;
 
+//////////////////////////////////////////////////////////
+
+// QUERIES INDEX
+
+struct QMeta_t{
+    uint64_t from;
+    uint64_t to;
+    Query *rq;
+    LPValidation *lpv;
+};
+struct CQ_t {
+    vector<QMeta_t> queries;
+};
+struct RelQ_t {
+    std::unique_ptr<CQ_t[]> columns;
+};
+static std::unique_ptr<RelQ_t[]> gRelQ;
+
+//////////////////////////////////////////////////////////
 struct RelTransLog {
     uint64_t trans_id;
     uint64_t last_del_id;
@@ -309,11 +328,13 @@ static void processDefineSchema(const DefineSchema& d) {
 
     gRelations.reset(new RelationStruct[d.relationCount]);
     gRelColumns.reset(new RelationColumns[d.relationCount]);
+    gRelQ.reset(new RelQ_t[d.relationCount]);
     //cerr << endl << "relations: " << NUM_RELATIONS << endl;
     const uint32_t rels = d.relationCount;
     for(uint32_t ri=0; ri<rels; ++ri) {
         //cerr << " " << gSchema[ci];
         gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
+        gRelQ[ri].columns.reset(new CQ_t[gSchema[ri]]);
         const uint32_t colsz = gSchema[ri];
         for (uint32_t ci=0; ci<colsz; ++ci)
             gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
@@ -390,27 +411,27 @@ static void processFlush(const Flush& f, bool isTestdriver) {
 
 
 static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
-        auto& cRelCol = gRelColumns[ri];
-        auto& transLogTuples = gRelations[ri].transLogTuples;
-        
-        if (transLogTuples.empty() || transLogTuples[0].first > trans_id) return;
+    auto& cRelCol = gRelColumns[ri];
+    auto& transLogTuples = gRelations[ri].transLogTuples;
+    
+    if (transLogTuples.empty() || transLogTuples[0].first > trans_id) return;
 
-        // delete the transLogTuples
-        transLogTuples.erase(transLogTuples.begin(), 
-                upper_bound(transLogTuples.begin(), transLogTuples.end(), trans_id,
-                    [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
-                );
-        
-        // clean the index columns
-        auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
-                    trans_id,
-                    [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
-        size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
-        for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
-            auto& cCol = cRelCol.columns[ci];
-            cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
-            cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
-        }
+    // delete the transLogTuples
+    transLogTuples.erase(transLogTuples.begin(), 
+            upper_bound(transLogTuples.begin(), transLogTuples.end(), trans_id,
+                [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
+            );
+    
+    // clean the index columns
+    auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
+                trans_id,
+                [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
+    size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
+    for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
+        auto& cCol = cRelCol.columns[ci];
+        cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
+        cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
+    }
         
 /*
         // clean the transactions log
@@ -810,18 +831,29 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
-
 }
 
 
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
+static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
+#ifdef LPDEBUG
+    auto startQuery = LPTimer.getChrono();
+#endif
+    
+#ifdef LPDEBUG
+    LPTimer.queryIndex += LPTimer.getChrono(startQuery);
+#endif
+}
+
 static void checkPendingValidations(ISingleTaskPool *pool) {
     if (unlikely(gPendingValidations.empty())) return;
 
     // check if there is any pending index creation to be made before checking validation
     checkPendingTransactions(pool);
+
+    createQueryIndex(pool);
 
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
