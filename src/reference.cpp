@@ -848,6 +848,8 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
+#define MYCOLUMN 1
+
 static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
@@ -876,7 +878,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
-            if (pFirst.op == Op::Equal) {
+            if (pFirst.column==MYCOLUMN && pFirst.op == Op::Equal) {
                 //cerr << "0" << endl;
 /*
                 struct QMeta_t{
