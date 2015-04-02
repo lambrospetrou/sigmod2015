@@ -849,19 +849,28 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
         const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
 
         //cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
-        const char* qreader = vq.queries;
-        uint32_t columnCount;
+        const char* qreader = vq.queries; uint32_t columnCount;
         for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
             Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
             columnCount = rq->columnCount;
+            
+            if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
             uint32_t colCountUniq = lp::query::preprocess(*rq); 
             if (!lp::query::satisfiable(rq, colCountUniq)) { 
                 continue; 
             }
             rq->columnCount = colCountUniq;
+            /*
+            //cerr << (Query::Column)rq->columns[0] << endl;
+            auto& pFirst = (Query::Column)rq->columns[0];
+            if (pFirst.column == 0 && pFirst.op == Op::Equal) {
+                    
+            } else {
+                v.queries.push_back(rq);
+            }
+            */
             v.queries.push_back(rq);
-
         }
         
     }
@@ -1127,13 +1136,13 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+    //const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
     /*
     cerr << "\n========= validation " << v.validationId << " =========" << endl; 
     cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
     */
-    const char* qreader = vq.queries;
-    uint32_t columnCount;
+    //const char* qreader = vq.queries;
+    //uint32_t columnCount;
     /*
     vector<uint32_t> relcnts(NUM_RELATIONS);
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
