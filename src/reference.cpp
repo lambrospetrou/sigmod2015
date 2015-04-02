@@ -1289,6 +1289,7 @@ static bool isValidationConflict(LPValidation& v) {
 void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "----- NEW VAL SESSION -----" << endl;
+    uint64_t dups = 0;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         for (uint32_t ci=0, csz=gSchema[ri]; ci<csz; ++ci) {
             auto& rq = gRelQ[ri].columns[ci].queries;
@@ -1298,15 +1299,24 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
             //auto& trans = gRelations[ri].transLogTuples;
             auto& trans = gRelColumns[ri].columns[ci].transactions;
             for (auto& trp : trans) {
-                //for (auto tpl : trp.second) {
-                for (auto ctpl=trp.tuples.data(), ctple=trp.tuples.data()+trp.tuples.size(); ctpl<ctple; ++ctpl) {
+                auto tuples = trp.tuples.data();
+                //auto vb = trp.values.data();
+                //auto ve = trp.values.data()+trp.values.size();
+                for (auto ctpl=tuples, ctple=tuples+trp.tuples.size(); ctpl<ctple; ++ctpl) {
                     auto tpl = ctpl->tuple;
                     auto res = std::equal_range(qb, qe, tpl[ci], QMVLess);
                     // check if any query asked for this tuple
                     if (res.first == res.second) { 
                         // skip the same values
-                        while (ctpl<ctple && ctpl->tuple[ci] == tpl[ci]) ++ctpl;
-                        --ctpl;
+                        if (ctpl+1 < ctple && (ctpl+1)->tuple[ci] == tpl[ci]) {
+                            //cerr << (ctpl-tuples) << " : ";
+                            ++ctpl; //dups++;
+                            while (ctpl+1<ctple && (ctpl+1)->tuple[ci] == tpl[ci]) { ++ctpl; /*dups++;*/ }
+                            
+                            //ctpl = tuples + (upper_bound(vb+(ctpl-tuples), ve, tpl[ci])-vb);
+                            //--ctpl;
+                            //cerr << (ctpl-tuples) << endl;
+                        }
                         continue; 
                     }
                     while (true) {
@@ -1316,8 +1326,6 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
                         auto cq = res.second;
                         for (size_t i=0, qsz=res.second-res.first; i<qsz; ++i) {
                             auto& cmeta = *--cq;
-                            uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
-                            if (gPendingResults[resPos]) { continue; }
                             //if (cmeta.to < trp.first) break; // no more queries for this tuple
                             //else if (cmeta.from > trp.first) continue;
                             if (cmeta.from > trp.trans_id) continue;
@@ -1325,6 +1333,8 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
                             //cerr << " -- from: " << cmeta.from << endl;
                             //cerr << " -- to: " << cmeta.to << endl;
                             //cerr << " -- val: " << cmeta.lpv->validationId << endl;
+                            uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
+                            if (gPendingResults[resPos]) { continue; }
                             if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
                                         ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
                                         tpl)) {
@@ -1338,6 +1348,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
             } // end of columns for this relation
         } // end of all transactions for this relation
     }
+    //cerr << dups << endl; 
 }
 
 
