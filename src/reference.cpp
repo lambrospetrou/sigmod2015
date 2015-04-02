@@ -802,9 +802,9 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #endif
     //cerr << "::: session start ::::" << endl;
     gNextIndex = 0;
-    gNextReqCol = 0;
-    pool->startSingleAll(processPendingIndexTask);
-    pool->waitSingleAll();
+    processPendingIndexTask(1,0,nullptr); 
+    //pool->startSingleAll(processPendingIndexTask);
+    //pool->waitSingleAll();
 
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
 #ifdef LPDEBUG
@@ -814,10 +814,10 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
 #ifdef LPDEBUG
     auto startUpdIndex = LPTimer.getChrono();
 #endif
-    //gNextReqCol = 0;
-    //processUpdateIndexTask(0, 0, nullptr);
-    pool->startSingleAll(processUpdateIndexTask);
-    pool->waitSingleAll();
+    gNextReqCol = 0;
+    processUpdateIndexTask(1, 0, nullptr);
+    //pool->startSingleAll(processUpdateIndexTask);
+    //pool->waitSingleAll();
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
@@ -853,8 +853,9 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
       //      [](const LPValidation& left, const LPValidation& right){ return left.queryCount > right.queryCount; });
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
-    pool->startSingleAll(processPendingValidationsTask);
-    pool->waitSingleAll();
+    processPendingValidationsTask(1,0,nullptr);
+    //pool->startSingleAll(processPendingValidationsTask);
+    //pool->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
