@@ -143,6 +143,35 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
+template<typename T>
+struct LPPair {
+    T *a;
+    T *b;
+
+    LPPair() : a(nullptr), b(nullptr) {}
+    LPPair(T *v) : a(v), b(nullptr) {}
+    LPPair(T *v, T *v2) : a(v), b(v2) {}
+
+    void put(T *v) {
+        if (a == nullptr) a = v;
+        else b = v;
+    }
+};
+template<>
+struct LPPair<uint64_t> {
+    uint64_t a;
+    uint64_t b;
+
+    LPPair() : a(UINT64_MAX), b(UINT64_MAX) {}
+    LPPair(uint64_t v) : a(v), b(UINT64_MAX) {}
+    LPPair(uint64_t v, uint64_t v2) : a(v), b(v2) {}
+
+    void put(uint64_t v) {
+        if (a == UINT64_MAX) a = v;
+        else b = v;
+    }
+};
+
 // transactions in each relation column - all tuples of same transaction in one vector
 struct Metadata_t {
     uint32_t tpl_id;
@@ -150,10 +179,8 @@ struct Metadata_t {
 };
 struct ColumnTransaction_t {
     vector_a<uint64_t> values;
-    //vector_a<tuple_t> tuples;
     vector_a<Metadata_t> tuples;
     uint64_t trans_id;
-    //ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<tuple_t>()), trans_id(tid) {}
     ColumnTransaction_t(uint64_t tid) : values(vector_a<uint64_t>()), tuples(vector_a<Metadata_t>()), trans_id(tid) {}
 } ALIGNED_DATA;
 struct ColumnStruct {
@@ -162,6 +189,8 @@ struct ColumnStruct {
     vector<uint64_t> transactionsORs;
     uint64_t transTo;
     
+    btree::btree_map<uint64_t, LPPair<uint64_t>> primaryIndex;
+
     char padding[8]; //for false sharing
     
     ColumnStruct() : transTo(0) {}
@@ -783,6 +812,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& colTransactions = relColumn.transactions;
     auto& colTransactionsORs = relColumn.transactionsORs;
 
+
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -848,8 +878,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
-#define MYCOLUMN 1
-
 static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
@@ -878,7 +906,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
-            if (pFirst.column==MYCOLUMN && pFirst.op == Op::Equal) {
+            if (pFirst.column == 0 && pFirst.op == Op::Equal) {
                 //cerr << "0" << endl;
 /*
                 struct QMeta_t{
@@ -893,6 +921,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 //cerr << " -- to: " << vq.to << endl;
                 //cerr << " -- val: " << vq.validationId << endl;
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
+                v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -1361,7 +1390,7 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
 #ifdef LPDEBUG
     auto qproc = LPTimer.getChrono();
 #endif
-    processEqualityQueries(nThreads, tid, args);
+    //processEqualityQueries(nThreads, tid, args);
 #ifdef LPDEBUG
     LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
