@@ -500,11 +500,6 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
-    // leave two available workes - master - Reader
-    //MultiTaskPool multiPool(std::max(numOfThreads-4, (uint64_t)2));
-    //MultiTaskPool multiPool(1);
-    //multiPool.initThreads();
-    //multiPool.startAll();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
@@ -572,7 +567,6 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
 #endif              
                         workerThreads.destroy();
-                        //multiPool.destroy();
                         delete msgReader;
                         return 0;
                     }
@@ -769,15 +763,10 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         colTransactionsORs.push_back(0);
         uint32_t tpl_id = 0;
         for (auto tpl : trp->second) {
-            //values.push_back(tpl[col]); //tuples.push_back(tpl);
-            *valPtr++ = (tpl[col]); //tuples.push_back(tpl);
-            *tplPtr++ = {tpl_id++, tpl}; //tuples.push_back(tpl);
+            *valPtr++ = (tpl[col]);
+            *tplPtr++ = {tpl_id++, tpl}; 
             colTransactionsORs.back() |= tpl[col];
         }
-
-        //tuples.resize(trpsz);
-        //memcpy(tuples.data(), trp->second.data(), trp->second.size()*sizeof(tuple_t));
-
         std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
                 SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
         //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
@@ -846,13 +835,13 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
         gPendingResults.resize(gPVunique);
     //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
-    gNextPending = 0;
 
     // sort the validations by query count in order to start the heavy ones earlier
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), 
       //      [](const LPValidation& left, const LPValidation& right){ return left.queryCount > right.queryCount; });
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
+    gNextPending = 0;
     processPendingValidationsTask(1,0,nullptr);
     //pool->startSingleAll(processPendingValidationsTask);
     //pool->waitSingleAll();
@@ -1188,24 +1177,12 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
-    //for (uint64_t vi = gNextPending.fetch_add(2); vi < totalPending; vi=gNextPending.fetch_add(2)) {
         auto& v = gPendingValidations[vi];
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         //if(isValidationConflict(v)) { atoRes = true; }
         atoRes = isValidationConflict(v);
         delete v.rawMsg;
-        /* 
-        if (vi+1 < totalPending) {
-            ++vi;
-            auto& v = gPendingValidations[vi];
-            uint64_t resPos = v.validationId - resIndexOffset;
-            auto& atoRes = gPendingResults[resPos];
-            //if(isValidationConflict(v)) { atoRes = true; }
-            atoRes = isValidationConflict(v);
-            delete v.rawMsg;
-        }
-        */
     } // while true take more validations 
 }
 
