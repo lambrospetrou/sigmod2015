@@ -436,18 +436,18 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-    
+    /*
     gNextFRel = 0; 
     pool->startSingleAll(processForgetThreaded, (void*)&f);
     pool->waitSingleAll();
+    */
     
-    /*
     (void)pool;
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         forgetRel(f.transactionId, i);
     }
-    */
+    
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
