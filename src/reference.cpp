@@ -818,7 +818,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     } // end of while columns to update     
 }
 
-static inline void checkPendingTransactions(ISingleTaskPool *pool) {
+static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
     auto startIndex = LPTimer.getChrono();
 #endif
@@ -844,7 +844,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) {
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
 }
-
 
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
@@ -876,7 +875,9 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
+            //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
             if (pFirst.column == 0 && pFirst.op == Op::Equal) {
+                //cerr << "0" << endl;
 /*
                 struct QMeta_t{
                     uint64_t from;
@@ -1293,25 +1294,31 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
         auto& trans = gRelColumns[ri].columns[0].transactions;
         for (auto& trp : trans) {
             //for (auto tpl : trp.second) {
-            for (auto tpl : trp.tuples) {
-                auto res = std::equal_range(qb, qe, tpl.tuple[0], QMVLess);
+            for (auto ctpl=trp.tuples.data(), ctple=trp.tuples.data()+trp.tuples.size(); ctpl<ctple; ++ctpl) {
+                auto tpl = ctpl->tuple;
+                auto res = std::equal_range(qb, qe, tpl[0], QMVLess);
                 // check if any query asked for this tuple
-                if (res.first == res.second) continue;
+                if (res.first == res.second) { 
+                    // skip the same values
+                    while (ctpl<ctple && ctpl->tuple[0] == tpl[0]) ++ctpl;
+                    --ctpl;
+                    continue; 
+                }
                 //cerr << "diff : " << (res.second - res.first) << " check: " << (res.first-qb) << "-" << (res.second-qb) << "/" << (qe-qb) << endl;
                 // the queries as sorted by trans.to so we start from the end until a trans less
                 for (size_t i=0, qsz=res.second-res.first; i<qsz; ++i) {
                     auto& cmeta = *--res.second;
                     //if (cmeta.to < trp.first) break; // no more queries for this tuple
                     //else if (cmeta.from > trp.first) continue;
-                    if (cmeta.to < trp.trans_id) break; // no more queries for this tuple
-                    else if (cmeta.from > trp.trans_id) continue;
+                    if (cmeta.from > trp.trans_id) continue;
+                    else if (cmeta.to < trp.trans_id) break; // no more queries for this tuple
                     //cerr << " -- from: " << cmeta.from << endl;
                     //cerr << " -- to: " << cmeta.to << endl;
                     //cerr << " -- val: " << cmeta.lpv->validationId << endl;
                     uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
                     if (!gPendingResults[resPos] && isTupleConflict(((Column*)cmeta.rq->columns)+1, 
                                 ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                tpl.tuple)) {
+                                tpl)) {
                         gPendingResults[resPos] = true;
                     }
                 } // end of this tuple
@@ -1323,7 +1330,13 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
+#ifdef LPDEBUG
+    auto qproc = LPTimer.getChrono();
+#endif
     processEqualityQueries(nThreads, tid, args);
+#ifdef LPDEBUG
+    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+#endif
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation

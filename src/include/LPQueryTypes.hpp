@@ -250,6 +250,9 @@ namespace lp {
             
             //std::partial_sort(colBegin, colBegin+std::min(colCountUniq, (uint32_t)2), colEnd, ColumnCompQuality);
             std::sort(colBegin, colEnd, ColumnCompQuality);
+            
+            //for (auto c=colBegin;c<colEnd; ++c) std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
+            //std::cerr << std::endl;
             return true;
         }
         /*
