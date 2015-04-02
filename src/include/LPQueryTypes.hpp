@@ -122,6 +122,7 @@ namespace lp {
 
     struct LPValidation {
         //std::vector<LPQuery> queries;
+        std::vector<Query*> queries;
         ReceivedMessage *rawMsg;
         
         uint64_t validationId;

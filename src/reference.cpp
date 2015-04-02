@@ -852,8 +852,16 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
         const char* qreader = vq.queries;
         uint32_t columnCount;
         for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-            Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-            columnCount = rq.columnCount;
+            Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+            columnCount = rq->columnCount;
+
+            uint32_t colCountUniq = lp::query::preprocess(*rq); 
+            if (!lp::query::satisfiable(rq, colCountUniq)) { 
+                continue; 
+            }
+            rq->columnCount = colCountUniq;
+            v.queries.push_back(rq);
+
         }
         
     }
@@ -1137,9 +1145,11 @@ static bool isValidationConflict(LPValidation& v) {
     for (auto cnt : relcnts) cerr << " " << cnt;
     qreader = vq.queries;
     */
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
+    for (auto q : v.queries) {
+        Query& rq = *q;
+    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+    //    Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+    //    columnCount = rq.columnCount;
         //cerr << " " << i;
        
         if (unlikely(rq.columnCount == 0)) { 
@@ -1155,15 +1165,18 @@ static bool isValidationConflict(LPValidation& v) {
             }; 
         }
         
-#ifdef LPDEBUG
-            auto startInner = LPTimer.getChrono();
-#endif 
-        uint32_t colCountUniq = lp::query::preprocess(rq); 
-        if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
-#ifdef LPDEBUG
-            LPTimer.satCheck += LPTimer.getChrono(startInner);
-#endif 
         
+        uint32_t colCountUniq = rq.columnCount; 
+/*
+#ifdef LPDEBUG
+        auto startInner = LPTimer.getChrono();
+#endif 
+        //uint32_t colCountUniq = lp::query::preprocess(rq); 
+        //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
+#ifdef LPDEBUG
+        LPTimer.satCheck += LPTimer.getChrono(startInner);
+#endif 
+*/      
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
             cend = cbegin + colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
