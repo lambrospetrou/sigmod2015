@@ -1116,9 +1116,14 @@ static bool isValidationConflict(LPValidation& v) {
             }; 
         }
         
+#ifdef LPDEBUG
+            auto startInner = LPTimer.getChrono();
+#endif 
         uint32_t colCountUniq = lp::query::preprocess(rq); 
-        if (!lp::query::satisfiable(&rq, colCountUniq)) { /*cerr << "rej" << endl;*/ continue; } // go to the next query
-        //cerr << "passed" << endl;
+        if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
+#ifdef LPDEBUG
+            LPTimer.satCheck += LPTimer.getChrono(startInner);
+#endif 
         
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
             cend = cbegin + colCountUniq;
@@ -1129,11 +1134,7 @@ static bool isValidationConflict(LPValidation& v) {
         auto transFrom = std::lower_bound(transactions.begin(), transactions.end(), v.from, CTRSLessThan);
         auto transTo = std::upper_bound(transFrom, transactions.end(), v.to, CTRSLessThan);
 
-        //uint32_t transDiff = transTo - transFrom;
         //cerr << (transTo - transFrom) << endl;
-
-        //cerr << rq.relationId << " ";
-
 
         uint32_t pos = std::distance(transactions.begin(), transFrom);
 

@@ -121,7 +121,7 @@ namespace lp {
     struct ReceivedMessage; // forward declaration - declared in the ReaderIO header
 
     struct LPValidation {
-        std::vector<LPQuery> queries;
+        //std::vector<LPQuery> queries;
         ReceivedMessage *rawMsg;
         
         uint64_t validationId;
@@ -129,8 +129,6 @@ namespace lp {
         uint32_t queryCount;
 
         LPValidation() {}
-        LPValidation(uint64_t vid, uint64_t fr, uint64_t t, ReceivedMessage* msg, std::vector<LPQuery> q)
-            : queries(move(q)), rawMsg(msg), validationId(vid), from(fr), to(t) {}
         LPValidation(uint64_t vid, uint64_t fr, uint64_t t, uint32_t qc, ReceivedMessage* msg)
             : rawMsg(msg), validationId(vid), from(fr), to(t), queryCount(qc) {}
 
@@ -145,7 +143,7 @@ namespace lp {
     namespace query {
 
         // return the new number of valid predicates
-        inline uint32_t __attribute__((always_inline)) preprocess(Query& rq) {
+        uint32_t ALWAYS_INLINE preprocess(Query& rq) {
             if (!rq.columnCount) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
             return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
@@ -224,23 +222,18 @@ namespace lp {
         }
 
         bool isQueryUnsolvable(Column *colBegin, Column *colEnd) {
-            if (colBegin == colEnd) return false;
-            //if (colBegin->op != Op::Equal) return false;
+            //if (colBegin == colEnd) return false;
             Satisfiability sat;
-            //constexpr static size_t relCols = 200;
-            //static Satisfiability sat[relCols];
-            //for (size_t i=0; i<relCols; ++i) sat[i].reset();
             
             uint32_t lastCol = UINT32_MAX;
-            for (; colBegin != colEnd; ++colBegin) {
+            for (; colBegin != colEnd;) {
                 if (colBegin->column != lastCol) { sat.reset(); lastCol=colBegin->column; }
-                if (isQueryColumnUnsolvable(*colBegin, sat)) return true;
-                //if (isQueryColumnUnsolvable(*colBegin, sat[colBegin->column])) return true;
+                if (isQueryColumnUnsolvable(*colBegin++, sat)) return true;
             }
             return false;
         }
 
-        bool inline satisfiable(Query* q, uint32_t& colCountUniq) {
+        bool satisfiable(Query* q, uint32_t& colCountUniq) {
             if (colCountUniq == 0) return true;
             Column *qc = const_cast<Column*>(q->columns);
             auto colBegin = qc, colEnd = qc + colCountUniq; //colEnd = qc + q->columnCount;

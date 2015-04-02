@@ -9,6 +9,7 @@
 struct LPTimer_t {
     uint64_t validations;
     uint64_t validationsProcessing;
+    uint64_t satCheck;
     uint64_t transactions;
     uint64_t transactionsIndex;
     uint64_t updateIndex;
@@ -16,7 +17,7 @@ struct LPTimer_t {
     uint64_t forgets;
     uint64_t reading;
     uint64_t readingTotal;
-    LPTimer_t() : validations(0), validationsProcessing(0), transactions(0), transactionsIndex(0), updateIndex(0), flushes(0), forgets(0), reading(0), readingTotal(0) {}
+    LPTimer_t() : validations(0), validationsProcessing(0), satCheck(0), transactions(0), transactionsIndex(0), updateIndex(0), flushes(0), forgets(0), reading(0), readingTotal(0) {}
     uint64_t getChronoMicro() {      
         // return nanoseconds
         struct timeval start;
@@ -36,7 +37,7 @@ struct LPTimer_t {
 }; 
 
 std::ostream& operator<< (std::ostream& os, const LPTimer_t& t) {
-    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " trans: " << t.transactions << " trans-index: " << t.transactionsIndex << " upd-index: " << t.updateIndex << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "/" << t.readingTotal<< "]" << std::endl;
+    os << "LPTimer [val: " << t.validations << " val-proc: " << t.validationsProcessing << " sat check: " << t.satCheck << " trans: " << t.transactions << " trans-index: " << t.transactionsIndex << " upd-index: " << t.updateIndex << " flush: " << t.flushes << " forget: " << t.forgets << " reads: " << t.reading << "/" << t.readingTotal<< "]" << std::endl;
     return os;
 }
 
