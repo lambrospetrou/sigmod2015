@@ -1304,6 +1304,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
                 //auto ve = trp.values.data()+trp.values.size();
                 for (auto ctpl=tuples, ctple=tuples+trp.tuples.size(); ctpl<ctple; ++ctpl) {
                     auto tpl = ctpl->tuple;
+                    if (tpl[ci] < qb->value || tpl[ci]>(qe-1)->value) { /*dups++;*/ continue; } 
                     auto res = std::equal_range(qb, qe, tpl[ci], QMVLess);
                     // check if any query asked for this tuple
                     if (res.first == res.second) { 
