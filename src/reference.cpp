@@ -841,7 +841,24 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
-    
+     
+    uint64_t totalPending = gPendingValidations.size();
+    // get a validation ID - atomic operation
+    for (uint64_t vi = 0; vi < totalPending; ++vi) {
+        auto& v = gPendingValidations[vi];
+        const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+
+        //cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
+        const char* qreader = vq.queries;
+        uint32_t columnCount;
+        for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+            Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+            columnCount = rq.columnCount;
+        }
+        
+    }
+
+
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif
