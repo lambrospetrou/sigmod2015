@@ -29,6 +29,7 @@
 // For more information, please refer to <http://unlicense.org/>
 //---------------------------------------------------------------------------
 
+#include "include/CIndex.hpp"
 #include "include/DoubleIter.hpp"
 #include "include/aligned_allocator.hpp"
 #include "include/LPUtils.hpp"
