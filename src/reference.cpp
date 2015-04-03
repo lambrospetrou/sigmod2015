@@ -160,15 +160,20 @@ struct LPPair {
 template<>
 struct LPPair<uint64_t> {
     uint64_t a;
+    tuple_t tpl_a;
     uint64_t b;
+    tuple_t tpl_b;
+    uint64_t c;
+    tuple_t tpl_c;
 
-    LPPair() : a(UINT64_MAX), b(UINT64_MAX) {}
-    LPPair(uint64_t v) : a(v), b(UINT64_MAX) {}
-    LPPair(uint64_t v, uint64_t v2) : a(v), b(v2) {}
+    LPPair() : a(UINT64_MAX), tpl_a(nullptr), b(UINT64_MAX), tpl_b(nullptr), c(UINT64_MAX), tpl_c(nullptr) {}
+    //LPPair(uint64_t v) : a(v), b(UINT64_MAX), tpl_a(nullptr), tpl_b(nullptr) {}
+    //LPPair(uint64_t v, uint64_t v2) : a(v), b(v2), tpl_a(nullptr), tpl_b(nullptr) {}
 
-    void put(uint64_t v) {
-        if (a == UINT64_MAX) a = v;
-        else b = v;
+    void put_u(uint64_t v, tuple_t _tpl) {
+        if (a == UINT64_MAX) { a=v; tpl_a=_tpl; }
+        else if (b == UINT64_MAX) { b=v; tpl_b=_tpl; }
+        else { c=v; tpl_c=_tpl; }
     }
 };
 
@@ -188,8 +193,6 @@ struct ColumnStruct {
     vector<ColumnTransaction_t> transactions;
     vector<uint64_t> transactionsORs;
     uint64_t transTo;
-    
-    btree::btree_map<uint64_t, LPPair<uint64_t>> primaryIndex;
 
     char padding[8]; //for false sharing
     
@@ -275,10 +278,15 @@ struct RTLComp_t {
     }
 } RTLComp;
 // The general structure for each relation
+//typedef btree::btree_map<uint64_t, LPPair<uint64_t>> PrimaryIndex_t; 
+typedef vector<pair<uint64_t, tuple_t>> PrimaryIndex_vt; 
+typedef btree::btree_map<uint64_t, PrimaryIndex_vt> PrimaryIndex_t; 
 struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
+    
+    PrimaryIndex_t primaryIndex;
 
     char padding[8]; //for false sharing
 } ALIGNED_DATA;
@@ -474,6 +482,11 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
         
+    auto& primIndex = gRelations[ri].primaryIndex;
+    //primIndex.clear();
+    //primIndex.swap(PrimaryIndex());
+
+    
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -738,7 +751,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
-        //auto& relColumns = gRelColumns[ri].columns;
+        auto& primIndex = relation.primaryIndex;
         uint32_t relCols = gSchema[ri];
 
         uint64_t lastTransId = relTrans[0].trans_id;
@@ -773,6 +786,10 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
+                    
+                        // insert the value into the primary key index
+                        //primIndex[operations.back()[0]].put_u(trans.trans_id, operations.back());
+                        primIndex[operations.back()[0]].push_back({trans.trans_id, operations.back()});
                     }
                 }
                 delete[] trans.values;
@@ -784,6 +801,10 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
+            
+                    // insert the value into the primary key index
+                    //primIndex[vals[0]].put_u(trans.trans_id, vals);
+                    primIndex[vals[0]].push_back({trans.trans_id, vals});
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
@@ -812,7 +833,6 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& colTransactions = relColumn.transactions;
     auto& colTransactionsORs = relColumn.transactionsORs;
 
-
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -825,7 +845,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
         colTransactionsORs.push_back(0);
         uint32_t tpl_id = 0;
-        for (auto tpl : trp->second) {
+        for (auto tpl : trp->second) { 
             *valPtr++ = (tpl[col]);
             *tplPtr++ = {tpl_id++, tpl}; 
             colTransactionsORs.back() |= tpl[col];
@@ -921,7 +941,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 //cerr << " -- to: " << vq.to << endl;
                 //cerr << " -- val: " << vq.validationId << endl;
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
-                v.queries.push_back(rq);
+                //v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -1383,6 +1403,61 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
     //cerr << dups << endl; 
 }
 
+void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+    //cerr << "----- NEW VAL SESSION -----" << endl;
+    //uint64_t dups = 0;
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        auto& rq = gRelQ[ri].columns[0].queries;
+        if (rq.empty()) continue;
+        
+        //auto& trans = gRelColumns[ri].columns[0].transactions
+        //auto vb = trans.values.data(), ve = trans.values.data() + transvalues.size(); 
+        //auto tplb = trans.tuples.data(), tple = trans.tuples.data() + transvalues.size(); 
+        //cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
+        QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
+
+        auto& primIndex = gRelations[ri].primaryIndex;
+        auto piend = primIndex.end();
+
+        PrimaryIndex_vt *lastres = nullptr;
+        uint64_t lastvalue = UINT64_MAX;
+        
+        uint32_t qsz = qe-qb, cnt=0;
+        // for each query
+        for (; qb<qe;) {
+            auto& cmeta = *qb++;
+            
+            if (lastvalue != cmeta.value) {
+                // check if tuple exists
+                cnt++;
+                lastvalue = cmeta.value;
+                auto tplTr = primIndex.find(cmeta.value);
+                if (tplTr == piend) { lastres = nullptr; continue; }
+                lastres = &tplTr->second;
+            } else if (lastres == nullptr) continue;
+            
+            uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
+            if (gPendingResults[resPos]) { continue; }
+            
+            for (auto& trpair : *lastres) {
+                if (trpair.first <= cmeta.to && trpair.first >= cmeta.from) {
+                    //cerr << trpair.first << " = " << trpair.second[0] << " = " << cmeta.value << " qfrom: " << cmeta.from << " qto: " << cmeta.to << endl;
+                    if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                               ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                               trpair.second)) {
+                        gPendingResults[resPos] = true;
+                        break;
+                    }
+                } 
+            }         
+        } // end of all queries
+
+        cerr << cnt << "/" << qsz << endl;
+    }            
+}
+
+
 
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
@@ -1391,6 +1466,7 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
     auto qproc = LPTimer.getChrono();
 #endif
     //processEqualityQueries(nThreads, tid, args);
+    processEqualityZero(nThreads, tid, args);
 #ifdef LPDEBUG
     LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif

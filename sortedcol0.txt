@@ -1,44 +1,46 @@
-reference.cpp: In function ‘void processEqualityQueries(uint32_t, uint32_t, void*)’:
-reference.cpp:1327:14: warning: unused variable ‘dups’ [-Wunused-variable]
-     uint64_t dups = 0;
+
               ^
-In file included from include/cpp_btree/btree_map.h:31:0,
-                 from reference.cpp:72:
-include/cpp_btree/btree.h: In instantiation of ‘btree::btree_node<Params>::reference btree::btree_node<Params>::value(int) [with Params = btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256>; btree::btree_node<Params>::reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&]’:
-include/cpp_btree/btree.h:809:12:   required from ‘btree::btree_iterator<Node, Reference, Pointer>::pointer btree::btree_iterator<Node, Reference, Pointer>::operator->() const [with Node = btree::btree_node<btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256> >; Reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&; Pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*; btree::btree_iterator<Node, Reference, Pointer>::pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*]’
-reference.cpp:772:48:   required from here
-include/cpp_btree/btree.h:557:57: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
-     return reinterpret_cast<reference>(fields_.values[i]);
                                                          ^
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
-/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
-include/LPUtils.hpp:72:13: note: loop vectorized
-include/LPUtils.hpp:72:13: note: loop peeled for vectorization to enhance alignment
+                 from reference.cpp:72:
+include/cpp_btree/btree.h:1645:5: note: loop peeled for vectorization to enhance alignment
 include/cpp_btree/btree.h:1645:5: note: loop vectorized
 include/cpp_btree/btree.h:1645:5: note: loop versioned for vectorization because of possible aliasing
-include/cpp_btree/btree.h:1645:5: note: loop peeled for vectorization to enhance alignment
+include/cpp_btree/btree.h:557:57: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
+include/cpp_btree/btree.h:809:12:   required from ‘btree::btree_iterator<Node, Reference, Pointer>::pointer btree::btree_iterator<Node, Reference, Pointer>::operator->() const [with Node = btree::btree_node<btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256> >; Reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&; Pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*; btree::btree_iterator<Node, Reference, Pointer>::pointer = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >*]’
+include/cpp_btree/btree.h: In instantiation of ‘btree::btree_node<Params>::reference btree::btree_node<Params>::value(int) [with Params = btree::btree_map_params<unsigned int, std::pair<long unsigned int, long unsigned int*>, std::less<unsigned int>, std::allocator<std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> > >, 256>; btree::btree_node<Params>::reference = std::pair<const unsigned int, std::pair<long unsigned int, long unsigned int*> >&]’:
+include/LPUtils.hpp:72:13: note: loop peeled for vectorization to enhance alignment
+include/LPUtils.hpp:72:13: note: loop vectorized
+In file included from include/cpp_btree/btree_map.h:31:0,
+  :::: LPTimer [val: 3143 val-proc: 3806369 == proc: 2 trans: 31429 trans-index: 107484 upd-index: 1157106 q-index: 1777292 flush: 2774 forget: 43873 reads: 469331/0]
+reference.cpp:1327:14: warning: unused variable ‘dups’ [-Wunused-variable]
 reference.cpp:184:115: note: basic block vectorized
-reference.cpp:975:5: note: loop vectorized
-reference.cpp:975:5: note: loop peeled for vectorization to enhance alignment
-reference.cpp:378:53: note: loop vectorized
-reference.cpp:372:43: note: loop vectorized
-reference.cpp:372:43: note: loop peeled for vectorization to enhance alignment
-reference.cpp:371:58: note: loop vectorized
-reference.cpp:371:58: note: loop peeled for vectorization to enhance alignment
 reference.cpp:368:69: note: loop vectorized
-reference.cpp:688:13: note: loop vectorized
-reference.cpp:688:13: note: loop versioned for vectorization because of possible aliasing
-reference.cpp:688:13: note: loop peeled for vectorization to enhance alignment
+reference.cpp:371:58: note: loop peeled for vectorization to enhance alignment
+reference.cpp:371:58: note: loop vectorized
+reference.cpp:372:43: note: loop peeled for vectorization to enhance alignment
+reference.cpp:372:43: note: loop vectorized
+reference.cpp:378:53: note: loop vectorized
+reference.cpp:666:13: note: loop peeled for vectorization to enhance alignment
 reference.cpp:666:13: note: loop vectorized
 reference.cpp:666:13: note: loop versioned for vectorization because of possible aliasing
-reference.cpp:666:13: note: loop peeled for vectorization to enhance alignment
-ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
+reference.cpp:688:13: note: loop peeled for vectorization to enhance alignment
+reference.cpp:688:13: note: loop vectorized
+reference.cpp:688:13: note: loop versioned for vectorization because of possible aliasing
+reference.cpp:772:48:   required from here
+reference.cpp:975:5: note: loop peeled for vectorization to enhance alignment
+reference.cpp:975:5: note: loop vectorized
+reference.cpp: In function ‘void processEqualityQueries(uint32_t, uint32_t, void*)’:
+     return reinterpret_cast<reference>(fields_.values[i]);
+total validations: 80908 trans: 19656 tuples: 424515 forgets: 12 flushes: 41
+     uint64_t dups = 0;
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop peeled for vectorization to enhance alignment
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
+/usr/include/c++/4.9/bits/stl_algobase.h:760:7: note: loop vectorized
 13 9 0
 13 10 0
 13 11 0
@@ -159,6 +161,7 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 126 0
 13 127 0
 13 128 0
+ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 129 0
 13 130 0
 13 131 0
@@ -253,6 +256,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 220 0
 13 221 0
 13 222 0
+13 222 20897
+13 222 20897
 13 223 0
 13 224 0
 13 225 0
@@ -458,6 +463,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 425 0
 13 426 0
 13 427 0
+13 427 7148
+13 427 7148
 13 428 0
 13 429 0
 13 430 0
@@ -732,6 +739,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 699 0
 13 700 0
 13 701 0
+13 701 19129
+13 701 19129
 13 702 0
 13 703 0
 13 704 0
@@ -827,6 +836,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 794 0
 13 795 0
 13 796 0
+13 796 13118
+13 796 13118
 13 797 0
 13 798 0
 13 799 0
@@ -990,6 +1001,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 957 0
 13 958 0
 13 959 0
+13 959 9224
+13 959 9224
 13 960 0
 13 961 0
 13 962 0
@@ -1027,6 +1040,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 994 0
 13 995 0
 13 996 0
+13 996 28024
+13 996 28024
 13 997 0
 13 998 0
 13 999 0
@@ -1063,6 +1078,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 1030 0
 13 1031 0
 13 1032 0
+13 1032 36385
+13 1032 36385
 13 1033 0
 13 1034 0
 13 1035 0
@@ -1376,6 +1393,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 1343 0
 13 1344 0
 13 1345 0
+13 1345 36938
+13 1345 36938
 13 1346 0
 13 1347 0
 13 1348 0
@@ -1415,6 +1434,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 1382 0
 13 1383 0
 13 1384 0
+13 1384 29842
+13 1384 29842
 13 1385 0
 13 1386 0
 13 1387 0
@@ -2131,6 +2152,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2098 0
 13 2099 0
 13 2100 0
+13 2100 32686
+13 2100 32686
 13 2101 0
 13 2102 0
 13 2103 0
@@ -2230,6 +2253,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2197 0
 13 2198 0
 13 2199 0
+13 2199 25492
+13 2199 25492
 13 2200 0
 13 2201 0
 13 2202 0
@@ -2361,6 +2386,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2328 0
 13 2329 0
 13 2330 0
+13 2330 27444
+13 2330 27444
 13 2331 0
 13 2332 0
 13 2333 0
@@ -2574,6 +2601,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2541 0
 13 2542 0
 13 2543 0
+13 2543 39148
+13 2543 39148
 13 2544 0
 13 2545 0
 13 2546 0
@@ -2611,6 +2640,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2578 0
 13 2579 0
 13 2580 0
+13 2580 25586
+13 2580 25586
 13 2581 0
 13 2582 0
 13 2583 0
@@ -2623,6 +2654,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2590 0
 13 2591 0
 13 2592 0
+13 2592 7607
+13 2592 7607
 13 2593 0
 13 2594 0
 13 2595 0
@@ -2679,6 +2712,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2646 0
 13 2647 0
 13 2648 0
+13 2648 18156
+13 2648 18156
 13 2649 0
 13 2650 0
 13 2651 0
@@ -2686,6 +2721,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 2653 0
 13 2654 0
 13 2655 0
+13 2655 9492
+13 2655 9492
 13 2656 0
 13 2657 0
 13 2658 0
@@ -3066,6 +3103,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 3033 0
 13 3034 0
 13 3035 0
+13 3035 21268
+13 3035 21268
 13 3036 0
 13 3037 0
 13 3038 0
@@ -3088,6 +3127,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 3055 0
 13 3056 0
 13 3057 0
+13 3057 4049
+13 3057 4049
 13 3058 0
 13 3059 0
 13 3060 0
@@ -3240,10 +3281,14 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 3207 0
 13 3208 0
 13 3209 0
+13 3209 3567
+13 3209 3567
 13 3210 0
 13 3211 0
 13 3212 0
 13 3213 0
+13 3213 27597
+13 3213 27597
 13 3214 0
 13 3215 0
 13 3216 0
@@ -3934,6 +3979,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 3901 0
 13 3902 0
 13 3903 0
+13 3903 668
+13 3903 668
 13 3904 0
 13 3905 0
 13 3906 0
@@ -4237,6 +4284,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 4204 0
 13 4205 0
 13 4206 0
+13 4206 32975
+13 4206 32975
 13 4207 0
 13 4208 0
 13 4209 0
@@ -4413,6 +4462,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 4380 0
 13 4381 0
 13 4382 0
+13 4382 31963
+13 4382 31963
 13 4383 0
 13 4384 0
 13 4385 0
@@ -4982,6 +5033,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 4949 0
 13 4950 0
 13 4951 0
+13 4951 22676
+13 4951 22676
 13 4952 0
 13 4953 0
 13 4954 0
@@ -5029,6 +5082,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 4996 0
 13 4997 0
 13 4998 0
+13 4998 40681
+13 4998 40681
 13 4999 0
 13 5000 0
 13 5001 0
@@ -5200,6 +5255,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 5167 0
 13 5168 0
 13 5169 0
+13 5169 20077
+13 5169 20077
 13 5170 0
 13 5171 0
 13 5172 0
@@ -5223,6 +5280,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 5190 0
 13 5191 0
 13 5192 0
+13 5192 32839
+13 5192 32839
 13 5193 0
 13 5194 0
 13 5195 0
@@ -5302,6 +5361,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 5269 0
 13 5270 0
 13 5271 0
+13 5271 17876
+13 5271 17876
 13 5272 0
 13 5273 0
 13 5274 0
@@ -5948,6 +6009,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 5915 0
 13 5916 0
 13 5917 0
+13 5917 17938
+13 5917 17938
 13 5918 0
 13 5919 0
 13 5920 0
@@ -6326,6 +6389,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6293 0
 13 6294 0
 13 6295 0
+13 6295 14448
+13 6295 14448
 13 6296 0
 13 6297 0
 13 6298 0
@@ -6350,6 +6415,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6317 0
 13 6318 0
 13 6319 0
+13 6319 25663
+13 6319 25663
 13 6320 0
 13 6321 0
 13 6322 0
@@ -6384,6 +6451,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6351 0
 13 6352 0
 13 6353 0
+13 6353 11435
+13 6353 11435
 13 6354 0
 13 6355 0
 13 6356 0
@@ -6540,6 +6609,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6507 0
 13 6508 0
 13 6509 0
+13 6509 35534
+13 6509 35534
 13 6510 0
 13 6511 0
 13 6512 0
@@ -6600,6 +6671,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6567 0
 13 6568 0
 13 6569 0
+13 6569 32831
+13 6569 32831
 13 6570 0
 13 6571 0
 13 6572 0
@@ -6612,6 +6685,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 6579 0
 13 6580 0
 13 6581 0
+13 6581 23135
+13 6581 23135
 13 6582 0
 13 6583 0
 13 6584 0
@@ -7152,6 +7227,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7119 0
 13 7120 0
 13 7121 0
+13 7121 26935
+13 7121 26935
 13 7122 0
 13 7123 0
 13 7124 0
@@ -7259,6 +7336,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7226 0
 13 7227 0
 13 7228 0
+13 7228 8692
+13 7228 8692
 13 7229 0
 13 7230 0
 13 7231 0
@@ -7400,6 +7479,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7367 0
 13 7368 0
 13 7369 0
+13 7369 40358
+13 7369 40358
 13 7370 0
 13 7371 0
 13 7372 0
@@ -7520,6 +7601,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7487 0
 13 7488 0
 13 7489 0
+13 7489 13410
+13 7489 13410
 13 7490 0
 13 7491 0
 13 7492 0
@@ -7616,6 +7699,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7583 0
 13 7584 0
 13 7585 0
+13 7585 38482
+13 7585 38482
 13 7586 0
 13 7587 0
 13 7588 0
@@ -8014,6 +8099,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 7981 0
 13 7982 0
 13 7983 0
+13 7983 40651
+13 7983 40651
 13 7984 0
 13 7985 0
 13 7986 0
@@ -8181,6 +8268,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 8148 0
 13 8149 0
 13 8150 0
+13 8150 14563
+13 8150 14563
 13 8151 0
 13 8152 0
 13 8153 0
@@ -8711,6 +8800,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 8678 0
 13 8679 0
 13 8680 0
+13 8680 30377
+13 8680 30377
 13 8681 0
 13 8682 0
 13 8683 0
@@ -8719,6 +8810,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 8686 0
 13 8687 0
 13 8688 0
+13 8688 5222
+13 8688 5222
 13 8689 0
 13 8690 0
 13 8691 0
@@ -8745,6 +8838,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 8712 0
 13 8713 0
 13 8714 0
+13 8714 7704
+13 8714 7704
 13 8715 0
 13 8716 0
 13 8717 0
@@ -9618,6 +9713,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 9585 0
 13 9586 0
 13 9587 0
+13 9587 42225
+13 9587 42225
 13 9588 0
 13 9589 0
 13 9590 0
@@ -9699,11 +9796,15 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 9666 0
 13 9667 0
 13 9668 0
+13 9668 17606
+13 9668 17606
 13 9669 0
 13 9670 0
 13 9671 0
 13 9672 0
 13 9673 0
+13 9673 42949
+13 9673 42949
 13 9674 0
 13 9675 0
 13 9676 0
@@ -10061,6 +10162,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10028 0
 13 10029 0
 13 10030 0
+13 10030 5566
+13 10030 5566
 13 10031 0
 13 10032 0
 13 10033 0
@@ -10289,6 +10392,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10256 0
 13 10257 0
 13 10258 0
+13 10258 32101
+13 10258 32101
 13 10259 0
 13 10260 0
 13 10261 0
@@ -10603,6 +10708,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10570 0
 13 10571 0
 13 10572 0
+13 10572 10877
+13 10572 10877
 13 10573 0
 13 10574 0
 13 10575 0
@@ -10663,6 +10770,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10630 0
 13 10631 0
 13 10632 0
+13 10632 5551
+13 10632 5551
 13 10633 0
 13 10634 0
 13 10635 0
@@ -10705,8 +10814,12 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10672 0
 13 10673 0
 13 10674 0
+13 10674 19178
+13 10674 19178
 13 10675 0
 13 10676 0
+13 10676 40491
+13 10676 40491
 13 10677 0
 13 10678 0
 13 10679 0
@@ -10962,6 +11075,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 10929 0
 13 10930 0
 13 10931 0
+13 10931 183
+13 10931 183
 13 10932 0
 13 10933 0
 13 10934 0
@@ -11138,6 +11253,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 11105 0
 13 11106 0
 13 11107 0
+13 11107 39094
+13 11107 39094
 13 11108 0
 13 11109 0
 13 11110 0
@@ -11367,6 +11484,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 11334 0
 13 11335 0
 13 11336 0
+13 11336 32331
+13 11336 32331
 13 11337 0
 13 11338 0
 13 11339 0
@@ -11681,6 +11800,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 11648 0
 13 11649 0
 13 11650 0
+13 11650 8087
+13 11650 8087
 13 11651 0
 13 11652 0
 13 11653 0
@@ -11926,6 +12047,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 11893 0
 13 11894 0
 13 11895 0
+13 11895 29027
+13 11895 29027
 13 11896 0
 13 11897 0
 13 11898 0
@@ -12576,6 +12699,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 12543 0
 13 12544 0
 13 12545 0
+13 12545 39647
+13 12545 39647
 13 12546 0
 13 12547 0
 13 12548 0
@@ -12609,9 +12734,13 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 12576 0
 13 12577 0
 13 12578 0
+13 12578 41974
+13 12578 41974
 13 12579 0
 13 12580 0
 13 12581 0
+13 12581 19824
+13 12581 19824
 13 12582 0
 13 12583 0
 13 12584 0
@@ -12732,6 +12861,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 12699 0
 13 12700 0
 13 12701 0
+13 12701 2538
+13 12701 2538
 13 12702 0
 13 12703 0
 13 12704 0
@@ -13047,6 +13178,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 13014 0
 13 13015 0
 13 13016 0
+13 13016 36979
+13 13016 36979
 13 13017 0
 13 13018 0
 13 13019 0
@@ -13070,6 +13203,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 13037 0
 13 13038 0
 13 13039 0
+13 13039 39096
+13 13039 39096
 13 13040 0
 13 13041 0
 13 13042 0
@@ -13728,6 +13863,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 13695 0
 13 13696 0
 13 13697 0
+13 13697 40939
+13 13697 40939
 13 13698 0
 13 13699 0
 13 13700 0
@@ -13815,6 +13952,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 13782 0
 13 13783 0
 13 13784 0
+13 13784 37190
+13 13784 37190
 13 13785 0
 13 13786 0
 13 13787 0
@@ -13938,6 +14077,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 13905 0
 13 13906 0
 13 13907 0
+13 13907 19599
+13 13907 19599
 13 13908 0
 13 13909 0
 13 13910 0
@@ -14070,6 +14211,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14037 0
 13 14038 0
 13 14039 0
+13 14039 31845
+13 14039 31845
 13 14040 0
 13 14041 0
 13 14042 0
@@ -14277,6 +14420,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14244 0
 13 14245 0
 13 14246 0
+13 14246 41394
+13 14246 41394
 13 14247 0
 13 14248 0
 13 14249 0
@@ -14297,6 +14442,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14264 0
 13 14265 0
 13 14266 0
+13 14266 24311
+13 14266 24311
 13 14267 0
 13 14268 0
 13 14269 0
@@ -14396,6 +14543,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14363 0
 13 14364 0
 13 14365 0
+13 14365 14793
+13 14365 14793
 13 14366 0
 13 14367 0
 13 14368 0
@@ -14621,6 +14770,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14588 0
 13 14589 0
 13 14590 0
+13 14590 23694
+13 14590 23694
 13 14591 0
 13 14592 0
 13 14593 0
@@ -15005,6 +15156,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 14972 0
 13 14973 0
 13 14974 0
+13 14974 35531
+13 14974 35531
 13 14975 0
 13 14976 0
 13 14977 0
@@ -15133,6 +15286,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15100 0
 13 15101 0
 13 15102 0
+13 15102 11956
+13 15102 11956
 13 15103 0
 13 15104 0
 13 15105 0
@@ -15286,6 +15441,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15253 0
 13 15254 0
 13 15255 0
+13 15255 13689
+13 15255 13689
 13 15256 0
 13 15257 0
 13 15258 0
@@ -15350,6 +15507,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15317 0
 13 15318 0
 13 15319 0
+13 15319 34702
+13 15319 34702
 13 15320 0
 13 15321 0
 13 15322 0
@@ -15373,6 +15532,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15340 0
 13 15341 0
 13 15342 0
+13 15342 29859
+13 15342 29859
 13 15343 0
 13 15344 0
 13 15345 0
@@ -15449,6 +15610,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15416 0
 13 15417 0
 13 15418 0
+13 15418 26679
+13 15418 26679
 13 15419 0
 13 15420 0
 13 15421 0
@@ -15475,6 +15638,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15442 0
 13 15443 0
 13 15444 0
+13 15444 4653
+13 15444 4653
 13 15445 0
 13 15446 0
 13 15447 0
@@ -15651,6 +15816,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15618 0
 13 15619 0
 13 15620 0
+13 15620 25426
+13 15620 25426
 13 15621 0
 13 15622 0
 13 15623 0
@@ -15728,6 +15895,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15695 0
 13 15696 0
 13 15697 0
+13 15697 10790
+13 15697 10790
 13 15698 0
 13 15699 0
 13 15700 0
@@ -15773,6 +15942,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15740 0
 13 15741 0
 13 15742 0
+13 15742 23498
+13 15742 23498
 13 15743 0
 13 15744 0
 13 15745 0
@@ -15865,6 +16036,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15832 0
 13 15833 0
 13 15834 0
+13 15834 24930
+13 15834 24930
 13 15835 0
 13 15836 0
 13 15837 0
@@ -15985,6 +16158,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 15952 0
 13 15953 0
 13 15954 0
+13 15954 42159
+13 15954 42159
 13 15955 0
 13 15956 0
 13 15957 0
@@ -16220,6 +16395,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 16187 0
 13 16188 0
 13 16189 0
+13 16189 3403
+13 16189 3403
 13 16190 0
 13 16191 0
 13 16192 0
@@ -16481,6 +16658,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 16448 0
 13 16449 0
 13 16450 0
+13 16450 27486
+13 16450 27486
 13 16451 0
 13 16452 0
 13 16453 0
@@ -17415,6 +17594,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 17382 0
 13 17383 0
 13 17384 0
+13 17384 29705
+13 17384 29705
 13 17385 0
 13 17386 0
 13 17387 0
@@ -17935,6 +18116,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 17902 0
 13 17903 0
 13 17904 0
+13 17904 29377
+13 17904 29377
 13 17905 0
 13 17906 0
 13 17907 0
@@ -17946,6 +18129,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 17913 0
 13 17914 0
 13 17915 0
+13 17915 13742
+13 17915 13742
 13 17916 0
 13 17917 0
 13 17918 0
@@ -17963,6 +18148,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 17930 0
 13 17931 0
 13 17932 0
+13 17932 39880
+13 17932 39880
 13 17933 0
 13 17934 0
 13 17935 0
@@ -18252,6 +18439,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 18219 0
 13 18220 0
 13 18221 0
+13 18221 31732
+13 18221 31732
 13 18222 0
 13 18223 0
 13 18224 0
@@ -18320,6 +18509,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 18287 0
 13 18288 0
 13 18289 0
+13 18289 2373
+13 18289 2373
 13 18290 0
 13 18291 0
 13 18292 0
@@ -18768,6 +18959,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 18735 0
 13 18736 0
 13 18737 0
+13 18737 18539
+13 18737 18539
 13 18738 0
 13 18739 0
 13 18740 0
@@ -18993,6 +19186,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 18960 0
 13 18961 0
 13 18962 0
+13 18962 42871
+13 18962 42871
 13 18963 0
 13 18964 0
 13 18965 0
@@ -19154,6 +19349,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 19121 0
 13 19122 0
 13 19123 0
+13 19123 38312
+13 19123 38312
 13 19124 0
 13 19125 0
 13 19126 0
@@ -19399,6 +19596,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 19366 0
 13 19367 0
 13 19368 0
+13 19368 3719
+13 19368 3719
 13 19369 0
 13 19370 0
 13 19371 0
@@ -20725,6 +20924,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 20692 0
 13 20693 0
 13 20694 0
+13 20694 14737
+13 20694 14737
 13 20695 0
 13 20696 0
 13 20697 0
@@ -20735,6 +20936,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 20702 0
 13 20703 0
 13 20704 0
+13 20704 41597
+13 20704 41597
 13 20705 0
 13 20706 0
 13 20707 0
@@ -20800,6 +21003,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 20767 0
 13 20768 0
 13 20769 0
+13 20769 15078
+13 20769 15078
 13 20770 0
 13 20771 0
 13 20772 0
@@ -21127,6 +21332,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21094 0
 13 21095 0
 13 21096 0
+13 21096 17977
+13 21096 17977
 13 21097 0
 13 21098 0
 13 21099 0
@@ -21206,6 +21413,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21173 0
 13 21174 0
 13 21175 0
+13 21175 18438
+13 21175 18438
 13 21176 0
 13 21177 0
 13 21178 0
@@ -21344,6 +21553,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21311 0
 13 21312 0
 13 21313 0
+13 21313 10128
+13 21313 10128
 13 21314 0
 13 21315 0
 13 21316 0
@@ -21357,6 +21568,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21324 0
 13 21325 0
 13 21326 0
+13 21326 14944
+13 21326 14944
 13 21327 0
 13 21328 0
 13 21329 0
@@ -21390,6 +21603,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21357 0
 13 21358 0
 13 21359 0
+13 21359 4995
+13 21359 4995
 13 21360 0
 13 21361 0
 13 21362 0
@@ -21465,6 +21680,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 21432 0
 13 21433 0
 13 21434 0
+13 21434 35548
+13 21434 35548
 13 21435 0
 13 21436 0
 13 21437 0
@@ -22117,6 +22334,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22084 0
 13 22085 0
 13 22086 0
+13 22086 9918
+13 22086 9918
 13 22087 0
 13 22088 0
 13 22089 0
@@ -22309,6 +22528,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22276 0
 13 22277 0
 13 22278 0
+13 22278 16189
+13 22278 16189
 13 22279 0
 13 22280 0
 13 22281 0
@@ -22375,6 +22596,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22342 0
 13 22343 0
 13 22344 0
+13 22344 37401
+13 22344 37401
 13 22345 0
 13 22346 0
 13 22347 0
@@ -22593,6 +22816,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22560 0
 13 22561 0
 13 22562 0
+13 22562 4763
+13 22562 4763
 13 22563 0
 13 22564 0
 13 22565 0
@@ -22615,6 +22840,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22582 0
 13 22583 0
 13 22584 0
+13 22584 40776
+13 22584 40776
 13 22585 0
 13 22586 0
 13 22587 0
@@ -22673,6 +22900,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22640 0
 13 22641 0
 13 22642 0
+13 22642 2398
+13 22642 2398
 13 22643 0
 13 22644 0
 13 22645 0
@@ -22759,6 +22988,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22726 0
 13 22727 0
 13 22728 0
+13 22728 33677
+13 22728 33677
 13 22729 0
 13 22730 0
 13 22731 0
@@ -22873,6 +23104,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22840 0
 13 22841 0
 13 22842 0
+13 22842 5736
+13 22842 5736
 13 22843 0
 13 22844 0
 13 22845 0
@@ -22998,6 +23231,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 22965 0
 13 22966 0
 13 22967 0
+13 22967 29239
+13 22967 29239
 13 22968 0
 13 22969 0
 13 22970 0
@@ -23041,6 +23276,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23008 0
 13 23009 0
 13 23010 0
+13 23010 8992
+13 23010 8992
 13 23011 0
 13 23012 0
 13 23013 0
@@ -23408,6 +23645,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23375 0
 13 23376 0
 13 23377 0
+13 23377 17590
+13 23377 17590
 13 23378 0
 13 23379 0
 13 23380 0
@@ -23476,6 +23715,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23443 0
 13 23444 0
 13 23445 0
+13 23445 40113
+13 23445 40113
 13 23446 0
 13 23447 0
 13 23448 0
@@ -23547,6 +23788,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23514 0
 13 23515 0
 13 23516 0
+13 23516 34865
+13 23516 34865
 13 23517 0
 13 23518 0
 13 23519 0
@@ -23599,6 +23842,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23566 0
 13 23567 0
 13 23568 0
+13 23568 39273
+13 23568 39273
 13 23569 0
 13 23570 0
 13 23571 0
@@ -23663,6 +23908,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23630 0
 13 23631 0
 13 23632 0
+13 23632 22491
+13 23632 22491
 13 23633 0
 13 23634 0
 13 23635 0
@@ -23732,12 +23979,16 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23699 0
 13 23700 0
 13 23701 0
+13 23701 35245
+13 23701 35245
 13 23702 0
 13 23703 0
 13 23704 0
 13 23705 0
 13 23706 0
 13 23707 0
+13 23707 4242
+13 23707 4242
 13 23708 0
 13 23709 0
 13 23710 0
@@ -23751,6 +24002,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23718 0
 13 23719 0
 13 23720 0
+13 23720 35283
+13 23720 35283
 13 23721 0
 13 23722 0
 13 23723 0
@@ -24018,6 +24271,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 23985 0
 13 23986 0
 13 23987 0
+13 23987 8843
+13 23987 8843
 13 23988 0
 13 23989 0
 13 23990 0
@@ -24043,6 +24298,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24010 0
 13 24011 0
 13 24012 0
+13 24012 31407
+13 24012 31407
 13 24013 0
 13 24014 0
 13 24015 0
@@ -24424,6 +24681,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24391 0
 13 24392 0
 13 24393 0
+13 24393 18606
+13 24393 18606
 13 24394 0
 13 24395 0
 13 24396 0
@@ -24475,6 +24734,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24442 0
 13 24443 0
 13 24444 0
+13 24444 15059
+13 24444 15059
 13 24445 0
 13 24446 0
 13 24447 0
@@ -24667,6 +24928,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24634 0
 13 24635 0
 13 24636 0
+13 24636 8839
+13 24636 8839
 13 24637 0
 13 24638 0
 13 24639 0
@@ -24853,6 +25116,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24820 0
 13 24821 0
 13 24822 0
+13 24822 22952
+13 24822 22952
 13 24823 0
 13 24824 0
 13 24825 0
@@ -24867,6 +25132,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24834 0
 13 24835 0
 13 24836 0
+13 24836 16935
+13 24836 16935
 13 24837 0
 13 24838 0
 13 24839 0
@@ -24936,6 +25203,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24903 0
 13 24904 0
 13 24905 0
+13 24905 8867
+13 24905 8867
 13 24906 0
 13 24907 0
 13 24908 0
@@ -24986,6 +25255,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 24953 0
 13 24954 0
 13 24955 0
+13 24955 36083
+13 24955 36083
 13 24956 0
 13 24957 0
 13 24958 0
@@ -25314,6 +25585,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 25281 0
 13 25282 0
 13 25283 0
+13 25283 15334
+13 25283 15334
 13 25284 0
 13 25285 0
 13 25286 0
@@ -25595,6 +25868,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 25562 0
 13 25563 0
 13 25564 0
+13 25564 10184
+13 25564 10184
 13 25565 0
 13 25566 0
 13 25567 0
@@ -25959,6 +26234,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 25926 0
 13 25927 0
 13 25928 0
+13 25928 4767
+13 25928 4767
 13 25929 0
 13 25930 0
 13 25931 0
@@ -25988,6 +26265,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 25955 0
 13 25956 0
 13 25957 0
+13 25957 15342
+13 25957 15342
 13 25958 0
 13 25959 0
 13 25960 0
@@ -26052,6 +26331,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26019 0
 13 26020 0
 13 26021 0
+13 26021 37954
+13 26021 37954
 13 26022 0
 13 26023 0
 13 26024 0
@@ -26220,6 +26501,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26187 0
 13 26188 0
 13 26189 0
+13 26189 16919
+13 26189 16919
 13 26190 0
 13 26191 0
 13 26192 0
@@ -26247,6 +26530,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26214 0
 13 26215 0
 13 26216 0
+13 26216 36455
+13 26216 36455
 13 26217 0
 13 26218 0
 13 26219 0
@@ -26290,6 +26575,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26257 0
 13 26258 0
 13 26259 0
+13 26259 14093
+13 26259 14093
 13 26260 0
 13 26261 0
 13 26262 0
@@ -26303,6 +26590,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26270 0
 13 26271 0
 13 26272 0
+13 26272 5037
+13 26272 5037
 13 26273 0
 13 26274 0
 13 26275 0
@@ -26407,6 +26696,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26374 0
 13 26375 0
 13 26376 0
+13 26376 24071
+13 26376 24071
 13 26377 0
 13 26378 0
 13 26379 0
@@ -26430,10 +26721,14 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26397 0
 13 26398 0
 13 26399 0
+13 26399 25606
+13 26399 25606
 13 26400 0
 13 26401 0
 13 26402 0
 13 26403 0
+13 26403 31638
+13 26403 31638
 13 26404 0
 13 26405 0
 13 26406 0
@@ -26516,6 +26811,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26483 0
 13 26484 0
 13 26485 0
+13 26485 10576
+13 26485 10576
 13 26486 0
 13 26487 0
 13 26488 0
@@ -26855,6 +27152,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26822 0
 13 26823 0
 13 26824 0
+13 26824 5601
+13 26824 5601
 13 26825 0
 13 26826 0
 13 26827 0
@@ -26940,6 +27239,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 26907 0
 13 26908 0
 13 26909 0
+13 26909 28500
+13 26909 28500
 13 26910 0
 13 26911 0
 13 26912 0
@@ -27075,6 +27376,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 27042 0
 13 27043 0
 13 27044 0
+13 27044 7914
+13 27044 7914
 13 27045 0
 13 27046 0
 13 27047 0
@@ -27339,6 +27642,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 27306 0
 13 27307 0
 13 27308 0
+13 27308 1539
+13 27308 1539
 13 27309 0
 13 27310 0
 13 27311 0
@@ -27426,6 +27731,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 27393 0
 13 27394 0
 13 27395 0
+13 27395 17542
+13 27395 17542
 13 27396 0
 13 27397 0
 13 27398 0
@@ -28053,6 +28360,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28020 0
 13 28021 0
 13 28022 0
+13 28022 20458
+13 28022 20458
 13 28023 0
 13 28024 0
 13 28025 0
@@ -28093,6 +28402,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28060 0
 13 28061 0
 13 28062 0
+13 28062 14287
+13 28062 14287
 13 28063 0
 13 28064 0
 13 28065 0
@@ -28438,6 +28749,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28405 0
 13 28406 0
 13 28407 0
+13 28407 4309
+13 28407 4309
 13 28408 0
 13 28409 0
 13 28410 0
@@ -28670,6 +28983,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28637 0
 13 28638 0
 13 28639 0
+13 28639 11292
+13 28639 11292
 13 28640 0
 13 28641 0
 13 28642 0
@@ -28763,6 +29078,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28730 0
 13 28731 0
 13 28732 0
+13 28732 34210
+13 28732 34210
 13 28733 0
 13 28734 0
 13 28735 0
@@ -28916,6 +29233,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 28883 0
 13 28884 0
 13 28885 0
+13 28885 30161
+13 28885 30161
 13 28886 0
 13 28887 0
 13 28888 0
@@ -29132,6 +29451,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29099 0
 13 29100 0
 13 29101 0
+13 29101 23364
+13 29101 23364
 13 29102 0
 13 29103 0
 13 29104 0
@@ -29374,6 +29695,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29341 0
 13 29342 0
 13 29343 0
+13 29343 18842
+13 29343 18842
 13 29344 0
 13 29345 0
 13 29346 0
@@ -29509,6 +29832,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29476 0
 13 29477 0
 13 29478 0
+13 29478 38352
+13 29478 38352
 13 29479 0
 13 29480 0
 13 29481 0
@@ -29904,6 +30229,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29871 0
 13 29872 0
 13 29873 0
+13 29873 40194
+13 29873 40194
 13 29874 0
 13 29875 0
 13 29876 0
@@ -29941,6 +30268,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29908 0
 13 29909 0
 13 29910 0
+13 29910 13583
+13 29910 13583
 13 29911 0
 13 29912 0
 13 29913 0
@@ -30000,6 +30329,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 29967 0
 13 29968 0
 13 29969 0
+13 29969 11464
+13 29969 11464
 13 29970 0
 13 29971 0
 13 29972 0
@@ -30155,6 +30486,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 30122 0
 13 30123 0
 13 30124 0
+13 30124 8357
+13 30124 8357
 13 30125 0
 13 30126 0
 13 30127 0
@@ -30336,6 +30669,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 30303 0
 13 30304 0
 13 30305 0
+13 30305 6047
+13 30305 6047
 13 30306 0
 13 30307 0
 13 30308 0
@@ -30558,6 +30893,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 30525 0
 13 30526 0
 13 30527 0
+13 30527 6936
+13 30527 6936
 13 30528 0
 13 30529 0
 13 30530 0
@@ -30879,6 +31216,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 30846 0
 13 30847 0
 13 30848 0
+13 30848 29582
+13 30848 29582
 13 30849 0
 13 30850 0
 13 30851 0
@@ -30906,6 +31245,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 30873 0
 13 30874 0
 13 30875 0
+13 30875 41868
+13 30875 41868
 13 30876 0
 13 30877 0
 13 30878 0
@@ -31048,6 +31389,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 31015 0
 13 31016 0
 13 31017 0
+13 31017 34617
+13 31017 34617
 13 31018 0
 13 31019 0
 13 31020 0
@@ -31436,6 +31779,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 31403 0
 13 31404 0
 13 31405 0
+13 31405 11757
+13 31405 11757
 13 31406 0
 13 31407 0
 13 31408 0
@@ -31819,6 +32164,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 31786 0
 13 31787 0
 13 31788 0
+13 31788 7743
+13 31788 7743
 13 31789 0
 13 31790 0
 13 31791 0
@@ -31919,6 +32266,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 31886 0
 13 31887 0
 13 31888 0
+13 31888 31562
+13 31888 31562
 13 31889 0
 13 31890 0
 13 31891 0
@@ -32000,6 +32349,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 31967 0
 13 31968 0
 13 31969 0
+13 31969 37456
+13 31969 37456
 13 31970 0
 13 31971 0
 13 31972 0
@@ -32231,6 +32582,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32198 0
 13 32199 0
 13 32200 0
+13 32200 42575
+13 32200 42575
 13 32201 0
 13 32202 0
 13 32203 0
@@ -32537,6 +32890,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32504 0
 13 32505 0
 13 32506 0
+13 32506 33710
+13 32506 33710
 13 32507 0
 13 32508 0
 13 32509 0
@@ -32568,6 +32923,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32535 0
 13 32536 0
 13 32537 0
+13 32537 22456
+13 32537 22456
 13 32538 0
 13 32539 0
 13 32540 0
@@ -32691,6 +33048,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32658 0
 13 32659 0
 13 32660 0
+13 32660 3972
+13 32660 3972
 13 32661 0
 13 32662 0
 13 32663 0
@@ -32703,6 +33062,8 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32670 0
 13 32671 0
 13 32672 0
+13 32672 20248
+13 32672 20248
 13 32673 0
 13 32674 0
 13 32675 0
@@ -32787,364 +33148,3 @@ ColumnStruct: 128 RelTransLog: 64 RelationStruct: 64 CTransStruct: 16
 13 32754 0
 13 32755 0
 13 32756 0
-13 10931 183
-13 10931 183
-13 3903 668
-13 3903 668
-13 27308 1539
-13 27308 1539
-13 18289 2373
-13 18289 2373
-13 22642 2398
-13 22642 2398
-13 12701 2538
-13 12701 2538
-13 16189 3403
-13 16189 3403
-13 3209 3567
-13 3209 3567
-13 19368 3719
-13 19368 3719
-13 32660 3972
-13 32660 3972
-13 3057 4049
-13 3057 4049
-13 23707 4242
-13 23707 4242
-13 28407 4309
-13 28407 4309
-13 15444 4653
-13 15444 4653
-13 22562 4763
-13 22562 4763
-13 25928 4767
-13 25928 4767
-13 21359 4995
-13 21359 4995
-13 26272 5037
-13 26272 5037
-13 8688 5222
-13 8688 5222
-13 10632 5551
-13 10632 5551
-13 10030 5566
-13 10030 5566
-13 26824 5601
-13 26824 5601
-13 22842 5736
-13 22842 5736
-13 30305 6047
-13 30305 6047
-13 30527 6936
-13 30527 6936
-13 427 7148
-13 427 7148
-13 2592 7607
-13 2592 7607
-13 8714 7704
-13 8714 7704
-13 31788 7743
-13 31788 7743
-13 27044 7914
-13 27044 7914
-13 11650 8087
-13 11650 8087
-13 30124 8357
-13 30124 8357
-13 7228 8692
-13 7228 8692
-13 24636 8839
-13 24636 8839
-13 23987 8843
-13 23987 8843
-13 24905 8867
-13 24905 8867
-13 23010 8992
-13 23010 8992
-13 959 9224
-13 959 9224
-13 2655 9492
-13 2655 9492
-13 22086 9918
-13 22086 9918
-13 21313 10128
-13 21313 10128
-13 25564 10184
-13 25564 10184
-13 26485 10576
-13 26485 10576
-13 15697 10790
-13 15697 10790
-13 10572 10877
-13 10572 10877
-13 28639 11292
-13 28639 11292
-13 6353 11435
-13 6353 11435
-13 29969 11464
-13 29969 11464
-13 31405 11757
-13 31405 11757
-13 15102 11956
-13 15102 11956
-13 796 13118
-13 796 13118
-13 7489 13410
-13 7489 13410
-13 29910 13583
-13 29910 13583
-13 15255 13689
-13 15255 13689
-13 17915 13742
-13 17915 13742
-13 26259 14093
-13 26259 14093
-13 28062 14287
-13 28062 14287
-13 6295 14448
-13 6295 14448
-13 8150 14563
-13 8150 14563
-13 20694 14737
-13 20694 14737
-13 14365 14793
-13 14365 14793
-13 21326 14944
-13 21326 14944
-13 24444 15059
-13 24444 15059
-13 20769 15078
-13 20769 15078
-13 25283 15334
-13 25283 15334
-13 25957 15342
-13 25957 15342
-13 22278 16189
-13 22278 16189
-13 26189 16919
-13 26189 16919
-13 24836 16935
-13 24836 16935
-13 27395 17542
-13 27395 17542
-13 23377 17590
-13 23377 17590
-13 9668 17606
-13 9668 17606
-13 5271 17876
-13 5271 17876
-13 5917 17938
-13 5917 17938
-13 21096 17977
-13 21096 17977
-13 2648 18156
-13 2648 18156
-13 21175 18438
-13 21175 18438
-13 18737 18539
-13 18737 18539
-13 24393 18606
-13 24393 18606
-13 29343 18842
-13 29343 18842
-13 701 19129
-13 701 19129
-13 10674 19178
-13 10674 19178
-13 13907 19599
-13 13907 19599
-13 12581 19824
-13 12581 19824
-13 5169 20077
-13 5169 20077
-13 32672 20248
-13 32672 20248
-13 28022 20458
-13 28022 20458
-13 222 20897
-13 222 20897
-13 3035 21268
-13 3035 21268
-13 32537 22456
-13 32537 22456
-13 23632 22491
-13 23632 22491
-13 4951 22676
-13 4951 22676
-13 24822 22952
-13 24822 22952
-13 6581 23135
-13 6581 23135
-13 29101 23364
-13 29101 23364
-13 15742 23498
-13 15742 23498
-13 14590 23694
-13 14590 23694
-13 26376 24071
-13 26376 24071
-13 14266 24311
-13 14266 24311
-13 15834 24930
-13 15834 24930
-13 15620 25426
-13 15620 25426
-13 2199 25492
-13 2199 25492
-13 2580 25586
-13 2580 25586
-13 26399 25606
-13 26399 25606
-13 6319 25663
-13 6319 25663
-13 15418 26679
-13 15418 26679
-13 7121 26935
-13 7121 26935
-13 2330 27444
-13 2330 27444
-13 16450 27486
-13 16450 27486
-13 3213 27597
-13 3213 27597
-13 996 28024
-13 996 28024
-13 26909 28500
-13 26909 28500
-13 11895 29027
-13 11895 29027
-13 22967 29239
-13 22967 29239
-13 17904 29377
-13 17904 29377
-13 30848 29582
-13 30848 29582
-13 17384 29705
-13 17384 29705
-13 1384 29842
-13 1384 29842
-13 15342 29859
-13 15342 29859
-13 28885 30161
-13 28885 30161
-13 8680 30377
-13 8680 30377
-13 24012 31407
-13 24012 31407
-13 31888 31562
-13 31888 31562
-13 26403 31638
-13 26403 31638
-13 18221 31732
-13 18221 31732
-13 14039 31845
-13 14039 31845
-13 4382 31963
-13 4382 31963
-13 10258 32101
-13 10258 32101
-13 11336 32331
-13 11336 32331
-13 2100 32686
-13 2100 32686
-13 6569 32831
-13 6569 32831
-13 5192 32839
-13 5192 32839
-13 4206 32975
-13 4206 32975
-13 22728 33677
-13 22728 33677
-13 32506 33710
-13 32506 33710
-13 28732 34210
-13 28732 34210
-13 31017 34617
-13 31017 34617
-13 15319 34702
-13 15319 34702
-13 23516 34865
-13 23516 34865
-13 23701 35245
-13 23701 35245
-13 23720 35283
-13 23720 35283
-13 14974 35531
-13 14974 35531
-13 6509 35534
-13 6509 35534
-13 21434 35548
-13 21434 35548
-13 24955 36083
-13 24955 36083
-13 1032 36385
-13 1032 36385
-13 26216 36455
-13 26216 36455
-13 1345 36938
-13 1345 36938
-13 13016 36979
-13 13016 36979
-13 13784 37190
-13 13784 37190
-13 22344 37401
-13 22344 37401
-13 31969 37456
-13 31969 37456
-13 26021 37954
-13 26021 37954
-13 19123 38312
-13 19123 38312
-13 29478 38352
-13 29478 38352
-13 7585 38482
-13 7585 38482
-13 11107 39094
-13 11107 39094
-13 13039 39096
-13 13039 39096
-13 2543 39148
-13 2543 39148
-13 23568 39273
-13 23568 39273
-13 12545 39647
-13 12545 39647
-13 17932 39880
-13 17932 39880
-13 23445 40113
-13 23445 40113
-13 29873 40194
-13 29873 40194
-13 7369 40358
-13 7369 40358
-13 10676 40491
-13 10676 40491
-13 7983 40651
-13 7983 40651
-13 4998 40681
-13 4998 40681
-13 22584 40776
-13 22584 40776
-13 13697 40939
-13 13697 40939
-13 14246 41394
-13 14246 41394
-13 20704 41597
-13 20704 41597
-13 30875 41868
-13 30875 41868
-13 12578 41974
-13 12578 41974
-13 15954 42159
-13 15954 42159
-13 9587 42225
-13 9587 42225
-13 32200 42575
-13 32200 42575
-13 18962 42871
-13 18962 42871
-13 9673 42949
-13 9673 42949
-  :::: LPTimer [val: 3143 val-proc: 3806369 == proc: 2 trans: 31429 trans-index: 107484 upd-index: 1157106 q-index: 1777292 flush: 2774 forget: 43873 reads: 469331/0]
-
-total validations: 80908 trans: 19656 tuples: 424515 forgets: 12 flushes: 41
