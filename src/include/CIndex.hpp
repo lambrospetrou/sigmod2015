@@ -131,9 +131,9 @@ class CIndex {
             //auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
             //return {trf, std::upper_bound(trf, be, trto, BTRLess)};
             auto trf = mBuckets.data();
-            for (;(be-trf>0) & (trf->trmax < trfrom);) ++trf;
+            for (;(be-trf>0) & (trf->trmax < trfrom); ++trf);
             auto trt = trf;
-            for (;(be-trt>0) & (trt->trmin <= trto);) ++trt;
+            for (;(be-trt>0) & (trt->trmin <= trto); ++trt);
             return {trf, trt};
         }
 

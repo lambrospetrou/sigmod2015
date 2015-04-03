@@ -1476,7 +1476,6 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         auto& rq = gRelQ[ri].columns[0].queries;
         if (rq.empty()) continue;
         
-        auto& trans = gRelColumns[ri].columns[0].transactions;
         //cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
         QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
 
@@ -1518,34 +1517,6 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
                 }
             }
 FOUND: continue;
-/*            
-            if (lastvalue != cmeta.value) {
-                // check if tuple exists
-                lastvalue = cmeta.value; 
-                lastres.resize(0);
-                
-                auto trp = equal_range(pibegin, piend, cmeta.value, PILess);
-                //if (trp.first == trp.second) continue;
-                for (auto ctpl=trp.first; ctpl<trp.second; ++ctpl) {
-                    lastres.push_back(ctpl->second);
-                }
-
-            } else if (lastres.empty()) continue;
-            
-            // do the actual validation
-            //auto psec = ((Column*)cmeta.rq->columns)+1;
-            //auto pend = ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount;
-            for (auto& trpair : lastres) {
-                if (trpair.first <= cmeta.to && trpair.first >= cmeta.from) {
-                    if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                        ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                        trpair.second)) {
-                        gPendingResults[resPos] = true;
-                        break;
-                    }
-                } 
-            } 
-*/
         } // end of all queries
         //cerr << cnt << ":" << cnt2 << endl;      
     }            
