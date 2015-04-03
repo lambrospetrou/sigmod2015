@@ -293,6 +293,18 @@ struct PILess_t {
         return l.first < target;
     };
 } PILess;
+struct PILessTr_t {
+    bool ALWAYS_INLINE operator() (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, const pair<uint64_t, pair<uint64_t, tuple_t>>& r){
+        return l.second.first < r.second.first;
+    };
+    bool ALWAYS_INLINE operator() (uint64_t target, const pair<uint64_t, pair<uint64_t, tuple_t>>& r){
+        return target < r.second.first;
+    };
+    bool ALWAYS_INLINE operator() (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, uint64_t target){
+        return l.second.first < target;
+    };
+} PILessTr;
+
 struct RelationStruct {
     vector<pair<uint64_t, vector<tuple_t>>> transLogTuples;
     vector<unique_ptr<RelTransLog>> transLog;
@@ -493,7 +505,12 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
         cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
-        
+       
+    auto& primIndex = gRelations[ri].primaryIndex;
+    sort(primIndex.data(), primIndex.data()+primIndex.size(), PILessTr);
+    auto piub = upper_bound(primIndex.begin(), primIndex.end(), trans_id, PILessTr);
+    primIndex.erase(primIndex.begin(), piub);
+
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -763,7 +780,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         uint64_t lastTransId = relTrans[0].trans_id;
 
         auto& primIndex = relation.primaryIndex;
-        auto szbef = primIndex.size();
+        //auto szbef = primIndex.size();
         
         // for each transaction regarding this relation
         vector<tuple_t> operations;
@@ -829,11 +846,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 [] (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, const pair<uint64_t, pair<uint64_t, tuple_t>>& r) {
                     return l.first < r.first;
                 });*/
-        auto pib = primIndex.data();
-        auto pie = primIndex.data() + primIndex.size();
-        auto pim = pib + szbef;
-        sort(pim, pie, PILess);
-        if (szbef > 0) inplace_merge(pib, pim, pie, PILess);
 
     } // end of all relations
 
@@ -948,6 +960,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             auto pFirst = (Query::Column)rq->columns[0];
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
             if (pFirst.column == 0 && pFirst.op == Op::Equal) {
+            //if (pFirst.op == Op::Equal) {
                 //cerr << "0" << endl;
 /*
                 struct QMeta_t{
@@ -962,7 +975,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 //cerr << " -- to: " << vq.to << endl;
                 //cerr << " -- val: " << vq.validationId << endl;
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
-                //v.queries.push_back(rq);
+                //if (pFirst.column != 0) v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -972,11 +985,12 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
         
     } // end for all validations
 
-    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {        
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        auto& rq = gRelQ[ri];
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            auto& rq = gRelQ[ri].columns[ci].queries;
-            if (rq.empty()) continue;
-            sort(rq.begin(), rq.end(), 
+            auto& rqc = rq.columns[ci].queries;
+            if (rqc.empty()) continue;
+            sort(rqc.begin(), rqc.end(), 
                 [](const QMeta_t& l, const QMeta_t& r) {
                     if (l.value < r.value) return true;
                     else if (r.value < l.value) return false;
@@ -984,21 +998,21 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 });
         } // sort the validation queries 
 
-        // create the index for col0 - TODO - only for transMIN and transMAX in the future
-        /*
-        if (gRelQ[ri].columns[0].queries.empty()) continue;
-        auto& primIndex = gRelations[ri].primaryIndex;
-        primIndex.resize(0);
-        auto& transLog = gRelations[ri].transLogTuples;
-        for (auto& trp : transLog) {
-            for (auto tpl : trp.second)
-            primIndex.push_back({tpl[0], {trp.first, tpl}});
+        if (!rq.columns[0].queries.empty()) {
+            auto& primIndex = gRelations[ri].primaryIndex;
+            /*
+            cerr << "ri: " << ri << " col0 sz: " << primIndex.size() << " col0 qsz: " << gRelQ[ri].columns[0].queries.size() << endl;
+            for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+                cerr<< " " << gRelQ[ri].columns[ci].queries.size();
+            }
+            cerr << endl;
+            */
+            auto pib = primIndex.data();
+            auto pie = primIndex.data() + primIndex.size();
+            sort(pib, pie, PILess);
+            //auto pim = pib + szbef; sort(pim, pie, PILess);
+            //if (szbef > 0) inplace_merge(pib, pim, pie, PILess); sort(pib, pie, PILess);
         }
-        sort(primIndex.data(), primIndex.data()+primIndex.size(), 
-                [] (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, const pair<uint64_t, pair<uint64_t, tuple_t>>& r) {
-                    return l.first < r.first;
-                });
-        */
     }
 
 #ifdef LPDEBUG
@@ -1377,7 +1391,7 @@ static bool isValidationConflict(LPValidation& v) {
 void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "----- NEW VAL SESSION -----" << endl;
-    uint64_t dups = 0;
+    //uint64_t dups = 0;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         for (uint32_t ci=0, csz=gSchema[ri]; ci<csz; ++ci) {
             auto& rq = gRelQ[ri].columns[ci].queries;
