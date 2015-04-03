@@ -137,6 +137,10 @@ class CIndex {
             return {trf, trt};
         }
 
+        std::pair<Bucket*, Bucket*> buckets() {
+            return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
+        }
+
     private:
 
         std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
