@@ -1457,7 +1457,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
 void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "----- NEW VAL SESSION -----" << endl;
-    uint64_t cnt = 0, cnt2 = 0;
+    //uint64_t cnt = 0, cnt2 = 0;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         auto& rq = gRelQ[ri].columns[0].queries;
         if (rq.empty()) continue;
@@ -1470,29 +1470,6 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         auto pibegin = primIndex.data();
         auto piend = primIndex.data()+primIndex.size();
 
-        if (primIndex.size() < (rq.size()>>5)) {
-            //cnt++;
-            // for each tuple now instead
-            for (; pibegin<piend; ++pibegin) {
-                auto tpl = pibegin->second.second;
-                auto transid = pibegin->second.first;
-                auto res = std::equal_range(qb, qe, tpl[0], QMVLess);
-                // for each query that matches
-                for (auto cq=res.first; cq<res.second; ++cq) {
-                    if (cq->from <= transid && cq->to >= transid) {
-                        uint64_t resPos = cq->lpv->validationId - resIndexOffset;
-                        if (gPendingResults[resPos]) { continue; }
-                        if (isTupleConflict(((Column*)cq->rq->columns)+1, 
-                                        ((Column*)cq->rq->columns)+cq->rq->columnCount, 
-                                        tpl)) {
-                                gPendingResults[resPos] = true;
-                        }
-                    }
-                }   
-            }
-
-        } else {
-            //cnt2++;
         //PrimaryIndex_vt lastres;
         vector<pair<uint64_t, tuple_t>> lastres;
         uint64_t lastvalue = UINT64_MAX;
@@ -1516,18 +1493,19 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             } else if (lastres.empty()) continue;
             
             // do the actual validation
-            auto psec = ((Column*)cmeta.rq->columns)+1;
-            auto pend = ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount;
+            //auto psec = ((Column*)cmeta.rq->columns)+1;
+            //auto pend = ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount;
             for (auto& trpair : lastres) {
                 if (trpair.first <= cmeta.to && trpair.first >= cmeta.from) {
-                    if (isTupleConflict(psec, pend, trpair.second)) {
+                    if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                        ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                        trpair.second)) {
                         gPendingResults[resPos] = true;
                         break;
                     }
                 } 
             } 
         } // end of all queries
-        } // end if Tuples > 100
         //cerr << cnt << ":" << cnt2 << endl;
     }            
 }
