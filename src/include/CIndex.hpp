@@ -14,8 +14,8 @@
 class CIndex {
 
     template<typename T>
-    //using vector_a = std::vector<T, aligned_allocator<T, 16>>;
-    using vector_a = std::vector<T>;
+    using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+    //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
     static constexpr size_t mBucketSize = 256;
@@ -52,19 +52,29 @@ class CIndex {
                 meta.push_back({trid, tpl});
             }
 
+            ALWAYS_INLINE Bucket* setMax(uint64_t trid) {
+                trmin = (trsize > 0) ? trmin : trid;
+                ++trsize; trmax = trid;
+                return this;
+            }
+
             void sortByVal() {
                 std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
                     SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
             }
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
-                auto vb = values.data(), ve = values.data()+values.size();
-                auto mb = meta.data();
-                auto rp = std::equal_range(vb, ve, v);
+                //auto vb = values.data(), ve = values.data()+values.size();
+                //auto rp = std::equal_range(vb, ve, v);
+                //auto mb = meta.data();
+                //auto vb = values.begin(), ve = values.end();
+                //auto rp = std::equal_range(vb, ve, v);
+                auto vb = values.data();
+                auto rp = std::equal_range(vb, vb+values.size(), v);
                 
                 //for (auto vv : values) std::cerr << vv << " ";
                 //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
-                return {mb+(rp.first-vb), mb+(rp.second-vb)};
+                return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
             }
         };
   
@@ -78,7 +88,7 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Bucket& o) {
                 return target < o.trmin;
             }
-        };
+        } BTRLess;
 
         CIndex() {
             mBuckets.resize(1);
@@ -87,17 +97,18 @@ class CIndex {
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
-            if (mBuckets.back().trsize == mBucketSize) {
+            if (mBucketSize - mBuckets.back().trsize == 0) {
                 mBuckets.emplace_back(trid, trid, 1);
                 //mBuckets.push_back({});
                 //Bucket& lb = mBuckets.back();
                 //lb.trsize = 1; lb.trmin = trid; lb.trmax = trid;
+                return &mBuckets.back();
             } else {
-                Bucket& lb = mBuckets.back();
-                ++lb.trsize; lb.trmax = trid;
-                if (lb.trsize==1) lb.trmin = trid;
+                //Bucket& lb = mBuckets.back();
+                //++lb.trsize; lb.trmax = trid;
+                //if (lb.trsize==1) lb.trmin = trid;
+                return mBuckets.back().setMax(trid);
             }
-            return &mBuckets.back();
         }
 
         void ALWAYS_INLINE sortAll() {
@@ -107,7 +118,7 @@ class CIndex {
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
             auto bend = mBuckets.end();
-            auto bfrom = std::lower_bound(mBuckets.begin(), bend, trfrom, BTRLess_t());
+            auto bfrom = std::lower_bound(mBuckets.begin(), bend, trfrom, BTRLess);
             while (bfrom<bend) {
                 bfrom->sortByVal(); 
                 ++bfrom;
@@ -115,11 +126,15 @@ class CIndex {
         }
 
         // returns the buckets that contain all the transactions from trfrom to trto
+        // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
-            auto bb = mBuckets.data();
             auto be = mBuckets.data()+mBuckets.size();
-            auto trf = std::lower_bound(bb, be, trfrom, BTRLess_t());
-            return {trf, std::upper_bound(trf, be, trto, BTRLess_t())};
+            auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
+            //return {trf, std::upper_bound(trf, be, trto, BTRLess)};
+            auto trt = trf;
+            //for (;trt<be && trt->trmin < trto;) ++trt;
+            for (;be-trt>0;) trt = (trt->trmin < trto) ? trt+1 : be;
+            return {trf, trt};
         }
 
     private:
