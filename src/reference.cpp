@@ -987,7 +987,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 //cerr << " -- val: " << vq.validationId << endl;
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
                 //if (pFirst.column != 0) 
-                    v.queries.push_back(rq);
+                //    v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -1486,7 +1486,7 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         //PrimaryIndex_vt lastres;
         vector<pair<uint64_t, tuple_t>> lastres;
         uint64_t lastvalue = UINT64_MAX;
-        /*
+        
         //uint32_t qsz = qe-qb, cnt=0;
         // for each query
         for (; qb<qe;) {
@@ -1494,15 +1494,39 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
             if (gPendingResults[resPos]) { continue; }
 
+            auto trp = primIndex.buckets(cmeta.from, cmeta.to); 
+            //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
+            //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
+            for (auto cb=trp.first; cb<trp.second; ++cb) {
+                auto rp = cb->equal_range(cmeta.value);
+                if (rp.first == rp.second) continue;
+                //cerr<< "found : " << (rp.second-rp.first) << endl;
+                // optimization - TODO - have them sorted by transaction too in order to break
+                for (auto ctpl=rp.first; ctpl<rp.second; ++ctpl) {
+                    if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
+                        if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                    ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                    ctpl->tuple)) {
+                            gPendingResults[resPos] = true;
+                            //break;
+                            goto FOUND;
+                        }
+                    }
+                }
+            }
+FOUND: continue;
+/*            
             if (lastvalue != cmeta.value) {
                 // check if tuple exists
                 lastvalue = cmeta.value; 
                 lastres.resize(0);
+                
                 auto trp = equal_range(pibegin, piend, cmeta.value, PILess);
                 //if (trp.first == trp.second) continue;
                 for (auto ctpl=trp.first; ctpl<trp.second; ++ctpl) {
                     lastres.push_back(ctpl->second);
                 }
+
             } else if (lastres.empty()) continue;
             
             // do the actual validation
@@ -1518,9 +1542,9 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
                     }
                 } 
             } 
+*/
         } // end of all queries
-        //cerr << cnt << ":" << cnt2 << endl;
-        */
+        //cerr << cnt << ":" << cnt2 << endl;      
     }            
 }
 

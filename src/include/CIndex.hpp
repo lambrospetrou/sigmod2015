@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 
+#include <iostream>
 
 class CIndex {
 
@@ -48,6 +49,16 @@ class CIndex {
                 std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
                     SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
             }
+
+            std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
+                auto vb = values.data(), ve = values.data()+values.size();
+                auto mb = meta.data();
+                auto rp = std::equal_range(vb, ve, v);
+                
+                //for (auto vv : values) std::cerr << vv << " ";
+                //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
+                return {mb+(rp.first-vb), mb+(rp.second-vb)};
+            }
         };
   
         struct BTRLess_t {
@@ -58,7 +69,7 @@ class CIndex {
                 return o.trmax < target;
             }
             ALWAYS_INLINE bool operator() (uint64_t target, const Bucket& o) {
-                return target < o.trmax;
+                return target < o.trmin;
             }
         };
 
@@ -97,11 +108,11 @@ class CIndex {
         }
 
         // returns the buckets that contain all the transactions from trfrom to trto
-        std::pair<Bucket*, Bucket*> getBuckets(uint64_t trfrom, uint64_t trto) {
+        std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
             auto bb = mBuckets.data();
             auto be = mBuckets.data()+mBuckets.size();
             auto trf = std::lower_bound(bb, be, trfrom, BTRLess_t());
-            return {trf, std::lower_bound(trf, be, trto, BTRLess_t())};
+            return {trf, std::upper_bound(trf, be, trto, BTRLess_t())};
         }
 
     private:
