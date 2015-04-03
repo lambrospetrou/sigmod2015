@@ -1480,73 +1480,39 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
 
         auto& primIndex = gRelations[ri].primaryIndex;
-        auto buckets = primIndex.buckets();
         //if (buckets.first == buckets.second) { cerr << "empty bucket" << endl; }
 
-        auto TrCache_ = std::unique_ptr<pair<CIndex::Meta_t*, CIndex::Meta_t*>>(
-                new pair<CIndex::Meta_t*, CIndex::Meta_t*>[buckets.second-buckets.first]);
-        auto TrCache = TrCache_.get(); // get the raw pointer
-        cerr << "-- buckets: " << (buckets.second-buckets.first) << endl;
-
-        //PrimaryIndex_vt lastres;
-        vector<pair<uint64_t, tuple_t>> lastres;
-        uint64_t lastvalue = UINT64_MAX;
+        //uint64_t lastvalue = UINT64_MAX;
         
-        //uint32_t qsz = qe-qb, cnt=0;
         // for each query
         for (; qb<qe;) {
             auto& cmeta = *qb++;
             uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
             if (gPendingResults[resPos]) { continue; }
 
-            auto trp = primIndex.buckets(cmeta.from, cmeta.to); 
+            auto trbuckets = primIndex.buckets(cmeta.from, cmeta.to); 
             const uint64_t rangediff = cmeta.to - cmeta.from;
-            
-            if (lastvalue != cmeta.value) {
-                lastvalue = cmeta.value;
-                for (size_t bb=0; bb<(size_t)(buckets.second-buckets.first); ++bb) TrCache[bb] = {nullptr, nullptr};
-                //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
-                //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
-                for (auto cb=trp.first; cb<trp.second; ++cb) {
-                    auto& rp = TrCache[cb-buckets.first];
-                    rp = cb->equal_range(cmeta.value);
-                    if (rp.first == rp.second) continue;
-                    
-                    //cerr<< "found : " << (rp.second-rp.first) << endl;
-                    // optimization - TODO - have them sorted by transaction too in order to break
-                    for (auto ctpl=rp.first; ctpl<rp.second; ++ctpl) {
-                        //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
-                        if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
-                            if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                        ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                        ctpl->tuple)) {
-                                gPendingResults[resPos] = true;
-                                //break;
-                                goto FOUND;
-                            }
+            //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
+            //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
+            for (auto cb=trbuckets.first, ce=trbuckets.second; cb<ce; ++cb) {
+                auto tplpair = cb->equal_range(cmeta.value);
+                if (tplpair.first == tplpair.second) continue;
+                
+                //cerr<< "found : " << (rp.second-rp.first) << endl;
+                // optimization - TODO - have them sorted by transaction too in order to break
+                for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                    //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
+                    if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
+                        if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                    ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                    ctpl->tuple)) {
+                            gPendingResults[resPos] = true;
+                            //break;
+                            goto FOUND;
                         }
                     }
                 }
-            } else {
-                for (auto cb=trp.first; cb<trp.second; ++cb) {
-                    auto& rp = TrCache[cb-buckets.first];
-                    if (rp.first == nullptr) { rp = cb->equal_range(cmeta.value); }//TrCache[cb-buckets.first]=rp; }
-                    if (rp.first == rp.second) continue;
-                    // optimization - TODO - have them sorted by transaction too in order to break
-                    for (auto ctpl=rp.first; ctpl<rp.second; ++ctpl) {
-                        //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
-                        if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
-                            if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                        ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                        ctpl->tuple)) {
-                                gPendingResults[resPos] = true;
-                                //break;
-                                goto FOUND;
-                            }
-                        }
-                    }
-                }
-            }// end if not same last value
+            }
 FOUND: continue;
         } // end of all queries
         //cerr << cnt << ":" << cnt2 << endl;      
