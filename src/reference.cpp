@@ -783,9 +783,9 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         uint64_t lastTransId = relTrans[0].trans_id;
 
-        //auto& primIndex = relation.primaryIndex;
-        //auto firstTrans = relTrans[0].trans_id;
-        //CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
+        auto& primIndex = relation.primaryIndex;
+        auto firstTrans = relTrans[0].trans_id;
+        CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
         
         // for each transaction regarding this relation
         vector<tuple_t> operations;
@@ -798,7 +798,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 lastTransId = trans.trans_id;
                 operations.resize(0);
         
-                //trb=primIndex.bucketNext(trans.trans_id);
+                trb=primIndex.bucketNext(trans.trans_id);
             }
 
             if (trans.isDelOp) {
@@ -823,11 +823,12 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                         // insert the value into the primary key index
                         //primIndex[operations.back()[0]].push_back({trans.trans_id, operations.back()});
                         //primIndex.push_back({operations.back()[0], {trans.trans_id, operations.back()}});
-                        //trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
+                        trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
                     }
                 }
                 delete[] trans.values;
             } else {
+                trb->notifyInsertBatch(trans.rowCount);
                 // this is an insert operation
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                     tuple_t vals = const_cast<uint64_t*>(values);
@@ -839,7 +840,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     // insert the value into the primary key index
                     //primIndex[vals[0]].push_back({trans.trans_id, vals});
                     //primIndex.push_back({vals[0], {trans.trans_id, vals}});
-                    //trb->insert(trans.trans_id, vals, vals[0]);
+                    trb->insert(trans.trans_id, vals, vals[0]);
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
@@ -856,7 +857,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     return l.first < r.first;
                 });*/
 
-        //primIndex.sortFrom(firstTrans);
+        primIndex.sortFrom(firstTrans);
 
     } // end of all relations
 
@@ -864,51 +865,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     //processUpdateIndexTask(nThreads, tid, nullptr);
 }
 
-static void updateRelColZero(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
-    auto& relation = gRelations[ri];
-    auto& relColumn = gRelColumns[ri].columns[col];
-    
-    uint64_t updatedUntil = relColumn.transTo;
-    if (relation.transLogTuples.empty() || (updatedUntil > relation.transLogTuples.back().first)) return;
-    
-    // Use lower_bound to automatically jump to the transaction to start
-    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-    auto tEnd=relation.transLogTuples.end();
-    auto& colTransactions = relColumn.transactions;
-    auto& colTransactionsORs = relColumn.transactionsORs;
-
-    auto& primIndex = relation.primaryIndex;
-
-    // for all the transactions in the relation
-    for(auto trp=transFrom; trp!=tEnd; ++trp) {
-        const unsigned int trpsz = trp->second.size();
-        CIndex::Bucket& trb=*primIndex.bucketNext(trp->first);
-        trb.notifyInsertBatch(trpsz);
-        // allocate vectors for the current new transaction to put its data
-        colTransactions.emplace_back(trp->first);
-        auto& values = colTransactions.back().values;
-        auto& tuples = colTransactions.back().tuples;
-        values.reserve(trpsz); tuples.reserve(trpsz);
-        values.resize(trpsz); uint64_t *valPtr = values.data();
-        tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
-        colTransactionsORs.push_back(0);
-        uint32_t tpl_id = 0;
-        for (auto tpl : trp->second) { 
-            *valPtr++ = (tpl[col]);
-            *tplPtr++ = {tpl_id++, tpl}; 
-            colTransactionsORs.back() |= tpl[col];
-            trb.insert(trp->first, tpl, tpl[0]);
-        }
-        std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
-                SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
-        //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
-    }
-    // no need to check for empty since now we update all the columns and there is a check for emptyness above
-    relColumn.transTo = relation.transLogTuples.back().first + 1;
-    
-    // sort the index for col 0
-    primIndex.sortFrom(transFrom->first);
-}
 static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto& relation = gRelations[ri];
     auto& relColumn = gRelColumns[ri].columns[col];
@@ -924,11 +880,11 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
 
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
-        const unsigned int trpsz = trp->second.size();
         // allocate vectors for the current new transaction to put its data
         colTransactions.emplace_back(trp->first);
         auto& values = colTransactions.back().values;
         auto& tuples = colTransactions.back().tuples;
+        const unsigned int trpsz = trp->second.size();
         values.reserve(trpsz); tuples.reserve(trpsz);
         values.resize(trpsz); uint64_t *valPtr = values.data();
         tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
@@ -953,8 +909,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
         uint32_t ri, col;
         lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-        if (col==0) updateRelColZero(tid, ri, col);
-        else updateRelCol(tid, ri, col);
+        updateRelCol(tid, ri, col);
     } // end of while columns to update     
 }
 
@@ -1541,6 +1496,7 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             if (gPendingResults[resPos]) { continue; }
 
             auto trp = primIndex.buckets(cmeta.from, cmeta.to); 
+            const uint64_t rangediff = cmeta.to - cmeta.from;
             //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
             //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
             for (auto cb=trp.first; cb<trp.second; ++cb) {
@@ -1549,7 +1505,8 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
                 //cerr<< "found : " << (rp.second-rp.first) << endl;
                 // optimization - TODO - have them sorted by transaction too in order to break
                 for (auto ctpl=rp.first; ctpl<rp.second; ++ctpl) {
-                    if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
+                    //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
+                    if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
                         if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
                                     ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
                                     ctpl->tuple)) {

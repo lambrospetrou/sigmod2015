@@ -3,6 +3,7 @@
 
 #include "LPUtils.hpp"
 #include "DoubleIter.hpp"
+#include "aligned_allocator.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -12,6 +13,10 @@
 
 class CIndex {
 
+    template<typename T>
+    //using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+    using vector_a = std::vector<T>;
+    
     using tuple_t = uint64_t*;
     static constexpr size_t mBucketSize = 256;
     
@@ -23,8 +28,8 @@ class CIndex {
         };
         
         struct Bucket {
-            std::vector<uint64_t> values; // might be btree maybe if faster than binary_search
-            std::vector<Meta_t> meta;
+            vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
+            vector_a<Meta_t> meta;
             uint64_t trmin;
             uint64_t trmax;
             size_t trsize;
