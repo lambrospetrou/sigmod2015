@@ -13,7 +13,7 @@
 class CIndex {
 
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 128;
+    static constexpr size_t mBucketSize = 256;
     
     public:
         struct Meta_t {
@@ -87,8 +87,8 @@ class CIndex {
                 //lb.trsize = 1; lb.trmin = trid; lb.trmax = trid;
             } else {
                 Bucket& lb = mBuckets.back();
-                if (lb.trsize == 0) lb.trmin = trid;
                 ++lb.trsize; lb.trmax = trid;
+                if (lb.trsize==1) lb.trmin = trid;
             }
             return &mBuckets.back();
         }
