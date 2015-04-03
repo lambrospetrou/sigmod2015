@@ -11,7 +11,7 @@
 
 class CIndex {
 
-    using tuple_t = uint64_t;
+    using tuple_t = uint64_t*;
     static constexpr size_t mBucketSize = 128;
     
     public:
@@ -68,7 +68,7 @@ class CIndex {
 
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
-        ALWAYS_INLINE Bucket& bucketNext(uint64_t trid) {
+        ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
             if (mBuckets.back().trsize == mBucketSize) {
                 mBuckets.emplace_back(trid, trid, 1);
                 //mBuckets.push_back({});
@@ -79,7 +79,7 @@ class CIndex {
                 if (lb.trsize == 0) lb.trmin = trid;
                 ++lb.trsize; lb.trmax = trid;
             }
-            return mBuckets.back();
+            return &mBuckets.back();
         }
 
         void ALWAYS_INLINE sortAll() {

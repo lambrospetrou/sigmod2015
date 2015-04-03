@@ -311,7 +311,8 @@ struct RelationStruct {
     vector<unique_ptr<RelTransLog>> transLog;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
     
-    PrimaryIndex_t primaryIndex;
+    //PrimaryIndex_t primaryIndex;
+    CIndex primaryIndex;
 
     char padding[8]; //for false sharing
 } ALIGNED_DATA;
@@ -506,11 +507,13 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
         cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
-       
+      
+    /*
     auto& primIndex = gRelations[ri].primaryIndex;
     sort(primIndex.data(), primIndex.data()+primIndex.size(), PILessTr);
     auto piub = upper_bound(primIndex.begin(), primIndex.end(), trans_id, PILessTr);
     primIndex.erase(primIndex.begin(), piub);
+    */
 
 /*
         // clean the transactions log
@@ -781,7 +784,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         uint64_t lastTransId = relTrans[0].trans_id;
 
         auto& primIndex = relation.primaryIndex;
-        //auto szbef = primIndex.size();
+        auto firstTrans = relTrans[0].trans_id;
+        CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
         
         // for each transaction regarding this relation
         vector<tuple_t> operations;
@@ -793,6 +797,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     relation.transLogTuples.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
+        
+                trb=primIndex.bucketNext(trans.trans_id);
             }
 
             if (trans.isDelOp) {
@@ -816,7 +822,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     
                         // insert the value into the primary key index
                         //primIndex[operations.back()[0]].push_back({trans.trans_id, operations.back()});
-                        primIndex.push_back({operations.back()[0], {trans.trans_id, operations.back()}});
+                        //primIndex.push_back({operations.back()[0], {trans.trans_id, operations.back()}});
+                        trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
                     }
                 }
                 delete[] trans.values;
@@ -831,7 +838,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             
                     // insert the value into the primary key index
                     //primIndex[vals[0]].push_back({trans.trans_id, vals});
-                    primIndex.push_back({vals[0], {trans.trans_id, vals}});
+                    //primIndex.push_back({vals[0], {trans.trans_id, vals}});
+                    trb->insert(trans.trans_id, vals, vals[0]);
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
@@ -847,6 +855,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 [] (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, const pair<uint64_t, pair<uint64_t, tuple_t>>& r) {
                     return l.first < r.first;
                 });*/
+
+        primIndex.sortFrom(firstTrans);
 
     } // end of all relations
 
@@ -976,7 +986,8 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                 //cerr << " -- to: " << vq.to << endl;
                 //cerr << " -- val: " << vq.validationId << endl;
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
-                //if (pFirst.column != 0) v.queries.push_back(rq);
+                //if (pFirst.column != 0) 
+                    v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -998,7 +1009,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                     else return l.to < r.to;
                 });
         } // sort the validation queries 
-        
+        /* 
         if (!rq.columns[0].queries.empty()) {
             auto& primIndex = gRelations[ri].primaryIndex;
             
@@ -1012,6 +1023,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             //auto pim = pib + szbef; sort(pim, pie, PILess);
             //if (szbef > 0) inplace_merge(pib, pim, pie, PILess); sort(pib, pie, PILess);
         }
+        */
     }
 
 #ifdef LPDEBUG
@@ -1468,13 +1480,13 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
 
         auto& primIndex = gRelations[ri].primaryIndex;
-        auto pibegin = primIndex.data();
-        auto piend = primIndex.data()+primIndex.size();
+        //auto pibegin = primIndex.data();
+        //auto piend = primIndex.data()+primIndex.size();
 
         //PrimaryIndex_vt lastres;
         vector<pair<uint64_t, tuple_t>> lastres;
         uint64_t lastvalue = UINT64_MAX;
-        
+        /*
         //uint32_t qsz = qe-qb, cnt=0;
         // for each query
         for (; qb<qe;) {
@@ -1508,6 +1520,7 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             } 
         } // end of all queries
         //cerr << cnt << ":" << cnt2 << endl;
+        */
     }            
 }
 
