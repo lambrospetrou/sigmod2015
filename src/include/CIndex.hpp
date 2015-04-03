@@ -40,7 +40,9 @@ class CIndex {
             Meta_t* rawMeta() { return meta.data(); }
             uint64_t* rawValues() { return values.data(); }
 
-            void insert(uint64_t trid, tuple_t tpl, uint64_t val) {
+            void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
+
+            void ALWAYS_INLINE insert(uint64_t trid, tuple_t tpl, uint64_t val) {
                 values.push_back(val);
                 meta.push_back({trid, tpl});
             }
