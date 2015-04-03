@@ -997,16 +997,14 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                     else return l.to < r.to;
                 });
         } // sort the validation queries 
-
+        
         if (!rq.columns[0].queries.empty()) {
             auto& primIndex = gRelations[ri].primaryIndex;
-            /*
-            cerr << "ri: " << ri << " col0 sz: " << primIndex.size() << " col0 qsz: " << gRelQ[ri].columns[0].queries.size() << endl;
-            for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-                cerr<< " " << gRelQ[ri].columns[ci].queries.size();
-            }
-            cerr << endl;
-            */
+            
+            //cerr << "ri: " << ri << " col0 sz: " << primIndex.size() << " col0 qsz: " << gRelQ[ri].columns[0].queries.size() << endl;
+            //for (uint32_t ci=0; ci<gSchema[ri]; ++ci) { cerr<< " " << gRelQ[ri].columns[ci].queries.size(); }
+            //cerr << endl;
+            
             auto pib = primIndex.data();
             auto pie = primIndex.data() + primIndex.size();
             sort(pib, pie, PILess);
@@ -1459,7 +1457,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
 void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "----- NEW VAL SESSION -----" << endl;
-    //uint64_t dups = 0;
+    uint64_t cnt = 0, cnt2 = 0;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         auto& rq = gRelQ[ri].columns[0].queries;
         if (rq.empty()) continue;
@@ -1472,72 +1470,65 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         auto pibegin = primIndex.data();
         auto piend = primIndex.data()+primIndex.size();
 
+        if (primIndex.size() < (rq.size()>>5)) {
+            //cnt++;
+            // for each tuple now instead
+            for (; pibegin<piend; ++pibegin) {
+                auto tpl = pibegin->second.second;
+                auto transid = pibegin->second.first;
+                auto res = std::equal_range(qb, qe, tpl[0], QMVLess);
+                // for each query that matches
+                for (auto cq=res.first; cq<res.second; ++cq) {
+                    if (cq->from <= transid && cq->to >= transid) {
+                        uint64_t resPos = cq->lpv->validationId - resIndexOffset;
+                        if (gPendingResults[resPos]) { continue; }
+                        if (isTupleConflict(((Column*)cq->rq->columns)+1, 
+                                        ((Column*)cq->rq->columns)+cq->rq->columnCount, 
+                                        tpl)) {
+                                gPendingResults[resPos] = true;
+                        }
+                    }
+                }   
+            }
+
+        } else {
+            //cnt2++;
         //PrimaryIndex_vt lastres;
         vector<pair<uint64_t, tuple_t>> lastres;
         uint64_t lastvalue = UINT64_MAX;
         
-
         //uint32_t qsz = qe-qb, cnt=0;
         // for each query
         for (; qb<qe;) {
             auto& cmeta = *qb++;
             uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
-            if (unlikely(gPendingResults[resPos])) { continue; }
-            
+            if (gPendingResults[resPos]) { continue; }
+
             if (lastvalue != cmeta.value) {
                 // check if tuple exists
-                //cnt++;
-                //lastvalue = cmeta.value;
-
-                //auto transFrom = std::lower_bound(trans.begin(), trans.end(), cmeta.from, CTRSLessThan);
-                //auto transTo = std::upper_bound(transFrom, trans.end(), cmeta.to, CTRSLessThan);
-                // TODO - while doing the index hold for each relation MIN-MAX transaction
-                /*
+                lastvalue = cmeta.value; 
                 lastres.resize(0);
-                auto transFrom = trans.begin();
-                auto transTo = trans.end();
-                for (; transFrom<transTo; ++transFrom) {
-                    auto vb = transFrom->values.data(), ve = transFrom->values.data() + transFrom->values.size(); 
-                    auto tplb = transFrom->tuples.data(), tple = transFrom->tuples.data() + transFrom->values.size(); 
-                    auto trp = equal_range(vb, ve, cmeta.value);
-                    //if (trp.first == trp.second) continue;
-                    for (tplb += (trp.first-vb), tple -= (ve-trp.second); tplb<tple; ++tplb) {
-                        lastres.push_back({transFrom->trans_id, tplb->tuple});
-                    }
-                }
-                */
-                lastres.resize(0);
-                auto trp = equal_range(pibegin, piend, cmeta.value, PILess_t());
-                if (trp.first == trp.second) continue;
+                auto trp = equal_range(pibegin, piend, cmeta.value, PILess);
+                //if (trp.first == trp.second) continue;
                 for (auto ctpl=trp.first; ctpl<trp.second; ++ctpl) {
                     lastres.push_back(ctpl->second);
                 }
-
-                //auto tplTr = primIndex.find(cmeta.value);
-                //if (tplTr == piend) { lastres = nullptr; continue; }
-                //lastres = &tplTr->second;
-                /*
-                cerr << lastres->size() << " = ";
-                for (auto& trpair : *lastres) cerr << trpair.first << ":" << trpair.second << " ";
-                cerr << endl;
-                */
-            //} else if (lastres == nullptr) continue;
             } else if (lastres.empty()) continue;
             
+            // do the actual validation
+            auto psec = ((Column*)cmeta.rq->columns)+1;
+            auto pend = ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount;
             for (auto& trpair : lastres) {
                 if (trpair.first <= cmeta.to && trpair.first >= cmeta.from) {
-                    //cerr << trpair.first << " = " << trpair.second[0] << " = " << cmeta.value << " qfrom: " << cmeta.from << " qto: " << cmeta.to << endl;
-                    if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                               ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                               trpair.second)) {
+                    if (isTupleConflict(psec, pend, trpair.second)) {
                         gPendingResults[resPos] = true;
                         break;
                     }
                 } 
             } 
         } // end of all queries
-
-        //cerr << cnt << "/" << qsz << endl;
+        } // end if Tuples > 100
+        //cerr << cnt << ":" << cnt2 << endl;
     }            
 }
 
