@@ -278,7 +278,7 @@ struct RTLComp_t {
     }
 } RTLComp;
 // The general structure for each relation
-//typedef btree::btree_map<uint64_t, LPPair<uint64_t>> PrimaryIndex_t; 
+//typedef LPPair<uint64_t> PrimaryIndex_vt; 
 typedef vector<pair<uint64_t, tuple_t>> PrimaryIndex_vt; 
 typedef btree::btree_map<uint64_t, PrimaryIndex_vt> PrimaryIndex_t; 
 struct RelationStruct {
@@ -482,11 +482,6 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
         
-    auto& primIndex = gRelations[ri].primaryIndex;
-    //primIndex.clear();
-    //primIndex.swap(PrimaryIndex());
-
-    
 /*
         // clean the transactions log
         auto& transLog = gRelations[i].transLog;         
@@ -788,7 +783,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                         relation.insertedRows.erase(lb);
                     
                         // insert the value into the primary key index
-                        //primIndex[operations.back()[0]].put_u(trans.trans_id, operations.back());
                         primIndex[operations.back()[0]].push_back({trans.trans_id, operations.back()});
                     }
                 }
@@ -803,7 +797,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
             
                     // insert the value into the primary key index
-                    //primIndex[vals[0]].put_u(trans.trans_id, vals);
                     primIndex[vals[0]].push_back({trans.trans_id, vals});
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
@@ -1430,16 +1423,21 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             
             if (lastvalue != cmeta.value) {
                 // check if tuple exists
-                cnt++;
+                //cnt++;
                 lastvalue = cmeta.value;
                 auto tplTr = primIndex.find(cmeta.value);
                 if (tplTr == piend) { lastres = nullptr; continue; }
                 lastres = &tplTr->second;
+                /*
+                cerr << lastres->size() << " = ";
+                for (auto& trpair : *lastres) cerr << trpair.first << ":" << trpair.second << " ";
+                cerr << endl;
+                */
             } else if (lastres == nullptr) continue;
             
             uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
             if (gPendingResults[resPos]) { continue; }
-            
+
             for (auto& trpair : *lastres) {
                 if (trpair.first <= cmeta.to && trpair.first >= cmeta.from) {
                     //cerr << trpair.first << " = " << trpair.second[0] << " = " << cmeta.value << " qfrom: " << cmeta.from << " qto: " << cmeta.to << endl;
@@ -1450,10 +1448,10 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
                         break;
                     }
                 } 
-            }         
+            } 
         } // end of all queries
 
-        cerr << cnt << "/" << qsz << endl;
+        //cerr << cnt << "/" << qsz << endl;
     }            
 }
 
