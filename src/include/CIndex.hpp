@@ -97,7 +97,7 @@ class CIndex {
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
-            if (mBucketSize - mBuckets.back().trsize == 0) {
+            if (unlikely(mBucketSize - mBuckets.back().trsize == 0)) {
                 mBuckets.emplace_back(trid, trid, 1);
                 //mBuckets.push_back({});
                 //Bucket& lb = mBuckets.back();
@@ -120,8 +120,7 @@ class CIndex {
             auto bend = mBuckets.end();
             auto bfrom = std::lower_bound(mBuckets.begin(), bend, trfrom, BTRLess);
             while (bfrom<bend) {
-                bfrom->sortByVal(); 
-                ++bfrom;
+                (bfrom++)->sortByVal(); 
             }
         }
 
@@ -129,11 +128,12 @@ class CIndex {
         // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
             auto be = mBuckets.data()+mBuckets.size();
-            auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
+            //auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
             //return {trf, std::upper_bound(trf, be, trto, BTRLess)};
+            auto trf = mBuckets.data();
+            for (;(be-trf>0) & (trf->trmax < trfrom);) ++trf;
             auto trt = trf;
-            //for (;trt<be && trt->trmin < trto;) ++trt;
-            for (;be-trt>0;) trt = (trt->trmin < trto) ? trt+1 : be;
+            for (;(be-trt>0) & (trt->trmin <= trto);) ++trt;
             return {trf, trt};
         }
 

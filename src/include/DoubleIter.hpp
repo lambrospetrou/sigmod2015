@@ -66,8 +66,9 @@ class SIter {
                 return *this;
             }
             operator value_type() const {
-                value_type rv = { *a, *b };
-                return rv;
+                //value_type rv = { *a, *b };
+                //return rv;
+                return (value_type){*a, *b};
             }
             reference& operator = (const reference& other)
             {
@@ -84,8 +85,9 @@ class SIter {
         };
 
         reference operator * () {
-            reference rv = { aIter, bIter };
-            return rv;
+            //reference rv = { aIter, bIter };
+            //return rv;
+            return {aIter, bIter};
         }
         bool operator == (const SIter& other) const
         {
