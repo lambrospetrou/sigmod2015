@@ -23,10 +23,11 @@ class CIndex {
     public:
         struct Meta_t {
             //uint32_t tpl_id;
-            uint64_t value;
+            //uint64_t value;
             uint64_t trans_id;
             tuple_t tuple;
         };
+        /*
         struct MLess_t {
             ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
                 return left.value < right.value;
@@ -51,9 +52,9 @@ class CIndex {
                 return target < right.value;
             }
         } MetaVTLess;
-        
+        */
         struct Bucket {
-            //vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
+            vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
             vector_a<Meta_t> meta;
             uint64_t trmin;
             uint64_t trmax;
@@ -61,21 +62,18 @@ class CIndex {
             // other possible statistics for these values goes here
 
             Bucket() : trmin(0), trmax(0), trsize(0) {
-                /*values.reserve(mBucketSize);*/ meta.reserve(mBucketSize);
+                values.reserve(mBucketSize); meta.reserve(mBucketSize);
             }
             Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
-                /*values.reserve(mBucketSize);*/ meta.reserve(mBucketSize);
+                values.reserve(mBucketSize); meta.reserve(mBucketSize);
             }
 
-            Meta_t* rawMeta() { return meta.data(); }
-            //uint64_t* rawValues() { return values.data(); }
-
-            void ALWAYS_INLINE notifyInsertBatch(size_t sz) { /*values.reserve(values.size()+sz);*/ meta.reserve(meta.size()+sz); }
+            void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
 
             void ALWAYS_INLINE insert(uint64_t trid, tuple_t tpl, uint64_t val) {
-                //values.push_back(val);
-                //meta.push_back({trid, tpl});
-                meta.push_back({val, trid, tpl});
+                values.push_back(val);
+                meta.push_back({trid, tpl});
+                //meta.push_back({val, trid, tpl});
             }
 
             ALWAYS_INLINE Bucket* setMax(uint64_t trid) {
@@ -85,18 +83,18 @@ class CIndex {
             }
 
             void sortByVal() {
-                //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
-                //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
-                std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
+                std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
+                    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
+                //std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
             }
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
-                //auto vb = values.data();
-                //auto rp = std::equal_range(vb, vb+values.size(), v);
+                auto vb = values.data();
+                auto rp = std::equal_range(vb, vb+values.size(), v);
                 //for (auto vv : values) std::cerr << vv << " ";
                 //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
-                //return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
-                return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
+                //return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
             }
         };
   
