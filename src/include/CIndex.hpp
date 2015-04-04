@@ -18,7 +18,7 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 128;
+    static constexpr size_t mBucketSize = 256;
     
     public:
         struct Meta_t {
@@ -112,23 +112,29 @@ class CIndex {
             for (Bucket& b : mBuckets) { b.sortByVal(); }
         }
 
-        
-        ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trfrom) {
-            auto trt = mBB;
-            for (;(mBE-trt>0) & (trt->trmax < trfrom); ++trt);
+       
+        /////////////////////
+        /////////
+        ///////// UTILITY FUNCTIONS 
+        /////////
+        /////////////////////
+        ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
+            auto trt = std::lower_bound(mBB, mBE, trid, BTRLess);
+            //auto trt = mBB;
+            //for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
             return trt;
         }
-
+        template<typename Iter>
+        ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
+            auto trt = std::upper_bound(bb, mBE, trid, BTRLess);
+            //auto trt = bb;
+            //for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
+            return trt;
+        }
+        /////////////////////
 
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
-            //auto be = mBuckets.end();
-            //auto trt = std::lower_bound(mBuckets.begin(), be, trfrom, BTRLess);
-            /*
-            auto be = mBuckets.data()+mBuckets.size();
-            auto trt = mBuckets.data();
-            for (;(be-trt>0) & (trt->trmax < trfrom); ++trt);
-            */
             auto trt = lp_lower_bound(trfrom);
             while (trt<mBE) {
                 (trt++)->sortByVal(); 
@@ -138,14 +144,15 @@ class CIndex {
         // returns the buckets that contain all the transactions from trfrom to trto
         // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
+            //////
             //auto be = mBuckets.data()+mBuckets.size();
-            //auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
-            //return {trf, std::upper_bound(trf, be, trto, BTRLess)};
-            auto trf = mBB;
-            for (;(mBE-trf>0) & (trf->trmax < trfrom); ++trf);
-            auto trt = trf;
-            for (;(mBE-trt>0) & (trt->trmin <= trto); ++trt);
-            return {trf, trt};
+            //auto trf = mBB;
+            //for (;(mBE-trf>0) & (trf->trmax < trfrom); ++trf);
+            //auto trt = trf;
+            //for (;(mBE-trt>0) & (trt->trmin <= trto); ++trt);
+            //return {trf, trt};
+            auto trf = lp_lower_bound(trfrom);
+            return {trf, lp_upper_bound(trto, trf)};
         }
 
         ALWAYS_INLINE std::pair<Bucket*, Bucket*> buckets() {
@@ -153,22 +160,21 @@ class CIndex {
         }
 
         ALWAYS_INLINE void erase(uint64_t trto) {
-            auto trt = mBB;
-            for (;(mBE-trt>0) & (trt->trmax < trto); ++trt);
-            //auto trt = std::lower_bound(bb, be, trto, BTRLess);
+            auto trt = lp_lower_bound(trto);
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
                 mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBB));
+                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
             } else if (trt > mBB) {
                 //std::cerr << "d";
                 mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBB));    
+                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
             }
         }
 
     private:
 
         std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
-        //uint64_t mLBT; // least bucket transaction = the Bucket.from of the first bucket
         Bucket *mBB; // mBuckets.data()
         Bucket *mBE; // mBuckets.data()+mBuckets.size()
 };
