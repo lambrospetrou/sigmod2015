@@ -18,11 +18,12 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 192;
+    static constexpr size_t mBucketSize = 256;
     
     public:
         struct Meta_t {
             //uint32_t tpl_id;
+            //uint64_t value;
             uint64_t trans_id;
             tuple_t tuple;
         };
@@ -36,10 +37,10 @@ class CIndex {
             // other possible statistics for these values goes here
 
             Bucket() : trmin(0), trmax(0), trsize(0) {
-                values.reserve(mBucketSize); values.reserve(mBucketSize);
+                values.reserve(mBucketSize); meta.reserve(mBucketSize);
             }
             Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
-                values.reserve(mBucketSize); values.reserve(mBucketSize);
+                values.reserve(mBucketSize); meta.reserve(mBucketSize);
             }
 
             Meta_t* rawMeta() { return meta.data(); }
