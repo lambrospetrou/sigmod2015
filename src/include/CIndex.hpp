@@ -18,7 +18,7 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 32;
+    static constexpr size_t mBucketSize = 16;
     
     public:
         struct Meta_t {
@@ -68,6 +68,14 @@ class CIndex {
             }
 
             void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
+           
+            // return a pointer to the next empty position of those allocated now
+            std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
+                size_t oldsz = values.size();
+                values.resize(values.size()+sz); 
+                meta.resize(meta.size()+sz); 
+                return {values.data()+oldsz, meta.data()+oldsz};
+            }
 
             void ALWAYS_INLINE insert(uint64_t trid, tuple_t tpl, uint64_t val) {
                 values.push_back(val);
@@ -163,20 +171,28 @@ class CIndex {
 #define BB() (mBuckets.data())
 #define BE() (mBuckets.data() + mBuckets.size())
 
+#define BINARY_SZ 16
+
         ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
-            //return std::lower_bound(BB(), BE(), trid, BTRLess);
-            auto mBB = BB(), mBE = BE();
-            auto trt = mBB;
-            for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
-            return trt;
+            if (mBuckets.size() > BINARY_SZ) {
+                return std::lower_bound(BB(), BE(), trid, BTRLess);
+            } else {
+                auto mBB = BB(), mBE = BE();
+                auto trt = mBB;
+                for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
+                return trt;
+            }
         }
         template<typename Iter>
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
-            //return std::upper_bound(bb, BE(), trid, BTRLess);
-            auto mBE = BE();
-            auto trt = bb;
-            for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
-            return trt;
+            if (mBuckets.size() > BINARY_SZ) {
+                return std::upper_bound(bb, BE(), trid, BTRLess);
+            } else {
+                auto mBE = BE();
+                auto trt = bb;
+                for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
+                return trt;
+            }
         }
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid) {
             return lp_upper_bound(trid, BB());

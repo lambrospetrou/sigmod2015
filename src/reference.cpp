@@ -839,11 +839,11 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     // Use lower_bound to automatically jump to the transaction to start
     auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
     auto tEnd=relation.transLogTuples.end();
-    //auto& colTransactions = relColumn.transactions;
-    //auto& colTransactionsORs = relColumn.transactionsORs;
 
     auto& cindex = relColumn.transactions;
 
+    size_t totalSize = 0;
+    //for(auto trp=transFrom; trp!=tEnd; ++trp) { totalSize += trp->second.size(); }
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -851,30 +851,18 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         auto trans_id = trp->first;
         CIndex::Bucket &trb = *cindex.bucketNext(trans_id);
         
-        //const size_t trpsz = trp->second.size();
-        //trb.notifyInsertBatch(trpsz);
-        for (auto tpl : trp->second) { 
-            trb.insert(trans_id, tpl, tpl[col]);
-        }
+        //for (auto tpl : trp->second) { 
+        //    trb.insert(trans_id, tpl, tpl[col]);
+        //}
         
-        /*
-        auto& values = colTransactions.back().values;
-        auto& tuples = colTransactions.back().tuples;
-        const unsigned int trpsz = trp->second.size();
-        values.reserve(trpsz); tuples.reserve(trpsz);
-        values.resize(trpsz); uint64_t *valPtr = values.data();
-        tuples.resize(trpsz); Metadata_t *tplPtr = tuples.data();
-        colTransactionsORs.push_back(0);
-        uint32_t tpl_id = 0;
+        const size_t trpsz = trp->second.size();
+        auto ptrs = trb.resizeAndGetPtr(trpsz);
+        auto valPtr = ptrs.first;
+        auto tplPtr = ptrs.second;
         for (auto tpl : trp->second) { 
             *valPtr++ = (tpl[col]);
-            *tplPtr++ = {tpl_id++, tpl}; 
-            colTransactionsORs.back() |= tpl[col];
+            *tplPtr++ = {trans_id, tpl}; 
         }
-        std::sort(SIter<uint64_t, Metadata_t>(values.data(), tuples.data()), 
-                SIter<uint64_t, Metadata_t>(values.data()+trpsz, tuples.data()+trpsz));
-        */
-        //cerr << "OR: " << colTransactionsORs.back() << " = " << std::bitset<64>(colTransactionsORs.back()) << endl;
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
@@ -1364,6 +1352,9 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
 }
 
 static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *cend) {
+#ifdef LPDEBUG
+    auto qproc = LPTimer.getChrono();
+#endif
     //cerr << "----- NEW VAL SESSION -----" << endl;
     //uint64_t cnt = 0, cnt2 = 0;
     auto& cindex = gRelColumns[q->relationId].columns[cbegin->column].transactions;
@@ -1386,6 +1377,9 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
             }
         }
     } // for all buckets
+#ifdef LPDEBUG
+    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+#endif
     return false;
 }
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
