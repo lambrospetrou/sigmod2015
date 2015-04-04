@@ -478,7 +478,7 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
     size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
     */
         
-    //cerr << ri << "=" << cRelCol.columns[0].transactions.size() << endl;
+    //cerr << ri << " = " << cRelCol.columns[0].transactions.size() << " | " << cRelCol.columns[1].transactions.size() << endl;
     for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
         cRelCol.columns[ci].transactions.erase(trans_id);
     }
@@ -836,26 +836,30 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
 
     auto& cindex = relColumn.transactions;
 
+    size_t totaltuples = 0;
+    for(auto trp=transFrom; trp!=tEnd; ++trp) totaltuples += trp->second.size();
+
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
-        //colTransactions.emplace_back(trp->first);
         auto trans_id = trp->first;
         CIndex::Bucket &trb = *cindex.bucketNext(trans_id, !col);
-        
-        //for (auto tpl : trp->second) { 
-        //    trb.insert(trans_id, tpl, tpl[col]);
-        //}
-        
+       
+        /*
+        for (auto tpl : trp->second) { 
+            trb.insert(trans_id, tpl, tpl[col]);
+        }
+        */
+         
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
-        //auto valPtr = ptrs.first;
         auto tplPtr = ptrs.second;
-        for (auto tpl : trp->second) { 
-            //*valPtr++ = (tpl[col]);
-            //*tplPtr++ = {trans_id, tpl}; 
-            *tplPtr++ = {tpl[col], trans_id, tpl}; 
+        for (auto tpl = trp->second.data(), tple=tpl+trpsz; tpl<tple; ++tpl) {
+        //for (auto tpl : trp->second) { 
+            // *tplPtr++ = {tpl[col], trans_id, tpl}; 
+            *tplPtr++ = {(*tpl)[col], trans_id, *tpl}; 
         }
+        
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
@@ -1514,7 +1518,7 @@ static bool isValidationConflict(LPValidation& v) {
     
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
              cend = cbegin + colCountUniq;
-        
+        /*
         if (cbegin->op == Op::Equal) {
             if (cbegin->column == 0) {
                 if (processQueryEQZero(v, &rq, cbegin, cend)) { return true; }  
@@ -1523,10 +1527,10 @@ static bool isValidationConflict(LPValidation& v) {
                 if (processQueryEQ(v, &rq, cbegin, cend)) { return true; }  
                 else continue;
             }
-        } else {
+        } else {*/
             if (processQueryOther(v, &rq, cbegin, cend)) { return true; }
             else continue;
-        }
+        //}
     
         /*
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);

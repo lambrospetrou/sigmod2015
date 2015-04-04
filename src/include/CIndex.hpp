@@ -74,10 +74,11 @@ class CIndex {
 
             Bucket() : trmin(0), trmax(0), trsize(0) {
                 //values.reserve(mBucketSize); 
-                //meta.reserve(mBucketSize);
+                meta.reserve(BUCKET_TUPLES_LIMIT);
             }
             Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
                 //values.reserve(mBucketSize); meta.reserve(mBucketSize);
+                meta.reserve(BUCKET_TUPLES_LIMIT);
             }
 
             //void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
@@ -93,7 +94,7 @@ class CIndex {
             */
             std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
                 size_t oldsz = meta.size();
-                meta.resize(meta.size()+sz); 
+                meta.resize(oldsz+sz); 
                 return {nullptr, meta.data()+oldsz};
             }
 
@@ -186,9 +187,9 @@ class CIndex {
         }
         // takes into account the number of tuples too
         ALWAYS_INLINE bool is_newbucket() { 
-            return (unlikely(mBuckets.empty() || 
+            return (mBuckets.empty() || 
                     (mBuckets.back().trsize >= BUCKET_TRANS_LIMIT) ||
-                    (mBuckets.back().meta.size() >= BUCKET_TUPLES_LIMIT)));
+                    (mBuckets.back().meta.size() >= BUCKET_TUPLES_LIMIT));
         }
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
@@ -219,7 +220,7 @@ class CIndex {
 #define BINARY_SZ 16
 
         ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
-            if (mBuckets.size() > BINARY_SZ) {
+            if (unlikely(mBuckets.size() > BINARY_SZ)) {
                 return std::lower_bound(BB(), BE(), trid, BTRLess);
             } else {
                 auto mBB = BB(), mBE = BE();
@@ -230,7 +231,7 @@ class CIndex {
         }
         template<typename Iter>
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
-            if (mBuckets.size() > BINARY_SZ) {
+            if (unlikely(mBuckets.size() > BINARY_SZ)) {
                 return std::upper_bound(bb, BE(), trid, BTRLess);
             } else {
                 auto mBE = BE();
@@ -248,7 +249,7 @@ class CIndex {
         void ALWAYS_INLINE sortFrom(uint64_t trfrom, bool noTransSort = false) {
             auto mBE = BE();
             auto trt = lp_lower_bound(trfrom);
-            if (!noTransSort) {
+            if (likely(!noTransSort)) {
                 while (trt<mBE) {
                     (trt++)->sortByValTrans(); 
                 }
@@ -271,7 +272,8 @@ class CIndex {
         }
 
         ALWAYS_INLINE void erase(uint64_t trto) {
-            if (likely(mBuckets.size() < 4)) return;
+            if (mBuckets.size() < 3) return;
+            //if (unlikely(mBuckets.size() == 1)) return;
             auto trt = lp_lower_bound(trto);
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
