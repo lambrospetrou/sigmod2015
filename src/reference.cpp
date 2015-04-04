@@ -836,8 +836,6 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
 
     auto& cindex = relColumn.transactions;
 
-    size_t totalSize = 0;
-    //for(auto trp=transFrom; trp!=tEnd; ++trp) { totalSize += trp->second.size(); }
     // for all the transactions in the relation
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -947,13 +945,8 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                    uint64_t value;
                    };
                  */
-                //cerr << " -- from: " << vq.from << endl;
-                //cerr << " -- to: " << vq.to << endl;
-                //cerr << " -- val: " << vq.validationId << endl;
-                //gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &gPendingValidations[vi], pFirst.value});
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &v, pFirst.value});
-                //if (pFirst.column != 0) 
-                //    v.queries.push_back(rq);
+                //if (pFirst.column != 0)  v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
@@ -961,21 +954,23 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
         }
     } // end for all validations
 
-    /*
+    
        // TODO - MAYBE SORT THEM TO MAKE FRIENDLY CACHE USE WITH BINARIES LOOKING FOR THE SAME VALUE
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         auto& rq = gRelQ[ri];
-        auto& rqc = rq.columns[0].queries;
-        if (rqc.empty()) continue;
-        sort(rqc.begin(), rqc.end(), 
+        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
+            auto& rqc = rq.columns[ci].queries;
+            if (rqc.empty()) continue;
+            sort(rqc.begin(), rqc.end(), 
                 [](const QMeta_t& l, const QMeta_t& r) {
                     //if (l.value < r.value) return true;
                     //else if (r.value < l.value) return false;
                     //else return l.to < r.to;
                     return (l.value < r.value);
-        });
+            });
+        }
     }
-    */
+    
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif

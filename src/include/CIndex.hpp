@@ -14,13 +14,13 @@
 class CIndex {
 
     template<typename T>
-    using vector_a = std::vector<T, aligned_allocator<T, 16>>;
-    //using vector_a = std::vector<T>;
+    //using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+    using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<12;
-    static constexpr size_t BUCKET_TRANS_LIMIT = 256;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 256;
+    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<11;
+    static constexpr size_t BUCKET_TRANS_LIMIT = 128;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 512;
     
     public:
         struct Meta_t {
