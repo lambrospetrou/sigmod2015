@@ -843,7 +843,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         // allocate vectors for the current new transaction to put its data
         //colTransactions.emplace_back(trp->first);
         auto trans_id = trp->first;
-        CIndex::Bucket &trb = *cindex.bucketNext(trans_id);
+        CIndex::Bucket &trb = *cindex.bucketNext(trans_id, !col);
         
         //for (auto tpl : trp->second) { 
         //    trb.insert(trans_id, tpl, tpl[col]);
@@ -1374,7 +1374,7 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         }
     } // for all buckets
 #ifdef LPDEBUG
-    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+    //LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
     return false;
 }

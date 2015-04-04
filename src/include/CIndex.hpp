@@ -18,7 +18,9 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 16;
+    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<13;
+    static constexpr size_t BUCKET_TRANS_LIMIT = 16;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 256;
     
     public:
         struct Meta_t {
@@ -163,12 +165,22 @@ class CIndex {
             mBuckets.resize(1);
         }
 
+        // takes into account only the number of transactions
+        ALWAYS_INLINE bool is_newbucket_primary() {
+            return (unlikely(mBuckets.empty() || (mBuckets.back().trsize >= BUCKET_PRIMARY_LIMIT)));
+        }
+        // takes into account the number of tuples too
+        ALWAYS_INLINE bool is_newbucket() { 
+            return (unlikely(mBuckets.empty() || 
+                    (mBuckets.back().trsize >= BUCKET_TRANS_LIMIT) ||
+                    (mBuckets.back().meta.size() >= BUCKET_TUPLES_LIMIT)));
+        }
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
-        ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
-            if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
+        ALWAYS_INLINE Bucket* bucketNext(uint64_t trid, bool isPrimary = false) {
+            //if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
+            if (unlikely(isPrimary ? is_newbucket_primary() : is_newbucket())) {
                 mBuckets.emplace_back(trid, trid, 1);
-                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
                 return &mBuckets.back();
             } else {
                 return mBuckets.back().setMax(trid);
@@ -235,13 +247,6 @@ class CIndex {
         // returns the buckets that contain all the transactions from trfrom to trto
         // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
-            //////
-            //auto be = mBuckets.data()+mBuckets.size();
-            //auto trf = mBB;
-            //for (;(mBE-trf>0) & (trf->trmax < trfrom); ++trf);
-            //auto trt = trf;
-            //for (;(mBE-trt>0) & (trt->trmin <= trto); ++trt);
-            //return {trf, trt};
             auto trf = lp_lower_bound(trfrom);
             return {trf, lp_upper_bound(trto, trf)};
         }
@@ -256,19 +261,16 @@ class CIndex {
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
                 mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-BB()));
-                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBuckets.data()));
             } else if (trt > BB()) {
                 //std::cerr << "d";
                 mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-BB()));    
-                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBuckets.data()));    
             }
         }
 
         size_t size() const { return mBuckets.size(); }
 
     private:
-
-        std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
+        std::vector<Bucket> mBuckets; 
 };
 
 #endif
