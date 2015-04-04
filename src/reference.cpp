@@ -510,6 +510,7 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
       
     
     auto& primIndex = gRelations[ri].primaryIndex;
+    cerr << ri << "=" << primIndex.size() << endl;
     primIndex.erase(trans_id);     
 
 /*

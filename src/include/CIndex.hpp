@@ -18,7 +18,7 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 256;
+    static constexpr size_t mBucketSize = 192;
     
     public:
         struct Meta_t {
@@ -64,14 +64,8 @@ class CIndex {
             }
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
-                //auto vb = values.data(), ve = values.data()+values.size();
-                //auto rp = std::equal_range(vb, ve, v);
-                //auto mb = meta.data();
-                //auto vb = values.begin(), ve = values.end();
-                //auto rp = std::equal_range(vb, ve, v);
                 auto vb = values.data();
                 auto rp = std::equal_range(vb, vb+values.size(), v);
-                
                 //for (auto vv : values) std::cerr << vv << " ";
                 //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
                 return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
@@ -92,13 +86,12 @@ class CIndex {
 
         CIndex() {
             mBuckets.resize(1);
-            //mBB = mBuckets.data(); mBE = mBB+1;
         }
 
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
-            if (unlikely(mBucketSize - mBuckets.back().trsize == 0)) {
+            if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
                 mBuckets.emplace_back(trid, trid, 1);
                 //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
                 return &mBuckets.back();
@@ -122,16 +115,16 @@ class CIndex {
 #define BE() (mBuckets.data() + mBuckets.size())
 
         ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
+            //return std::lower_bound(BB(), BE(), trid, BTRLess);
             auto mBB = BB(), mBE = BE();
-            //auto trt = std::lower_bound(mBB, mBE, trid, BTRLess);
             auto trt = mBB;
             for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
             return trt;
         }
         template<typename Iter>
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
+            //return std::upper_bound(bb, BE(), trid, BTRLess);
             auto mBE = BE();
-            //auto trt = std::upper_bound(bb, mBE, trid, BTRLess);
             auto trt = bb;
             for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
             return trt;
@@ -165,12 +158,11 @@ class CIndex {
         }
 
         ALWAYS_INLINE std::pair<Bucket*, Bucket*> buckets() {
-            //return {mBB, mBE};
-            //return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
             return {BB(), BE()};
         }
 
         ALWAYS_INLINE void erase(uint64_t trto) {
+            if (likely(mBuckets.size() < 4)) return;
             auto trt = lp_lower_bound(trto);
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
@@ -182,6 +174,8 @@ class CIndex {
                 //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBuckets.data()));    
             }
         }
+
+        size_t size() const { return mBuckets.size(); }
 
     private:
 
