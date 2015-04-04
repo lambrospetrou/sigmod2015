@@ -1466,8 +1466,7 @@ void processEqualityQueries(uint32_t nThreads, uint32_t tid, void *args) {
 
 
 
-void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
-    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+void processEqualityZero() {
     //cerr << "----- NEW VAL SESSION -----" << endl;
     //uint64_t cnt = 0, cnt2 = 0;
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
