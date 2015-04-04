@@ -477,18 +477,12 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
             [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
     size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
     */
+        
+    //cerr << ri << "=" << cRelCol.columns[0].transactions.size() << endl;
     for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
         cRelCol.columns[ci].transactions.erase(trans_id);
-        //auto& cCol = cRelCol.columns[ci];
-        //cCol.transactions.erase(cCol.transactions.begin(), cCol.transactions.begin() + upto);
-        //cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
-
-
-    //auto& primIndex = gRelations[ri].primaryIndex;
-    //cerr << ri << "=" << primIndex.size() << endl;
-    //primIndex.erase(trans_id);     
-
+    
     /*
     // clean the transactions log
     auto& transLog = gRelations[i].transLog;         
