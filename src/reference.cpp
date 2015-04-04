@@ -508,12 +508,9 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
         cCol.transactionsORs.erase(cCol.transactionsORs.begin(), cCol.transactionsORs.begin()+upto);
     }
       
-    /*
+    
     auto& primIndex = gRelations[ri].primaryIndex;
-    sort(primIndex.data(), primIndex.data()+primIndex.size(), PILessTr);
-    auto piub = upper_bound(primIndex.begin(), primIndex.end(), trans_id, PILessTr);
-    primIndex.erase(primIndex.begin(), piub);
-    */
+    primIndex.erase(trans_id);     
 
 /*
         // clean the transactions log
@@ -1480,12 +1477,11 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
         QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
 
         auto& primIndex = gRelations[ri].primaryIndex;
-        //if (buckets.first == buckets.second) { cerr << "empty bucket" << endl; }
-
-        //uint64_t lastvalue = UINT64_MAX;
+        //auto buckets = primIndex.buckets();
+        //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
         
         // for each query
-        for (; qb<qe;) {
+        for (; qb!=qe;) {
             auto& cmeta = *qb++;
             uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
             if (gPendingResults[resPos]) { continue; }
@@ -1494,7 +1490,7 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
             const uint64_t rangediff = cmeta.to - cmeta.from;
             //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
             //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
-            for (auto cb=trbuckets.first, ce=trbuckets.second; cb<ce; ++cb) {
+            for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                 auto tplpair = cb->equal_range(cmeta.value);
                 if (tplpair.first == tplpair.second) continue;
                 

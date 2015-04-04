@@ -18,7 +18,7 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 256;
+    static constexpr size_t mBucketSize = 128;
     
     public:
         struct Meta_t {
@@ -92,6 +92,8 @@ class CIndex {
 
         CIndex() {
             mBuckets.resize(1);
+            mBB = mBuckets.data();
+            mBE = mBB+1;
         }
 
         // returns the bucket that will hold the tuples for thie given transaction
@@ -99,14 +101,9 @@ class CIndex {
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
             if (unlikely(mBucketSize - mBuckets.back().trsize == 0)) {
                 mBuckets.emplace_back(trid, trid, 1);
-                //mBuckets.push_back({});
-                //Bucket& lb = mBuckets.back();
-                //lb.trsize = 1; lb.trmin = trid; lb.trmax = trid;
+                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
                 return &mBuckets.back();
             } else {
-                //Bucket& lb = mBuckets.back();
-                //++lb.trsize; lb.trmax = trid;
-                //if (lb.trsize==1) lb.trmin = trid;
                 return mBuckets.back().setMax(trid);
             }
         }
@@ -115,37 +112,65 @@ class CIndex {
             for (Bucket& b : mBuckets) { b.sortByVal(); }
         }
 
+        
+        ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trfrom) {
+            auto trt = mBB;
+            for (;(mBE-trt>0) & (trt->trmax < trfrom); ++trt);
+            return trt;
+        }
+
+
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
-            auto bend = mBuckets.end();
-            auto bfrom = std::lower_bound(mBuckets.begin(), bend, trfrom, BTRLess);
-            while (bfrom<bend) {
-                (bfrom++)->sortByVal(); 
+            //auto be = mBuckets.end();
+            //auto trt = std::lower_bound(mBuckets.begin(), be, trfrom, BTRLess);
+            /*
+            auto be = mBuckets.data()+mBuckets.size();
+            auto trt = mBuckets.data();
+            for (;(be-trt>0) & (trt->trmax < trfrom); ++trt);
+            */
+            auto trt = lp_lower_bound(trfrom);
+            while (trt<mBE) {
+                (trt++)->sortByVal(); 
             }
         }
 
         // returns the buckets that contain all the transactions from trfrom to trto
         // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {
-            auto be = mBuckets.data()+mBuckets.size();
+            //auto be = mBuckets.data()+mBuckets.size();
             //auto trf = std::lower_bound(mBuckets.data(), be, trfrom, BTRLess);
             //return {trf, std::upper_bound(trf, be, trto, BTRLess)};
-            auto trf = mBuckets.data();
-            for (;(be-trf>0) & (trf->trmax < trfrom); ++trf);
+            auto trf = mBB;
+            for (;(mBE-trf>0) & (trf->trmax < trfrom); ++trf);
             auto trt = trf;
-            for (;(be-trt>0) & (trt->trmin <= trto); ++trt);
+            for (;(mBE-trt>0) & (trt->trmin <= trto); ++trt);
             return {trf, trt};
         }
 
-        std::pair<Bucket*, Bucket*> buckets() {
-            return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
+        ALWAYS_INLINE std::pair<Bucket*, Bucket*> buckets() {
+            return {mBB, mBE};
+        }
+
+        ALWAYS_INLINE void erase(uint64_t trto) {
+            auto trt = mBB;
+            for (;(mBE-trt>0) & (trt->trmax < trto); ++trt);
+            //auto trt = std::lower_bound(bb, be, trto, BTRLess);
+            if (trt->trmax - trto == 0) {
+                //std::cerr << "d";
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBB));
+            } else if (trt > mBB) {
+                //std::cerr << "d";
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBB));    
+            }
         }
 
     private:
 
         std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
         //uint64_t mLBT; // least bucket transaction = the Bucket.from of the first bucket
-
+        Bucket *mBB; // mBuckets.data()
+        Bucket *mBE; // mBuckets.data()+mBuckets.size()
 };
 
 #endif
