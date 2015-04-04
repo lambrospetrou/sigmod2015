@@ -22,11 +22,10 @@ class CIndex {
     
     public:
         struct Meta_t {
-            //uint64_t value;
+            uint64_t value;
             uint64_t trans_id;
             tuple_t tuple;
         };
-        /*
         struct MLess_t {
             ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
                 return left.value < right.value;
@@ -37,7 +36,7 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& o) {
                 return target < o.value;
             }
-        } MetaLess;
+        };
         struct MVTLess_t {
             ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
                 if (left.value < right.value) return true;
@@ -50,10 +49,10 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& right) {
                 return target < right.value;
             }
-        } MetaVTLess;
-        */
+        };
+        
         struct Bucket {
-            vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
+            //vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
             vector_a<Meta_t> meta;
             uint64_t trmin;
             uint64_t trmax;
@@ -61,26 +60,34 @@ class CIndex {
             // other possible statistics for these values goes here
 
             Bucket() : trmin(0), trmax(0), trsize(0) {
-                values.reserve(mBucketSize); meta.reserve(mBucketSize);
+                //values.reserve(mBucketSize); 
+                //meta.reserve(mBucketSize);
             }
             Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
-                values.reserve(mBucketSize); meta.reserve(mBucketSize);
+                //values.reserve(mBucketSize); meta.reserve(mBucketSize);
             }
 
-            void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
+            //void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
            
             // return a pointer to the next empty position of those allocated now
+            /*
             std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
                 size_t oldsz = values.size();
                 values.resize(values.size()+sz); 
                 meta.resize(meta.size()+sz); 
                 return {values.data()+oldsz, meta.data()+oldsz};
             }
+            */
+            std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
+                size_t oldsz = meta.size();
+                meta.resize(meta.size()+sz); 
+                return {nullptr, meta.data()+oldsz};
+            }
 
             void ALWAYS_INLINE insert(uint64_t trid, tuple_t tpl, uint64_t val) {
-                values.push_back(val);
-                meta.push_back({trid, tpl});
-                //meta.push_back({val, trid, tpl});
+                //values.push_back(val);
+                //meta.push_back({trid, tpl});
+                meta.push_back({val, trid, tpl});
             }
 
             ALWAYS_INLINE Bucket* setMax(uint64_t trid) {
@@ -90,9 +97,14 @@ class CIndex {
             }
 
             void sortByVal() {
-                std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
-                    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
-                //std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
+                //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
+                //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
+                std::sort(meta.data(), meta.data()+meta.size(), MLess_t());
+            }
+            void sortByValTrans() {
+                //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
+                //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
+                std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
             }
 
             std::pair<Meta_t*, Meta_t*> tuples() {
@@ -100,32 +112,38 @@ class CIndex {
             }
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
-                auto vb = values.data();
-                auto rp = std::equal_range(vb, vb+values.size(), v);
-                //for (auto vv : values) std::cerr << vv << " ";
-                //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
-                return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
-                //return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                //auto vb = values.data();
+                //auto rp = std::equal_range(vb, vb+values.size(), v);
+                //return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
+                return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
             }
             std::pair<Meta_t*, Meta_t*> lower_bound(uint64_t v) {
-                auto vb = values.data();
-                auto lb = std::lower_bound(vb, vb+values.size(), v);
-                return {meta.data()+(lb-vb), meta.data()+meta.size()};
+                //auto vb = values.data();
+                //auto lb = std::lower_bound(vb, vb+values.size(), v);
+                //return {meta.data()+(lb-vb), meta.data()+meta.size()};
+                auto mb = meta.data(), me = mb + meta.size(); 
+                return {std::lower_bound(mb, me, v, MVTLess_t()), me};
             }
             std::pair<Meta_t*, Meta_t*> lower_bound_left(uint64_t v) {
-                auto vb = values.data();
-                auto lb = std::lower_bound(vb, vb+values.size(), v);
-                return {meta.data(), meta.data()+(lb-vb)};
+                //auto vb = values.data();
+                //auto lb = std::lower_bound(vb, vb+values.size(), v);
+                //return {meta.data(), meta.data()+(lb-vb)};
+                auto mb = meta.data(), me = mb + meta.size(); 
+                return {mb, std::lower_bound(mb, me, v, MVTLess_t())};
             }
             std::pair<Meta_t*, Meta_t*> upper_bound(uint64_t v) {
-                auto vb = values.data();
-                auto ub = std::upper_bound(vb, vb+values.size(), v);
-                return {meta.data()+(ub-vb), meta.data()+meta.size()};
+                //auto vb = values.data();
+                //auto ub = std::upper_bound(vb, vb+values.size(), v);
+                //return {meta.data()+(ub-vb), meta.data()+meta.size()};
+                auto mb = meta.data(), me = mb + meta.size(); 
+                return {std::upper_bound(mb, me, v, MVTLess_t()), me};
             }
             std::pair<Meta_t*, Meta_t*> upper_bound_left(uint64_t v) {
-                auto vb = values.data();
-                auto ub = std::upper_bound(vb, vb+values.size(), v);
-                return {meta.data(), meta.data()+(ub-vb)};
+                //auto vb = values.data();
+                //auto ub = std::upper_bound(vb, vb+values.size(), v);
+                //return {meta.data(), meta.data()+(ub-vb)};
+                auto mb = meta.data(), me = mb + meta.size(); 
+                return {mb, std::upper_bound(mb, me, v, MVTLess_t())};
             }
         };
   
@@ -200,11 +218,17 @@ class CIndex {
         /////////////////////
 
         // sorts the buckets that contain all transactions from trfrom and greater
-        void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
+        void ALWAYS_INLINE sortFrom(uint64_t trfrom, bool noTransSort = false) {
             auto mBE = BE();
             auto trt = lp_lower_bound(trfrom);
-            while (trt<mBE) {
-                (trt++)->sortByVal(); 
+            if (!noTransSort) {
+                while (trt<mBE) {
+                    (trt++)->sortByValTrans(); 
+                }
+            } else {
+                while (trt<mBE) {
+                    (trt++)->sortByVal(); 
+                }
             }
         }
 

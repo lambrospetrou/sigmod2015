@@ -851,17 +851,19 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
-        auto valPtr = ptrs.first;
+        //auto valPtr = ptrs.first;
         auto tplPtr = ptrs.second;
         for (auto tpl : trp->second) { 
-            *valPtr++ = (tpl[col]);
-            *tplPtr++ = {trans_id, tpl}; 
+            //*valPtr++ = (tpl[col]);
+            //*tplPtr++ = {trans_id, tpl}; 
+            *tplPtr++ = {tpl[col], trans_id, tpl}; 
         }
     }
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
 
-    cindex.sortFrom(transFrom->first);
+    if (col == 0) cindex.sortFrom(transFrom->first, true);
+    else cindex.sortFrom(transFrom->first);
 }
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
