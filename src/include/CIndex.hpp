@@ -117,8 +117,12 @@ class CIndex {
         ///////// UTILITY FUNCTIONS 
         /////////
         /////////////////////
+
+#define BB() (mBuckets.data())
+#define BE() (mBuckets.data() + mBuckets.size())
+
         ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
-            auto mBB = mBuckets.data(), mBE = mBuckets.data()+mBuckets.size();
+            auto mBB = BB(), mBE = BE();
             //auto trt = std::lower_bound(mBB, mBE, trid, BTRLess);
             auto trt = mBB;
             for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
@@ -126,20 +130,20 @@ class CIndex {
         }
         template<typename Iter>
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
-            auto mBE = mBuckets.data()+mBuckets.size();
+            auto mBE = BE();
             //auto trt = std::upper_bound(bb, mBE, trid, BTRLess);
             auto trt = bb;
             for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
             return trt;
         }
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid) {
-            return lp_upper_bound(trid, mBuckets.data());
+            return lp_upper_bound(trid, BB());
         }
         /////////////////////
 
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
-            auto mBE = mBuckets.data() + mBuckets.size();
+            auto mBE = BE();
             auto trt = lp_lower_bound(trfrom);
             while (trt<mBE) {
                 (trt++)->sortByVal(); 
@@ -162,30 +166,26 @@ class CIndex {
 
         ALWAYS_INLINE std::pair<Bucket*, Bucket*> buckets() {
             //return {mBB, mBE};
-            return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
+            //return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
+            return {BB(), BE()};
         }
 
         ALWAYS_INLINE void erase(uint64_t trto) {
             auto trt = lp_lower_bound(trto);
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
-                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBuckets.data()));
-                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBB));
-                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
-            //} else if (trt > mBB) {
-            } else if (trt > mBuckets.data()) {
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-BB()));
+                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBuckets.data()));
+            } else if (trt > BB()) {
                 //std::cerr << "d";
-                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBuckets.data()));    
-                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBB));    
-                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-BB()));    
+                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBuckets.data()));    
             }
         }
 
     private:
 
         std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
-        //Bucket *mBB; // mBuckets.data()
-        //Bucket *mBE; // mBuckets.data()+mBuckets.size()
 };
 
 #endif
