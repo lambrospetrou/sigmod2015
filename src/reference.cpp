@@ -1361,7 +1361,8 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
     auto csecond = cbegin + 1;
 
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-        auto tplpair = cb->equal_range(cbegin->value);
+        //auto tplpair = cb->equal_range(cbegin->value);
+        auto tplpair = cb->equal_range(cbegin->value, v.to);
         if (tplpair.first == tplpair.second) continue;
         //cerr<< "found : " << (rp.second-rp.first) << endl;
         // optimization - TODO - have them sorted by transaction too in order to break
@@ -1376,9 +1377,9 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         */
         auto ctpl = tplpair.second;
         size_t i=0, tplsz=tplpair.second-tplpair.first;
-        // skip transactions at the end
-        while ((i<tplsz) && ((ctpl-1)->trans_id > v.to)) {  --ctpl; ++i; /*continue;*/ }
-        cerr<< "skip: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
+        // skip transactions at the end not needed since the equal_range we call does it for us
+        //while ((i<tplsz) && ((ctpl-1)->trans_id > v.to)) {  --ctpl; ++i; /*continue;*/ }
+        //cerr<< "skip: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
         // process until a transaction appears less than your v.from
         while ((i<tplsz) && ((ctpl-1)->trans_id >= v.from)) { 
             --ctpl; ++i;
@@ -1432,25 +1433,31 @@ static bool isValidationConflict(LPValidation& v) {
        cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
      */
     const char* qreader = vq.queries; uint32_t columnCount;
-    /*
-       vector<uint32_t> relcnts(NUM_RELATIONS);
-       for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-       Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-       columnCount = rq.columnCount;
-       ++relcnts[rq.relationId];
-       }
-       cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
-       for (auto cnt : relcnts) cerr << " " << cnt;
-       qreader = vq.queries;
-     */
-
-    // TODO - SORT THE QUERIES AND PUT == IN FRONT
-
-    //for (auto q : v.queries) {
-    //    Query& rq = *q;
+    
     for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
         Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
         columnCount = rq.columnCount;
+        if (columnCount == 0) { v.queries.push_back(&rq); continue; }
+        rq.columnCount = lp::query::preprocess(rq); 
+        if (!lp::query::satisfiable(&rq, rq.columnCount)) { continue; } // go to the next query
+        v.queries.push_back(&rq);
+    }
+    std::sort(v.queries.begin(), v.queries.end(), 
+            [](const Query*l, const Query*r) { 
+                auto& pl = *(Column*)l->columns;
+                auto& pr = *(Column*)r->columns;
+                if (pl.op == Op::Equal && pr.op != Op::Equal) return true;
+                else if (pr.op == Op::Equal && pl.op != Op::Equal) return false;
+                else return pl.column < pr.column;
+            });
+
+    // TODO - SORT THE QUERIES AND PUT == IN FRONT
+
+    for (auto q : v.queries) {
+        Query& rq = *q;
+    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+    //    Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+    //    columnCount = rq.columnCount;
         //cerr << " " << i;
 
         if (unlikely(rq.columnCount == 0)) { 
@@ -1469,12 +1476,14 @@ static bool isValidationConflict(LPValidation& v) {
 #ifdef LPDEBUG
 //auto startInner = LPTimer.getChrono();
 #endif 
-        uint32_t colCountUniq = lp::query::preprocess(rq); 
-        if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
+        //uint32_t colCountUniq = lp::query::preprocess(rq); 
+        //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
 #ifdef LPDEBUG
 //LPTimer.satCheck += LPTimer.getChrono(startInner);
 #endif 
-      
+    
+        uint32_t colCountUniq = rq.columnCount; 
+    
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
              cend = cbegin + colCountUniq;
         

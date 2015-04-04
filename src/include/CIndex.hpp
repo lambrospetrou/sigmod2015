@@ -19,7 +19,7 @@ class CIndex {
     
     using tuple_t = uint64_t*;
     static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<12;
-    static constexpr size_t BUCKET_TRANS_LIMIT = 128;
+    static constexpr size_t BUCKET_TRANS_LIMIT = 256;
     static constexpr size_t BUCKET_PRIMARY_LIMIT = 256;
     
     public:
@@ -50,6 +50,17 @@ class CIndex {
             }
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& right) {
                 return target < right.value;
+            }
+        };
+        struct MTrLess_t {
+            ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
+                return left.trans_id < right.trans_id;
+            }
+            ALWAYS_INLINE bool operator() (const Meta_t& o, uint64_t target) {
+                return o.trans_id < target;
+            }
+            ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& o) {
+                return target < o.trans_id;
             }
         };
         
@@ -113,6 +124,10 @@ class CIndex {
                 return {meta.data(), meta.data()+meta.size()};
             }
 
+            std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trid) {
+                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                return {trp.first, std::upper_bound(trp.first, trp.second, trid, MTrLess_t())};
+            }
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
                 //auto vb = values.data();
                 //auto rp = std::equal_range(vb, vb+values.size(), v);
