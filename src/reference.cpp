@@ -1365,28 +1365,39 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         if (tplpair.first == tplpair.second) continue;
         //cerr<< "found : " << (rp.second-rp.first) << endl;
         // optimization - TODO - have them sorted by transaction too in order to break
+        /*
         for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
                 if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                    return true;;
+                    return true;
                 }
             }
         }
+        */
+        auto ctpl = tplpair.second;
+        size_t i=0, tplsz=tplpair.second-tplpair.first;
+        // skip transactions at the end
+        while ((i<tplsz) && ((ctpl-1)->trans_id > v.to)) {  --ctpl; ++i; /*continue;*/ }
+        cerr<< "skip: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
+        // process until a transaction appears less than your v.from
+        while ((i<tplsz) && ((ctpl-1)->trans_id >= v.from)) { 
+            --ctpl; ++i;
+            if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
+        }
+        //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
+
     } // for all buckets
 #ifdef LPDEBUG
-    //LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
     return false;
 }
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
 #ifdef LPDEBUG
-    auto qproc = LPTimer.getChrono();
+    //auto qproc = LPTimer.getChrono();
 #endif
     //cerr << "----- NEW VAL SESSION -----" << endl;
-    //uint64_t cnt = 0, cnt2 = 0;
     auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
-    //auto& primIndex = gRelations[q->relationId].primaryIndex;
-    //auto buckets = primIndex.buckets();
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
     auto trbuckets = primIndex.buckets(v.from, v.to); 
     const uint64_t rangediff = v.to - v.from;
@@ -1398,8 +1409,6 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
-        //cerr<< "found : " << (rp.second-rp.first) << endl;
-        // optimization - TODO - have them sorted by transaction too in order to break
         for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
             //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
@@ -1410,7 +1419,7 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
         }
     } // for all buckets
 #ifdef LPDEBUG
-    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+    //LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
     return false;
 }
@@ -1537,111 +1546,6 @@ static bool isValidationConflict(LPValidation& v) {
     }// end for all queries
     return false;
 }
-    /*
-       void processEqualityQuery(uint32_t ri, uint32_t col) {
-//cerr << "----- NEW VAL SESSION -----" << endl;
-//uint64_t cnt = 0, cnt2 = 0;
-for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-auto& rq = gRelQ[ri].columns[0].queries;
-if (rq.empty()) continue;
-
-//cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
-QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
-
-auto& primIndex = gRelations[ri].primaryIndex;
-//auto buckets = primIndex.buckets();
-//cerr << ri << "=" << (buckets.second - buckets.first) << endl;
-
-// for each query
-for (; qb!=qe;) {
-auto& cmeta = *qb++;
-uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
-if (gPendingResults[resPos]) { continue; }
-
-auto trbuckets = primIndex.buckets(cmeta.from, cmeta.to); 
-const uint64_t rangediff = cmeta.to - cmeta.from;
-//cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
-//cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
-for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-auto tplpair = cb->equal_range(cmeta.value);
-if (tplpair.first == tplpair.second) continue;
-
-//cerr<< "found : " << (rp.second-rp.first) << endl;
-// optimization - TODO - have them sorted by transaction too in order to break
-//for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-auto ctpl=tplpair.second;
-// check if trans_id inside th range of the query - fast trick
-//if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
-// skip transactions > cmeta.to
-for (size_t i=0, tplsz=tplpair.second-tplpair.first; i<tplsz; ++i) {
---ctpl;
-if (ctpl->trans_id > cmeta.to) { continue; }
-if (ctpl->trans_id < cmeta.from) { break; }
-if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-ctpl->tuple)) {
-gPendingResults[resPos] = true;
-    //break;
-    goto FOUND;
-    }
-    }
-    }
-FOUND: continue;
-} // end of all queries
-//cerr << cnt << ":" << cnt2 << endl;      
-}            
-}
-     */
-/*
-void processEqualityZero() {
-    //cerr << "----- NEW VAL SESSION -----" << endl;
-    //uint64_t cnt = 0, cnt2 = 0;
-    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        auto& rq = gRelQ[ri].columns[0].queries;
-        if (rq.empty()) continue;
-
-        //cerr << "rel: " << ri << " col0==: " << rq.size() << endl;
-        QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
-
-        auto& primIndex = gRelations[ri].primaryIndex;
-        //auto buckets = primIndex.buckets();
-        //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
-
-        // for each query
-        for (; qb!=qe;) {
-            auto& cmeta = *qb++;
-            uint64_t resPos = cmeta.lpv->validationId - resIndexOffset;
-            if (gPendingResults[resPos]) { continue; }
-
-            auto trbuckets = primIndex.buckets(cmeta.from, cmeta.to); 
-            const uint64_t rangediff = cmeta.to - cmeta.from;
-            //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
-            //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
-            for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                auto tplpair = cb->equal_range(cmeta.value);
-                if (tplpair.first == tplpair.second) continue;
-                //cerr<< "found : " << (rp.second-rp.first) << endl;
-                // optimization - TODO - have them sorted by transaction too in order to break
-                for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                    //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
-                    if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
-                        if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                    ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                    ctpl->tuple)) {
-                            gPendingResults[resPos] = true;
-                            //break;
-                            goto FOUND;
-                        }
-                    }
-                }
-            }
-FOUND: 
-            continue;
-        } // end of all queries
-        //cerr << cnt << ":" << cnt2 << endl;      
-    }            
-}
-*/
 
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
