@@ -87,6 +87,10 @@ class CIndex {
                 //std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
             }
 
+            std::pair<Meta_t*, Meta_t*> tuples() {
+                return {meta.data(), meta.data()+meta.size()};
+            }
+
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
                 auto vb = values.data();
                 auto rp = std::equal_range(vb, vb+values.size(), v);
@@ -94,6 +98,26 @@ class CIndex {
                 //std::cerr << "\nval: " << v << " sz: " << values.size() << " res: " << (rp.second-rp.first) << std::endl;
                 return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
                 //return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+            }
+            std::pair<Meta_t*, Meta_t*> lower_bound(uint64_t v) {
+                auto vb = values.data();
+                auto lb = std::lower_bound(vb, vb+values.size(), v);
+                return {meta.data()+(lb-vb), meta.data()+meta.size()};
+            }
+            std::pair<Meta_t*, Meta_t*> lower_bound_left(uint64_t v) {
+                auto vb = values.data();
+                auto lb = std::lower_bound(vb, vb+values.size(), v);
+                return {meta.data(), meta.data()+(lb-vb)};
+            }
+            std::pair<Meta_t*, Meta_t*> upper_bound(uint64_t v) {
+                auto vb = values.data();
+                auto ub = std::upper_bound(vb, vb+values.size(), v);
+                return {meta.data()+(ub-vb), meta.data()+meta.size()};
+            }
+            std::pair<Meta_t*, Meta_t*> upper_bound_left(uint64_t v) {
+                auto vb = values.data();
+                auto ub = std::upper_bound(vb, vb+values.size(), v);
+                return {meta.data(), meta.data()+(ub-vb)};
             }
         };
   
