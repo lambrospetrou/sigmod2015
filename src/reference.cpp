@@ -1497,16 +1497,21 @@ void processEqualityZero(uint32_t nThreads, uint32_t tid, void *args) {
                 
                 //cerr<< "found : " << (rp.second-rp.first) << endl;
                 // optimization - TODO - have them sorted by transaction too in order to break
-                for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                    //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
-                    if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
-                        if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
-                                    ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
-                                    ctpl->tuple)) {
-                            gPendingResults[resPos] = true;
+                //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                auto ctpl=tplpair.second;
+                // check if trans_id inside th range of the query - fast trick
+                //if ( (uint64_t)(ctpl->trans_id - cmeta.from) <= (rangediff)) {
+                // skip transactions > cmeta.to
+                for (size_t i=0, tplsz=tplpair.second-tplpair.first; i<tplsz; ++i) {
+                    --ctpl;
+                    if (ctpl->trans_id > cmeta.to) { continue; }
+                    if (ctpl->trans_id < cmeta.from) { break; }
+                    if (isTupleConflict(((Column*)cmeta.rq->columns)+1, 
+                                ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount, 
+                                ctpl->tuple)) {
+                        gPendingResults[resPos] = true;
                             //break;
-                            goto FOUND;
-                        }
+                        goto FOUND;
                     }
                 }
             }
