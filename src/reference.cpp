@@ -1022,7 +1022,7 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     // check if there is any pending index creation to be made before checking validation
     checkPendingTransactions(pool);
 
-    createQueryIndex(pool);
+    //createQueryIndex(pool);
 
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -1276,15 +1276,44 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
     //return isTupleRangeConflict(tupFrom, tupTo, cbegin, cend);
 }
 
+static bool processQueryEQZero(LPValidation& v, Query *q) {
+    //cerr << "----- NEW VAL SESSION -----" << endl;
+    //uint64_t cnt = 0, cnt2 = 0;
+    auto& primIndex = gRelations[q->relationId].primaryIndex;
+    //auto buckets = primIndex.buckets();
+    //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
+    auto trbuckets = primIndex.buckets(v.from, v.to); 
+    const uint64_t rangediff = v.to - v.from;
+
+    auto pfirst = ((Column*)q->columns), pend = ((Column*)q->columns) + q->columnCount; 
+    auto psecond = pfirst + 1;
+    //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
+    //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
+    for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
+        auto tplpair = cb->equal_range(pfirst->value);
+        if (tplpair.first == tplpair.second) continue;
+        //cerr<< "found : " << (rp.second-rp.first) << endl;
+        // optimization - TODO - have them sorted by transaction too in order to break
+        for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+            //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
+            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                if (isTupleConflict(psecond, pend, ctpl->tuple)) {
+                    return true;;
+                }
+            }
+        }
+    } // for all buckets
+    return false;
+}
+
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    //const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+    const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
     /*
        cerr << "\n========= validation " << v.validationId << " =========" << endl; 
        cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
      */
-    //const char* qreader = vq.queries;
-    //uint32_t columnCount;
+    const char* qreader = vq.queries; uint32_t columnCount;
     /*
        vector<uint32_t> relcnts(NUM_RELATIONS);
        for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
@@ -1296,11 +1325,12 @@ static bool isValidationConflict(LPValidation& v) {
        for (auto cnt : relcnts) cerr << " " << cnt;
        qreader = vq.queries;
      */
-    for (auto q : v.queries) {
-        Query& rq = *q;
-        //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        //    Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //    columnCount = rq.columnCount;
+
+    //for (auto q : v.queries) {
+    //    Query& rq = *q;
+    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        columnCount = rq.columnCount;
         //cerr << " " << i;
 
         if (unlikely(rq.columnCount == 0)) { 
@@ -1316,21 +1346,24 @@ static bool isValidationConflict(LPValidation& v) {
             }; 
         }
 
-
-        uint32_t colCountUniq = rq.columnCount; 
-        /*
 #ifdef LPDEBUG
-auto startInner = LPTimer.getChrono();
+//auto startInner = LPTimer.getChrono();
 #endif 
-        //uint32_t colCountUniq = lp::query::preprocess(rq); 
-        //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
+        uint32_t colCountUniq = lp::query::preprocess(rq); 
+        if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
 #ifdef LPDEBUG
-LPTimer.satCheck += LPTimer.getChrono(startInner);
+//LPTimer.satCheck += LPTimer.getChrono(startInner);
 #endif 
-         */      
+      
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
              cend = cbegin + colCountUniq;
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
+        
+        if (pFirst.column == 0 && pFirst.op == Op::Equal) {
+            if (processQueryEQZero(v, &rq)) { return true; }  
+            else continue;
+        }
+
         // just find the range of transactions we want in this relation
         auto& relColumns = gRelColumns[rq.relationId].columns;
         auto& transactions = relColumns[pFirst.column].transactions;
@@ -1382,7 +1415,7 @@ LPTimer.satCheck += LPTimer.getChrono(startInner);
      */
     }// end for all queries
     return false;
-    }
+}
     /*
        void processEqualityQuery(uint32_t ri, uint32_t col) {
 //cerr << "----- NEW VAL SESSION -----" << endl;

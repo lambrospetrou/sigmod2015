@@ -147,7 +147,9 @@ namespace lp {
         uint32_t ALWAYS_INLINE preprocess(Query& rq) {
             if (!rq.columnCount) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
-            return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            return rq.columnCount;
+            //return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
         /*
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
