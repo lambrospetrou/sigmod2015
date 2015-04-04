@@ -1015,6 +1015,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #endif
 }
 
+
 static void checkPendingValidations(ISingleTaskPool *pool) {
     if (unlikely(gPendingValidations.empty())) return;
 
