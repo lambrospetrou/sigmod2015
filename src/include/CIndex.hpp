@@ -92,8 +92,7 @@ class CIndex {
 
         CIndex() {
             mBuckets.resize(1);
-            mBB = mBuckets.data();
-            mBE = mBB+1;
+            //mBB = mBuckets.data(); mBE = mBB+1;
         }
 
         // returns the bucket that will hold the tuples for thie given transaction
@@ -101,7 +100,7 @@ class CIndex {
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid) {
             if (unlikely(mBucketSize - mBuckets.back().trsize == 0)) {
                 mBuckets.emplace_back(trid, trid, 1);
-                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
+                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
                 return &mBuckets.back();
             } else {
                 return mBuckets.back().setMax(trid);
@@ -119,22 +118,28 @@ class CIndex {
         /////////
         /////////////////////
         ALWAYS_INLINE Bucket* lp_lower_bound(uint64_t trid) {
-            auto trt = std::lower_bound(mBB, mBE, trid, BTRLess);
-            //auto trt = mBB;
-            //for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
+            auto mBB = mBuckets.data(), mBE = mBuckets.data()+mBuckets.size();
+            //auto trt = std::lower_bound(mBB, mBE, trid, BTRLess);
+            auto trt = mBB;
+            for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
             return trt;
         }
         template<typename Iter>
         ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid, Iter bb) {
-            auto trt = std::upper_bound(bb, mBE, trid, BTRLess);
-            //auto trt = bb;
-            //for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
+            auto mBE = mBuckets.data()+mBuckets.size();
+            //auto trt = std::upper_bound(bb, mBE, trid, BTRLess);
+            auto trt = bb;
+            for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
             return trt;
+        }
+        ALWAYS_INLINE Bucket* lp_upper_bound(uint64_t trid) {
+            return lp_upper_bound(trid, mBuckets.data());
         }
         /////////////////////
 
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom) {
+            auto mBE = mBuckets.data() + mBuckets.size();
             auto trt = lp_lower_bound(trfrom);
             while (trt<mBE) {
                 (trt++)->sortByVal(); 
@@ -156,27 +161,31 @@ class CIndex {
         }
 
         ALWAYS_INLINE std::pair<Bucket*, Bucket*> buckets() {
-            return {mBB, mBE};
+            //return {mBB, mBE};
+            return {mBuckets.data(), mBuckets.data()+mBuckets.size()};
         }
 
         ALWAYS_INLINE void erase(uint64_t trto) {
             auto trt = lp_lower_bound(trto);
             if (trt->trmax - trto == 0) {
                 //std::cerr << "d";
-                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBB));
-                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
-            } else if (trt > mBB) {
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBuckets.data()));
+                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-mBB));
+                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
+            //} else if (trt > mBB) {
+            } else if (trt > mBuckets.data()) {
                 //std::cerr << "d";
-                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBB));    
-                mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
+                mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBuckets.data()));    
+                //mBuckets.erase(mBuckets.begin(), mBuckets.begin()+(trt-1-mBB));    
+                //mBB = mBuckets.data(); mBE = mBuckets.data()+mBuckets.size();
             }
         }
 
     private:
 
         std::vector<Bucket> mBuckets; // there should be at least one bucket ALWAYS
-        Bucket *mBB; // mBuckets.data()
-        Bucket *mBE; // mBuckets.data()+mBuckets.size()
+        //Bucket *mBB; // mBuckets.data()
+        //Bucket *mBE; // mBuckets.data()+mBuckets.size()
 };
 
 #endif
