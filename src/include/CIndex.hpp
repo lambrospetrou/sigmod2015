@@ -22,7 +22,6 @@ class CIndex {
     
     public:
         struct Meta_t {
-            //uint32_t tpl_id;
             //uint64_t value;
             uint64_t trans_id;
             tuple_t tuple;
