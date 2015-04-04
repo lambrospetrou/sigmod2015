@@ -18,7 +18,7 @@ class CIndex {
     //using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t mBucketSize = 256;
+    static constexpr size_t mBucketSize = 32;
     
     public:
         struct Meta_t {

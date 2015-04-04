@@ -193,10 +193,10 @@ struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     //vector<ColumnTransaction_t> transactions;
     CIndex transactions;
-    vector<uint64_t> transactionsORs;
+    //vector<uint64_t> transactionsORs;
     uint64_t transTo;
 
-    char padding[8]; //for false sharing
+    //char padding[8]; //for false sharing
 
     ColumnStruct() : transTo(0) {}
 } ALIGNED_DATA;
@@ -285,7 +285,7 @@ struct RelationStruct {
     vector<unique_ptr<RelTransLog>> transLog;
     btree::btree_map<uint32_t, pair<uint64_t, uint64_t*>> insertedRows;
 
-    CIndex primaryIndex;
+    //CIndex primaryIndex;
 
     char padding[8]; //for false sharing
 } ALIGNED_DATA;
@@ -485,9 +485,9 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
     }
 
 
-    auto& primIndex = gRelations[ri].primaryIndex;
+    //auto& primIndex = gRelations[ri].primaryIndex;
     //cerr << ri << "=" << primIndex.size() << endl;
-    primIndex.erase(trans_id);     
+    //primIndex.erase(trans_id);     
 
     /*
     // clean the transactions log
@@ -757,9 +757,9 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         uint64_t lastTransId = relTrans[0].trans_id;
 
-        auto& primIndex = relation.primaryIndex;
-        auto firstTrans = relTrans[0].trans_id;
-        CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
+        //auto& primIndex = relation.primaryIndex;
+        //auto firstTrans = relTrans[0].trans_id;
+        //CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
 
         // for each transaction regarding this relation
         vector<tuple_t> operations;
@@ -772,7 +772,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 lastTransId = trans.trans_id;
                 operations.resize(0);
 
-                trb=primIndex.bucketNext(trans.trans_id);
+                //trb=primIndex.bucketNext(trans.trans_id);
             }
 
             if (trans.isDelOp) {
@@ -795,14 +795,11 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                         relation.insertedRows.erase(lb);
 
                         // insert the value into the primary key index
-                        //primIndex[operations.back()[0]].push_back({trans.trans_id, operations.back()});
-                        //primIndex.push_back({operations.back()[0], {trans.trans_id, operations.back()}});
-                        trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
+                        //trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
                     }
                 }
                 delete[] trans.values;
             } else {
-                trb->notifyInsertBatch(trans.rowCount);
                 // this is an insert operation
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                     tuple_t vals = const_cast<uint64_t*>(values);
@@ -812,9 +809,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
 
                     // insert the value into the primary key index
-                    //primIndex[vals[0]].push_back({trans.trans_id, vals});
-                    //primIndex.push_back({vals[0], {trans.trans_id, vals}});
-                    trb->insert(trans.trans_id, vals, vals[0]);
+                    //trb->insert(trans.trans_id, vals, vals[0]);
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
@@ -826,12 +821,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
         // sort the index - HERE CAN DO - inplace merge instead
-        /*sort(primIndex.data(), primIndex.data()+primIndex.size(), 
-          [] (const pair<uint64_t, pair<uint64_t, tuple_t>>& l, const pair<uint64_t, pair<uint64_t, tuple_t>>& r) {
-          return l.first < r.first;
-          });*/
-
-        primIndex.sortFrom(firstTrans);
+        //primIndex.sortFrom(firstTrans);
 
     } // end of all relations
 
@@ -861,8 +851,8 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         auto trans_id = trp->first;
         CIndex::Bucket &trb = *cindex.bucketNext(trans_id);
         
-        const size_t trpsz = trp->second.size();
-        trb.notifyInsertBatch(trpsz);
+        //const size_t trpsz = trp->second.size();
+        //trb.notifyInsertBatch(trpsz);
         for (auto tpl : trp->second) { 
             trb.insert(trans_id, tpl, tpl[col]);
         }
@@ -1399,9 +1389,13 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
     return false;
 }
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
+#ifdef LPDEBUG
+    auto qproc = LPTimer.getChrono();
+#endif
     //cerr << "----- NEW VAL SESSION -----" << endl;
     //uint64_t cnt = 0, cnt2 = 0;
-    auto& primIndex = gRelations[q->relationId].primaryIndex;
+    auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
+    //auto& primIndex = gRelations[q->relationId].primaryIndex;
     //auto buckets = primIndex.buckets();
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
     auto trbuckets = primIndex.buckets(v.from, v.to); 
@@ -1425,6 +1419,9 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
             }
         }
     } // for all buckets
+#ifdef LPDEBUG
+    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
+#endif
     return false;
 }
 
@@ -1605,7 +1602,7 @@ FOUND: continue;
 }            
 }
      */
-
+/*
 void processEqualityZero() {
     //cerr << "----- NEW VAL SESSION -----" << endl;
     //uint64_t cnt = 0, cnt2 = 0;
@@ -1654,19 +1651,11 @@ FOUND:
         //cerr << cnt << ":" << cnt2 << endl;      
     }            
 }
-
+*/
 
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
-#ifdef LPDEBUG
-    auto qproc = LPTimer.getChrono();
-#endif
-    //processEqualityQueries(nThreads, tid, args);
-    //processEqualityZero();
-#ifdef LPDEBUG
-    LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
-#endif
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
