@@ -81,6 +81,13 @@ namespace lp {
             else return false;
         }
     } ColumnCompQuality;
+    struct ColumnCompColNEq_t {
+        ALWAYS_INLINE bool operator() (const Query::Column& left, const Query::Column& right) {
+            if ((left.value ^ right.value)) return true;
+            if (left.column ^ right.column) return true;
+            return left.op ^ right.op;    
+        }
+    } ColumnCompColNeq;
 
     struct LPQuery {
         /// The relation
@@ -155,20 +162,21 @@ namespace lp {
             return rq.columnCount;
             //return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
+        
+        struct EQ{ 
+            uint64_t v; uint8_t is; 
+            EQ() : v(0), is(0) {} 
+        };
         // return true if the query is valid otherwise false
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (!rq.columnCount) return true;
 
-            struct EQ{ 
-                uint64_t v; uint8_t is; 
-                EQ() : v(0), is(0) {} 
-            };
             EQ bitv[relCols];
 
             Column *qc = const_cast<Column*>(rq.columns);
             auto cb = qc, ce = cb + rq.columnCount;
-            for (; cb<ce; ++cb) {
-                auto& p = *cb;
+            for (; cb<ce;) {
+                auto& p = *cb++;
                 switch (p.op) {
                     case Op::Equal:
                         if ((bitv[p.column].is) && (bitv[p.column].v != p.value)) return false;
@@ -194,23 +202,34 @@ namespace lp {
 
             //std::sort(qc, ce, ColumnCompQuality);
             
+            const register size_t sz = rq.columnCount;
+
+            std::cerr << sz << " ";
+
             // insertion sort manual
-            if (rq.columnCount < 32) {
-                for (register size_t i=1,sz=rq.columnCount; i<sz; ++i) {
+            if (sz < 16) {
+                if (sz == 1) return true;
+                for (register size_t i=1; i<sz; ++i) {
                     for (register size_t pos=i; pos>0; --pos) {
                         if (ColumnCompQuality(qc[pos], qc[pos-1])) {
                             std::swap(qc[pos], qc[pos-1]);
                         } else break;
                     }
                 }
+                // unique manual
+                register size_t uniq = 0;
+                for (register size_t i=1; i<sz; ++i) {
+                    if (ColumnCompColNeq(qc[uniq], qc[i])) {
+                        ++uniq;
+                        if (i - uniq > 0) qc[uniq] = qc[i];
+                    }
+                }
+                rq.columnCount = uniq+1;
             } else {
                 std::sort(qc, ce, ColumnCompQuality);
+                rq.columnCount = std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq) - qc;
             }
             
-            // unique manual
-
-            
-            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
             return true;
         }
         /*
