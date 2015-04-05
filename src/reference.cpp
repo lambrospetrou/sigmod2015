@@ -925,9 +925,11 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
             columnCount = rq->columnCount;
 
+
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
             uint32_t colCountUniq = lp::query::preprocess(*rq); 
+            //cerr << "rsz: " << gSchema[rq->relationId] << " preds: " << columnCount << " after: " << colCountUniq << endl;
             if (!lp::query::satisfiable(rq, colCountUniq)) { 
                 continue; 
             }
