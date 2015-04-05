@@ -209,11 +209,13 @@ namespace lp {
             switch (sz) {
                 case 1: return true;
                 case 2: {
-                            if (ColumnCompColEq(qc[0], qc[1])) { rq.columnCount = 1; }
-                            else if (ColumnCompQuality(qc[1], qc[0])) {
+                            if (ColumnCompQuality(qc[0], qc[1])) {
+                                return true;
+                            } else { 
                                 std::swap(qc[0], qc[1]);
-                            } return true;
-                        }
+                            } 
+                            return true;
+                        }/*
                 case 3: {
                             if (ColumnCompColEq(qc[0],qc[1])) {
                                 if (ColumnCompColEq(qc[0], qc[2])) { rq.columnCount = 1; }
@@ -241,7 +243,7 @@ namespace lp {
                                     rq.columnCount = 2;
                                 } 
                             } return true;
-                        }
+                        }*/
                 default:
                 {
                     if (sz < 13) {
