@@ -1422,9 +1422,9 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
     //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-        auto tplpair = cb->equal_range(cbegin->value, v.to);
+        auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
-        if (q->columnCount == 1 && (tplpair.second-1)->trans_id >= v.from) return true;
+        if (q->columnCount == 1 && ((uint64_t)((tplpair.second-1)->trans_id - v.from) <= (rangediff))) return true;
         for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
             //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
