@@ -225,7 +225,7 @@ class CIndex {
             } else {
                 auto mBB = BB(), mBE = BE();
                 auto trt = mBB;
-                for (;(mBE-trt>0) & (trt->trmax < trid); ++trt);
+                for (;(mBE-trt>0) && (trt->trmax < trid); ++trt);
                 return trt;
             }
         }
@@ -236,7 +236,7 @@ class CIndex {
             } else {
                 auto mBE = BE();
                 auto trt = bb;
-                for (;(mBE-trt>0) & (trt->trmin <= trid); ++trt);
+                for (;(mBE-trt>0) && (trt->trmin <= trid); ++trt);
                 return trt;
             }
         }

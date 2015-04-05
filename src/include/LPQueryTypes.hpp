@@ -77,7 +77,7 @@ namespace lp {
             }
             */
             if ((left.op) == (right.op)) { return left.column < right.column; }
-            else if ((!left.op)) { return true; }
+            else if ((left.op == 0)) { return true; }
             else return false;
         }
     } ColumnCompQuality;
@@ -169,7 +169,7 @@ namespace lp {
         };
         // return true if the query is valid otherwise false
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
-            if (!rq.columnCount) return true;
+            if (rq.columnCount == 0) return true;
 
             EQ bitv[relCols];
 
@@ -186,7 +186,7 @@ namespace lp {
                         if ((bitv[p.column].is) && (bitv[p.column].v == p.value)) return false;
                         break;
                     case Op::Less:
-                        if (bitv[p.column].is && (bitv[p.column].v >= p.value)) return false;
+                        if ((bitv[p.column].is) && (bitv[p.column].v >= p.value)) return false;
                         break;
                     case Op::LessOrEqual:
                         if ((bitv[p.column].is) && (bitv[p.column].v > p.value)) return false;
@@ -200,17 +200,12 @@ namespace lp {
                 }
             }
 
-            //std::sort(qc, ce, ColumnCompQuality);
-            
             const register size_t sz = rq.columnCount;
-
             //std::cerr << sz << " ";
-
             
-            
-            // insertion sort manual
             if (sz == 1) return true;
             if (sz < 20) {
+                // insertion sort manual
                 for (register size_t i=1; i<sz; ++i) {
                     for (register size_t pos=i; pos>0; --pos) {
                         if (ColumnCompQuality(qc[pos], qc[pos-1])) {

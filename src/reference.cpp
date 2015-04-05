@@ -315,7 +315,7 @@ struct TransMapPhase_t {
     inline bool operator()(const TRMapPhase& l, const TRMapPhase& r) {
         if (l.trans_id < r.trans_id) return true;
         else if (r.trans_id < l.trans_id) return false;
-        else return l.isDelOp & !r.isDelOp;
+        else return l.isDelOp && !r.isDelOp;
     }
 } TRMapPhaseByTrans;
 
@@ -843,7 +843,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     for(auto trp=transFrom; trp!=tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
         auto trans_id = trp->first;
-        CIndex::Bucket &trb = *cindex.bucketNext(trans_id, !col);
+        CIndex::Bucket &trb = *cindex.bucketNext(trans_id, col==0);
        
         /*
         for (auto tpl : trp->second) { 
@@ -854,10 +854,13 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
         auto tplPtr = ptrs.second;
-        for (auto tpl = trp->second.data(), tple=tpl+trpsz; tpl<tple; ++tpl) {
+        //for (auto tpl = trp->second.data(), tple=tpl+trpsz; tpl<tple; ++tpl) {
+            //*tplPtr++ = {(*tpl)[col], trans_id, *tpl}; 
         //for (auto tpl : trp->second) { 
-            // *tplPtr++ = {tpl[col], trans_id, tpl}; 
-            *tplPtr++ = {(*tpl)[col], trans_id, *tpl}; 
+             //*tplPtr++ = {tpl[col], trans_id, tpl}; 
+        auto tpls = trp->second.data();
+        for (size_t i=0; i<trpsz; ++i) {
+            *tplPtr++ = {tpls[i][col], trans_id, tpls[i]}; 
         }
         
     }
