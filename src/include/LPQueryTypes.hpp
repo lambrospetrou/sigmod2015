@@ -154,12 +154,9 @@ namespace lp {
         // return true if the query is valid otherwise false
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (!rq.columnCount) return true;
-           
 
-            //std::vector<uint8_t> bitv_(relCols);
-            //std::vector<uint64_t> eqs_(relCols);
-            //auto eqs = eqs_.data();
-            //auto bitv = bitv_.data();
+            //struct EQ{ uint64_t v; uint8_t is; EQ() : v(0), is(0) };
+            //EQ bitv[relCols];
             uint64_t eqs[relCols];
             uint8_t bitv[relCols];
             for (size_t i=0; i<relCols; ++i) { bitv[i] = 0; }
@@ -178,28 +175,16 @@ namespace lp {
                         if ((bitv[p.column]) && (eqs[p.column] == p.value)) return false;
                         break;
                     case Op::Less:
-                        if (bitv[p.column]) {
-                            if (eqs[p.column] >= p.value) return false;
-                            p.op = Op::Equal; p.value = eqs[p.column];
-                        }
+                        if (bitv[p.column] && (eqs[p.column] >= p.value)) return false;
                         break;
                     case Op::LessOrEqual:
-                        if (bitv[p.column]) {
-                            if (eqs[p.column] > p.value) return false;
-                            p.op = Op::Equal; p.value = eqs[p.column];
-                        }
+                        if ((bitv[p.column]) && (eqs[p.column] > p.value)) return false;
                         break;
                     case Op::Greater:
-                        if (bitv[p.column]) {
-                            if (eqs[p.column] <= p.value) return false;
-                            p.op = Op::Equal; p.value = eqs[p.column];
-                        }
+                        if ((bitv[p.column]) && (eqs[p.column] <= p.value)) return false;
                         break;
                     case Op::GreaterOrEqual:
-                        if (bitv[p.column]) {
-                            if (eqs[p.column] < p.value) return false;
-                            p.op = Op::Equal; p.value = eqs[p.column];
-                        }
+                        if ((bitv[p.column]) && (eqs[p.column] < p.value)) return false;
                         break;
                 }
             }
