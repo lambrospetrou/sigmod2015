@@ -206,75 +206,11 @@ namespace lp {
 
             //std::cerr << sz << " ";
 
-            switch (sz) {
-                case 1: return true;
-                case 2: {
-                            if (ColumnCompQuality(qc[0], qc[1])) {
-                                return true;
-                            } else { 
-                                std::swap(qc[0], qc[1]);
-                            } 
-                            return true;
-                        }/*
-                case 3: {
-                            if (ColumnCompColEq(qc[0],qc[1])) {
-                                if (ColumnCompColEq(qc[0], qc[2])) { rq.columnCount = 1; }
-                                else {
-                                    qc[1] = qc[2];
-                                    if (ColumnCompQuality(qc[2], qc[0])) {
-                                        std::swap(qc[0], qc[1]);
-                                    }
-                                    rq.columnCount = 2;
-                                }
-                            } else if (ColumnCompColEq(qc[0],qc[2])) {
-                                if (ColumnCompColEq(qc[0],qc[1])) { rq.columnCount = 1; }
-                                else {
-                                    if (ColumnCompQuality(qc[1], qc[0])) {
-                                        std::swap(qc[0], qc[1]);
-                                    }
-                                    rq.columnCount = 2;
-                                } 
-                            } else if (ColumnCompColEq(qc[1],qc[2])) {
-                                if (ColumnCompColEq(qc[0], qc[1])) { rq.columnCount = 1; }
-                                else {
-                                    if (ColumnCompQuality(qc[1], qc[0])) {
-                                        std::swap(qc[0], qc[1]);
-                                    }
-                                    rq.columnCount = 2;
-                                } 
-                            } return true;
-                        }*/
-                default:
-                {
-                    if (sz < 13) {
-                    for (register size_t i=1; i<sz; ++i) {
-                        for (register size_t pos=i; pos>0; --pos) {
-                            if (ColumnCompQuality(qc[pos], qc[pos-1])) {
-                                std::swap(qc[pos], qc[pos-1]);
-                            } else break;
-                        }
-                    }
-                    // unique manual
-                    register size_t uniq = 0;
-                    for (register size_t i=1; i<sz; ++i) {
-                        if (ColumnCompColNeq(qc[uniq], qc[i])) {
-                            ++uniq;
-                            if (i - uniq > 0) qc[uniq] = qc[i];
-                        }
-                    }
-                    rq.columnCount = uniq+1;
-                    } else {
-                    std::sort(qc, ce, ColumnCompQuality);
-                    rq.columnCount = std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq) - qc;
-                    }
-                    return true;
-                }
-            }
             
-            /*
+            
             // insertion sort manual
-            if (sz < 16) {
-                if (sz == 1) return true;
+            if (sz == 1) return true;
+            if (sz < 20) {
                 for (register size_t i=1; i<sz; ++i) {
                     for (register size_t pos=i; pos>0; --pos) {
                         if (ColumnCompQuality(qc[pos], qc[pos-1])) {
@@ -295,7 +231,7 @@ namespace lp {
                 std::sort(qc, ce, ColumnCompQuality);
                 rq.columnCount = std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq) - qc;
             }
-            */
+            
             return true;
         }
         /*
