@@ -189,9 +189,8 @@ namespace lp {
                 }
             }
 
-            //std::sort(qc, ce, ColumnCompQuality);
-            std::partial_sort(qc, qc+std::min(rq.columnCount, (uint32_t)2), ce, ColumnCompQuality);
-            //rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            std::sort(qc, ce, ColumnCompQuality);
+            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
             return true;
         }
         /*
