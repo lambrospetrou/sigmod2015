@@ -188,7 +188,21 @@ namespace lp {
                 }
             }
 
-            std::sort(qc, ce, ColumnCompQuality);
+            //std::sort(qc, ce, ColumnCompQuality);
+            
+            // insertion sort manual
+            for (size_t i=1; i<rq.columnCount; ++i) {
+                for (size_t pos=i; pos>0;) {
+                    if (ColumnCompQuality(qc[pos], qc[pos-1])) {
+                        std::swap(qc[pos], qc[pos-1]);
+                        --pos;
+                    } else break;
+                }
+            }
+
+            // unique manual
+
+            
             rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
             return true;
         }
