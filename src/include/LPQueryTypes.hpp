@@ -151,6 +151,63 @@ namespace lp {
             return rq.columnCount;
             //return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
+        // return true if the query is valid otherwise false
+        bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
+            if (!rq.columnCount) return true;
+           
+
+            //std::vector<uint8_t> bitv_(relCols);
+            //std::vector<uint64_t> eqs_(relCols);
+            //auto eqs = eqs_.data();
+            //auto bitv = bitv_.data();
+            uint64_t eqs[relCols];
+            uint8_t bitv[relCols];
+            for (size_t i=0; i<relCols; ++i) { bitv[i] = 0; }
+
+            Column *qc = const_cast<Column*>(rq.columns);
+            auto cb = qc, ce = cb + rq.columnCount;
+            for (; cb<ce; ++cb) {
+                auto& p = *cb;
+                switch (p.op) {
+                    case Op::Equal:
+                        // already found an equality check
+                        if ((bitv[p.column]) && (eqs[p.column] != p.value)) return false;
+                        bitv[p.column] = 1; eqs[p.column] = p.value;
+                        break;
+                    case Op::NotEqual:
+                        if ((bitv[p.column]) && (eqs[p.column] == p.value)) return false;
+                        break;
+                    case Op::Less:
+                        if (bitv[p.column]) {
+                            if (eqs[p.column] >= p.value) return false;
+                            p.op = Op::Equal; p.value = eqs[p.column];
+                        }
+                        break;
+                    case Op::LessOrEqual:
+                        if (bitv[p.column]) {
+                            if (eqs[p.column] > p.value) return false;
+                            p.op = Op::Equal; p.value = eqs[p.column];
+                        }
+                        break;
+                    case Op::Greater:
+                        if (bitv[p.column]) {
+                            if (eqs[p.column] <= p.value) return false;
+                            p.op = Op::Equal; p.value = eqs[p.column];
+                        }
+                        break;
+                    case Op::GreaterOrEqual:
+                        if (bitv[p.column]) {
+                            if (eqs[p.column] < p.value) return false;
+                            p.op = Op::Equal; p.value = eqs[p.column];
+                        }
+                        break;
+                }
+            }
+
+            std::sort(qc, ce, ColumnCompQuality);
+            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            return true;
+        }
         /*
         inline uint32_t __attribute__((always_inline)) preprocess(LPQuery& lpq) {
             auto q = lpq.rawQuery;

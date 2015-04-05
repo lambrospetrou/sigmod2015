@@ -928,13 +928,15 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
+            if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
+            /*
             uint32_t colCountUniq = lp::query::preprocess(*rq); 
             //cerr << "rsz: " << gSchema[rq->relationId] << " preds: " << columnCount << " after: " << colCountUniq << endl;
             if (!lp::query::satisfiable(rq, colCountUniq)) { 
                 continue; 
             }
             rq->columnCount = colCountUniq;
-
+            */
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
