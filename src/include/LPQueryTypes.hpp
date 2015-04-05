@@ -67,6 +67,7 @@ namespace lp {
             else if ((left.op != Op::NotEqual) & (right.op == Op::NotEqual)) return true;
             return (left.column < right.column);
             */
+            /*
             if ((left.op == Op::Equal)) {
                 if (right.op != Op::Equal) { return true; }
                 else { return left.column < right.column; }
@@ -74,6 +75,10 @@ namespace lp {
                 if (right.op == Op::Equal) { return false; } 
                 else { return left.op > right.op; }
             }
+            */
+            if ((left.op) == (right.op)) { return left.column < right.column; }
+            else if ((!left.op)) { return true; }
+            else return false;
         }
     } ColumnCompQuality;
 
