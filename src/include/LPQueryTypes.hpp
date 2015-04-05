@@ -191,15 +191,33 @@ namespace lp {
             //std::sort(qc, ce, ColumnCompQuality);
             
             // insertion sort manual
-            for (size_t i=1; i<rq.columnCount; ++i) {
-                for (size_t pos=i; pos>0;) {
-                    if (ColumnCompQuality(qc[pos], qc[pos-1])) {
-                        std::swap(qc[pos], qc[pos-1]);
-                        --pos;
-                    } else break;
+           
+            if (rq.columnCount < 32) {
+                for (register size_t i=0,sz=rq.columnCount; i<sz-1; ++i) {
+                    for (register size_t j=i+1; j<sz; ++j) {
+                        if (ColumnCompQuality(qc[j], qc[i])) {
+                            std::swap(qc[j], qc[i]);
+                        }
+                    }
                 }
+            } else {
+                std::sort(qc, ce, ColumnCompQuality);
             }
-
+            
+            /*
+            if (rq.columnCount < 10) {
+                for (register size_t i=1,sz=rq.columnCount; i<sz; ++i) {
+                    for (register size_t pos=i; pos>0;) {
+                        if (ColumnCompQuality(qc[pos], qc[pos-1])) {
+                            std::swap(qc[pos], qc[pos-1]);
+                            --pos;
+                        } else break;
+                    }
+                }
+            } else {
+                std::sort(qc, ce, ColumnCompQuality);
+            }
+            */
             // unique manual
 
             
