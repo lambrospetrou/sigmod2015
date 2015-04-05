@@ -155,11 +155,11 @@ namespace lp {
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (!rq.columnCount) return true;
 
-            struct EQ{ uint64_t v; uint8_t is; EQ() : v(0), is(0) {} };
+            struct EQ{ 
+                uint64_t v; uint8_t is; 
+                EQ() : v(0), is(0) {} 
+            };
             EQ bitv[relCols];
-            //uint64_t eqs[relCols];
-            //uint8_t bitv[relCols];
-            //for (size_t i=0; i<relCols; ++i) { bitv[i] = 0; }
 
             Column *qc = const_cast<Column*>(rq.columns);
             auto cb = qc, ce = cb + rq.columnCount;
@@ -167,7 +167,6 @@ namespace lp {
                 auto& p = *cb;
                 switch (p.op) {
                     case Op::Equal:
-                        // already found an equality check
                         if ((bitv[p.column].is) && (bitv[p.column].v != p.value)) return false;
                         bitv[p.column].is = 1; bitv[p.column].v = p.value;
                         break;
