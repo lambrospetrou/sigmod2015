@@ -155,11 +155,11 @@ namespace lp {
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (!rq.columnCount) return true;
 
-            //struct EQ{ uint64_t v; uint8_t is; EQ() : v(0), is(0) };
-            //EQ bitv[relCols];
-            uint64_t eqs[relCols];
-            uint8_t bitv[relCols];
-            for (size_t i=0; i<relCols; ++i) { bitv[i] = 0; }
+            struct EQ{ uint64_t v; uint8_t is; EQ() : v(0), is(0) {} };
+            EQ bitv[relCols];
+            //uint64_t eqs[relCols];
+            //uint8_t bitv[relCols];
+            //for (size_t i=0; i<relCols; ++i) { bitv[i] = 0; }
 
             Column *qc = const_cast<Column*>(rq.columns);
             auto cb = qc, ce = cb + rq.columnCount;
@@ -168,29 +168,30 @@ namespace lp {
                 switch (p.op) {
                     case Op::Equal:
                         // already found an equality check
-                        if ((bitv[p.column]) && (eqs[p.column] != p.value)) return false;
-                        bitv[p.column] = 1; eqs[p.column] = p.value;
+                        if ((bitv[p.column].is) && (bitv[p.column].v != p.value)) return false;
+                        bitv[p.column].is = 1; bitv[p.column].v = p.value;
                         break;
                     case Op::NotEqual:
-                        if ((bitv[p.column]) && (eqs[p.column] == p.value)) return false;
+                        if ((bitv[p.column].is) && (bitv[p.column].v == p.value)) return false;
                         break;
                     case Op::Less:
-                        if (bitv[p.column] && (eqs[p.column] >= p.value)) return false;
+                        if (bitv[p.column].is && (bitv[p.column].v >= p.value)) return false;
                         break;
                     case Op::LessOrEqual:
-                        if ((bitv[p.column]) && (eqs[p.column] > p.value)) return false;
+                        if ((bitv[p.column].is) && (bitv[p.column].v > p.value)) return false;
                         break;
                     case Op::Greater:
-                        if ((bitv[p.column]) && (eqs[p.column] <= p.value)) return false;
+                        if ((bitv[p.column].is) && (bitv[p.column].v <= p.value)) return false;
                         break;
                     case Op::GreaterOrEqual:
-                        if ((bitv[p.column]) && (eqs[p.column] < p.value)) return false;
+                        if ((bitv[p.column].is) && (bitv[p.column].v < p.value)) return false;
                         break;
                 }
             }
 
-            std::sort(qc, ce, ColumnCompQuality);
-            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            //std::sort(qc, ce, ColumnCompQuality);
+            std::partial_sort(qc, qc+std::min(rq.columnCount, (uint32_t)2), ce, ColumnCompQuality);
+            //rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
             return true;
         }
         /*
