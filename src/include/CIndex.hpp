@@ -21,7 +21,7 @@ class CIndex {
     static constexpr size_t BUCKET_TUPLES_LIMIT = (((size_t)1)<<9)+(((size_t)1)<<8);
     //static constexpr size_t BUCKET_TUPLES_LIMIT = (((size_t)1)<<10);
     static constexpr size_t BUCKET_TRANS_LIMIT = 64;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 128;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 64;
 
     public:
         struct Meta_t {
@@ -39,7 +39,7 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& o) {
                 return target < o.value;
             }
-        };
+        }; static MLess_t MLess;
         struct MVTLess_t {
             ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
                 if (left.value < right.value) return true;
@@ -52,7 +52,7 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& right) {
                 return target < right.value;
             }
-        };
+        }; static MVTLess_t MVTLess;
         struct MTrLess_t {
             ALWAYS_INLINE bool operator() (const Meta_t& left, const Meta_t& right) {
                 return left.trans_id < right.trans_id;
@@ -63,7 +63,7 @@ class CIndex {
             ALWAYS_INLINE bool operator() (uint64_t target, const Meta_t& o) {
                 return target < o.trans_id;
             }
-        };
+        }; static MTrLess_t MTrLess;
         
         struct Bucket {
             //vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
@@ -120,12 +120,12 @@ class CIndex {
             void sortByVal() {
                 //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
                 //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
-                std::sort(meta.data(), meta.data()+meta.size(), MLess_t());
+                std::sort(meta.data(), meta.data()+meta.size(), MLess);
             }
             void sortByValTrans() {
                 //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
                 //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
-                std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
+                std::sort(meta.data(), meta.data()+meta.size(), MVTLess);
             }
 
             std::pair<Meta_t*, Meta_t*> tuples() {
@@ -134,47 +134,47 @@ class CIndex {
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trfrom, uint64_t trto) {
                 auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
-                auto ub = std::upper_bound(trp.first, trp.second, trto, MTrLess_t());
-                auto lb = std::lower_bound(trp.first, ub, trfrom, MTrLess_t());
+                auto ub = std::upper_bound(trp.first, trp.second, trto, MTrLess);
+                auto lb = std::lower_bound(trp.first, ub, trfrom, MTrLess);
                 return {lb, ub};
             }
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trid) {
-                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
-                return {trp.first, std::upper_bound(trp.first, trp.second, trid, MTrLess_t())};
+                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess);
+                return {trp.first, std::upper_bound(trp.first, trp.second, trid, MTrLess)};
             }
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
                 //auto vb = values.data();
                 //auto rp = std::equal_range(vb, vb+values.size(), v);
                 //return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
-                return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess);
             }
             std::pair<Meta_t*, Meta_t*> lower_bound(uint64_t v) {
                 //auto vb = values.data();
                 //auto lb = std::lower_bound(vb, vb+values.size(), v);
                 //return {meta.data()+(lb-vb), meta.data()+meta.size()};
                 auto mb = meta.data(), me = mb + meta.size(); 
-                return {std::lower_bound(mb, me, v, MVTLess_t()), me};
+                return {std::lower_bound(mb, me, v, MVTLess), me};
             }
             std::pair<Meta_t*, Meta_t*> lower_bound_left(uint64_t v) {
                 //auto vb = values.data();
                 //auto lb = std::lower_bound(vb, vb+values.size(), v);
                 //return {meta.data(), meta.data()+(lb-vb)};
                 auto mb = meta.data(), me = mb + meta.size(); 
-                return {mb, std::lower_bound(mb, me, v, MVTLess_t())};
+                return {mb, std::lower_bound(mb, me, v, MVTLess)};
             }
             std::pair<Meta_t*, Meta_t*> upper_bound(uint64_t v) {
                 //auto vb = values.data();
                 //auto ub = std::upper_bound(vb, vb+values.size(), v);
                 //return {meta.data()+(ub-vb), meta.data()+meta.size()};
                 auto mb = meta.data(), me = mb + meta.size(); 
-                return {std::upper_bound(mb, me, v, MVTLess_t()), me};
+                return {std::upper_bound(mb, me, v, MVTLess), me};
             }
             std::pair<Meta_t*, Meta_t*> upper_bound_left(uint64_t v) {
                 //auto vb = values.data();
                 //auto ub = std::upper_bound(vb, vb+values.size(), v);
                 //return {meta.data(), meta.data()+(ub-vb)};
                 auto mb = meta.data(), me = mb + meta.size(); 
-                return {mb, std::upper_bound(mb, me, v, MVTLess_t())};
+                return {mb, std::upper_bound(mb, me, v, MVTLess)};
             }
         };
   
