@@ -11,7 +11,14 @@
 
 #include <iostream>
 
+//#include "stx/btree_map.h"
+#include "cpp_btree/btree_map.h"
+
 class CIndex {
+
+    template<typename K, typename V>
+    //using btree = stx::btree_map<K, V>;
+    using btree = btree::btree_map<K, V>;
 
     template<typename T>
     //using vector_a = std::vector<T, aligned_allocator<T, 16>>;
@@ -20,8 +27,7 @@ class CIndex {
     using tuple_t = uint64_t*;
     static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<10;
     static constexpr size_t BUCKET_TRANS_LIMIT = 32;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 32;
-    
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 32; 
 
     public:
         struct Meta_t {
@@ -64,46 +70,44 @@ class CIndex {
                 return target < o.trans_id;
             }
         };
+       
+
+        using meta_btree = btree<uint64_t, std::vector<Meta_t>>;
+        using btree_iterator = meta_btree::iterator;
         
         struct Bucket {
             //vector_a<uint64_t> values; // might be btree maybe if faster than binary_search
-            vector_a<Meta_t> meta;
+            //vector_a<Meta_t> meta;
+           
+            meta_btree meta;
+                
             uint64_t trmin;
             uint64_t trmax;
             size_t trsize;
+            size_t tplsize;
+
             // other possible statistics for these values goes here
 
             Bucket() : trmin(0), trmax(0), trsize(0) {
-                //values.reserve(mBucketSize); 
-                meta.reserve(BUCKET_TUPLES_LIMIT);
+                //meta.reserve(BUCKET_TUPLES_LIMIT);
             }
             Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
-                //values.reserve(mBucketSize); meta.reserve(mBucketSize);
-                meta.reserve(BUCKET_TUPLES_LIMIT);
+                //meta.reserve(BUCKET_TUPLES_LIMIT);
             }
 
-            //void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
-           
-            // return a pointer to the next empty position of those allocated now
             /*
             std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
-                size_t oldsz = values.size();
-                values.resize(values.size()+sz); 
-                meta.resize(meta.size()+sz); 
-                return {values.data()+oldsz, meta.data()+oldsz};
-            }
-            */
-            std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
                 const size_t oldsz = meta.size();
-                //meta.reserve(oldsz+sz);
                 meta.resize(oldsz+sz); 
                 return {nullptr, meta.data()+oldsz};
             }
+            */
 
-            void ALWAYS_INLINE insert(uint64_t trid, tuple_t tpl, uint64_t val) {
-                //values.push_back(val);
-                //meta.push_back({trid, tpl});
-                meta.push_back({val, trid, tpl});
+            ALWAYS_INLINE void insert(uint64_t val, uint64_t trid, tuple_t tpl) {
+                //meta.push_back({val, trid, tpl});
+                auto& trids = meta[val];
+                trids.push_back({val, trid, tpl});
+                ++tplsize;
             }
             
             ALWAYS_INLINE Bucket* setMax(uint64_t trid) {
@@ -117,64 +121,58 @@ class CIndex {
                 return this;
             }
 
+            /*
             void sortByVal() {
-                //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
-                //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
                 std::sort(meta.data(), meta.data()+meta.size(), MLess_t());
             }
             void sortByValTrans() {
-                //std::sort(SIter<uint64_t, Meta_t>(values.data(), meta.data()), 
-                //    SIter<uint64_t, Meta_t>(values.data()+values.size(), meta.data()+values.size()));
                 std::sort(meta.data(), meta.data()+meta.size(), MVTLess_t());
             }
-
-            std::pair<Meta_t*, Meta_t*> tuples() {
-                return {meta.data(), meta.data()+meta.size()};
-            }
+            */
 
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trfrom, uint64_t trto) {
-                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
-                auto ub = std::upper_bound(trp.first, trp.second, trto, MTrLess_t());
-                auto lb = std::lower_bound(trp.first, ub, trfrom, MTrLess_t());
+                //auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                //auto ub = std::upper_bound(trp.first, trp.second, trto, MTrLess_t());
+                //auto lb = std::lower_bound(trp.first, ub, trfrom, MTrLess_t());
+                //return {lb, ub};
+                auto kv = meta.find(v);
+                if (kv == meta.end()) return {nullptr, nullptr};
+                auto& trids = kv->second; // iterator - .data() in stx
+                auto idb = trids.data(), ide = trids.data()+trids.size(); 
+                auto ub = std::upper_bound(idb, ide, trto, MTrLess_t());
+                auto lb = std::lower_bound(idb, ub, trfrom, MTrLess_t());
                 return {lb, ub};
             }
-            std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trid) {
-                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
-                return {trp.first, std::upper_bound(trp.first, trp.second, trid, MTrLess_t())};
-            }
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v) {
-                //auto vb = values.data();
-                //auto rp = std::equal_range(vb, vb+values.size(), v);
-                //return {meta.data()+(rp.first-vb), meta.data()+(rp.second-vb)};
-                return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                //return std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                auto kv = meta.find(v);
+                if (kv == meta.end()) return {nullptr, nullptr};
+                auto& trids = kv->second; // iterator - .data() in stx
+                return {trids.data(), trids.data()+trids.size()};
             }
-            std::pair<Meta_t*, Meta_t*> lower_bound(uint64_t v) {
-                //auto vb = values.data();
-                //auto lb = std::lower_bound(vb, vb+values.size(), v);
-                //return {meta.data()+(lb-vb), meta.data()+meta.size()};
-                auto mb = meta.data(), me = mb + meta.size(); 
-                return {std::lower_bound(mb, me, v, MVTLess_t()), me};
+            std::pair<btree_iterator, btree_iterator> lower_bound(uint64_t v) {
+            //std::pair<Meta_t*, Meta_t*> lower_bound(uint64_t v) {
+                //auto mb = meta.data(), me = mb + meta.size(); 
+                //return {std::lower_bound(mb, me, v, MVTLess_t()), me};
+                return {meta.lower_bound(v), meta.end()};
             }
-            std::pair<Meta_t*, Meta_t*> lower_bound_left(uint64_t v) {
-                //auto vb = values.data();
-                //auto lb = std::lower_bound(vb, vb+values.size(), v);
-                //return {meta.data(), meta.data()+(lb-vb)};
-                auto mb = meta.data(), me = mb + meta.size(); 
-                return {mb, std::lower_bound(mb, me, v, MVTLess_t())};
+            std::pair<btree_iterator, btree_iterator> lower_bound_left(uint64_t v) {
+            //std::pair<Meta_t*, Meta_t*> lower_bound_left(uint64_t v) {
+                //auto mb = meta.data(), me = mb + meta.size(); 
+                //return {mb, std::lower_bound(mb, me, v, MVTLess_t())};
+                return {meta.begin(), meta.lower_bound(v)};
             }
-            std::pair<Meta_t*, Meta_t*> upper_bound(uint64_t v) {
-                //auto vb = values.data();
-                //auto ub = std::upper_bound(vb, vb+values.size(), v);
-                //return {meta.data()+(ub-vb), meta.data()+meta.size()};
-                auto mb = meta.data(), me = mb + meta.size(); 
-                return {std::upper_bound(mb, me, v, MVTLess_t()), me};
+            std::pair<btree_iterator, btree_iterator> upper_bound(uint64_t v) {
+            //std::pair<Meta_t*, Meta_t*> upper_bound(uint64_t v) {
+                //auto mb = meta.data(), me = mb + meta.size(); 
+                //return {std::upper_bound(mb, me, v, MVTLess_t()), me};
+                return {meta.upper_bound(v), meta.end()};
             }
-            std::pair<Meta_t*, Meta_t*> upper_bound_left(uint64_t v) {
-                //auto vb = values.data();
-                //auto ub = std::upper_bound(vb, vb+values.size(), v);
-                //return {meta.data(), meta.data()+(ub-vb)};
-                auto mb = meta.data(), me = mb + meta.size(); 
-                return {mb, std::upper_bound(mb, me, v, MVTLess_t())};
+            std::pair<btree_iterator, btree_iterator> upper_bound_left(uint64_t v) {
+            //std::pair<Meta_t*, Meta_t*> upper_bound_left(uint64_t v) {
+                //auto mb = meta.data(), me = mb + meta.size(); 
+                //return {mb, std::upper_bound(mb, me, v, MVTLess_t())};
+                return {meta.begin(), meta.upper_bound(v)};
             }
         };
   
@@ -202,7 +200,8 @@ class CIndex {
         ALWAYS_INLINE bool is_newbucket() { 
             return (mBuckets.empty() || 
                     (mBuckets.back().trsize >= BUCKET_TRANS_LIMIT) ||
-                    (mBuckets.back().meta.size() >= BUCKET_TUPLES_LIMIT));
+                    (mBuckets.back().tplsize >= BUCKET_TUPLES_LIMIT));
+                    //(mBuckets.back().meta.size() >= BUCKET_TUPLES_LIMIT));
         }
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
@@ -216,7 +215,7 @@ class CIndex {
                 return mBuckets.back().setMax(trid);
             }
         }
-
+/*
         using TransLog_t = std::pair<uint64_t, std::vector<tuple_t>>;
         ALWAYS_INLINE std::pair<Meta_t*, TransLog_t*> 
         prepareBucket(bool is_primary, TransLog_t *tr, TransLog_t *tre) {
@@ -262,11 +261,11 @@ class CIndex {
             }
             return {nullptr, nullptr};
         }
-        
+      
         void ALWAYS_INLINE sortAll() {
             for (Bucket& b : mBuckets) { b.sortByVal(); }
         }
-
+*/
        
         /////////////////////
         /////////
@@ -304,7 +303,7 @@ class CIndex {
             return lp_upper_bound(trid, BB());
         }
         /////////////////////
-
+/*
         // sorts the buckets that contain all transactions from trfrom and greater
         void ALWAYS_INLINE sortFrom(uint64_t trfrom, bool is_primary = false) {
             auto mBE = BE();
@@ -319,7 +318,7 @@ class CIndex {
                 }
             }
         }
-
+*/
         // returns the buckets that contain all the transactions from trfrom to trto
         // result [first, last)
         std::pair<Bucket*, Bucket*> buckets(uint64_t trfrom, uint64_t trto) {

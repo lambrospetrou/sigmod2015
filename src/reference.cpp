@@ -855,23 +855,28 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     } // while still transactions to process
     } else {*/
     // for all the transactions in the relation
-    for(auto trp=transFrom; trp<tEnd; ++trp) {
-        // allocate vectors for the current new transaction to put its data
+    /*for(auto trp=transFrom; trp<tEnd; ++trp) {
         auto trans_id = trp->first;
         CIndex::Bucket &trb = *cindex.bucketNext(trans_id, col==0);
-       
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
         auto tplPtr = ptrs.second;
         for (auto tpl : trp->second) { 
              *tplPtr++ = {tpl[col], trans_id, tpl}; 
         }
+    }*/
+    for(auto trp=transFrom; trp<tEnd; ++trp) {
+        auto trans_id = trp->first;
+        CIndex::Bucket &trb = *cindex.bucketNext(trans_id, col==0);
+        for (auto tpl : trp->second) { 
+             trb.insert(tpl[col], trans_id, tpl); 
+        }
     }
 
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
 
-    cindex.sortFrom(transFrom->first, col == 0);
+    //cindex.sortFrom(transFrom->first, col == 0);
     //if (col == 0) cindex.sortFrom(transFrom->first, true);
     //else cindex.sortFrom(transFrom->first);
 }
