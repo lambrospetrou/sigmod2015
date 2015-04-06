@@ -938,6 +938,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
             columnCount = rq->columnCount;
 
+
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
             if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
@@ -951,7 +952,6 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             */
             //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
-            //if (v.validationId == 5293) { cerr << pFirst.column << " " << pFirst.op << " = " << pFirst.value << endl; }
             //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
             //if (pFirst.column == 0 && pFirst.op == Op::Equal) {
             if (pFirst.op == Op::Equal) {
@@ -1279,7 +1279,6 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
                         auto& vmeta = valb->second;
                         Meta_t *ctpl = vmeta.data();
                         Meta_t *tple = vmeta.data() + vmeta.size();
-                        //if (v.validationId == 5293)
                         for (; ctpl<tple; ++ctpl) {
                         //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
                             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
@@ -1291,6 +1290,8 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
                     }
                 } // end for each bucket
             }
+            //tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
+            //if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
             {
@@ -1359,11 +1360,11 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto valpair = cb->lower_bound_left(cbegin->value);
+                    if (valpair.first == valpair.second) continue;
                     for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
                         auto& vmeta = valb->second;
                         Meta_t *ctpl = vmeta.data();
                         Meta_t *tple = vmeta.data() + vmeta.size();
-                        //cerr << "v: " << cbegin->value << " " << valb->first << " - " << (tple-ctpl) << endl;
                         for (; ctpl<tple; ++ctpl) {
                         //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
                             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
