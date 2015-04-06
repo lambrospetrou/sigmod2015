@@ -1361,12 +1361,10 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
 }
 
 static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *cend) {
-#ifdef LPDEBUG
-    //auto qproc = LPTimer.getChrono();
-#endif
     //cerr << "----- NEW VAL SESSION -----" << endl;
     //uint64_t cnt = 0, cnt2 = 0;
-    auto& cindex = gRelColumns[q->relationId].columns[cbegin->column].transactions;
+    auto& relColumns = gRelColumns[q->relationId].columns;
+    auto& cindex = relColumns[cbegin->column].transactions;
     auto trbuckets = cindex.buckets(v.from, v.to); 
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
     //const uint64_t rangediff = v.to - v.from;
@@ -1389,15 +1387,9 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
 
     } // for all buckets
-#ifdef LPDEBUG
-    //LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
-#endif
     return false;
 }
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
-#ifdef LPDEBUG
-    //auto qproc = LPTimer.getChrono();
-#endif
     //cerr << "----- NEW VAL SESSION -----" << endl;
     auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
@@ -1411,7 +1403,6 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
-        //if (q->columnCount == 1 && ((uint64_t)((tplpair.second-1)->trans_id - v.from) <= (rangediff))) return true;
         for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
             //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
@@ -1422,9 +1413,6 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
         }
     } // for all buckets
 
-#ifdef LPDEBUG
-    //LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
-#endif
     return false;
 }
 
@@ -1432,7 +1420,6 @@ static void processEqualityQueries(uint32_t ri, uint32_t ci) {
     auto& rq = gRelQ[ri].columns[ci].queries;
     if (rq.empty()) return;
     //cerr << "rel: " << ri << " col " << ci << " ==: " << rq.size() << endl;
-    //auto& cindex = gRelColumns[ri].columns[ci].transactions;
     QMeta_t *qb = rq.data(), *qe = rq.data()+rq.size();
 
     auto processFunc = (ci!=0) ? &processQueryEQ : &processQueryEQZero;
