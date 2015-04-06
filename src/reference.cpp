@@ -831,39 +831,43 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     if (relation.transLogTuples.empty() || (updatedUntil > relation.transLogTuples.back().first)) return;
 
     // Use lower_bound to automatically jump to the transaction to start
-    auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
-    auto tEnd=relation.transLogTuples.end();
+    //auto transFrom = lower_bound(relation.transLogTuples.begin(), relation.transLogTuples.end(), updatedUntil, TransLogComp);
+    //auto tEnd=relation.transLogTuples.end();
+    auto tEnd=relation.transLogTuples.data()+relation.transLogTuples.size();
+    auto transFrom = lower_bound(relation.transLogTuples.data(), tEnd, updatedUntil, TransLogComp);
 
     auto& cindex = relColumn.transactions;
 
-    size_t totaltuples = 0;
-    for(auto trp=transFrom; trp!=tEnd; ++trp) totaltuples += trp->second.size();
-
+    //if (col == 0) {
+    auto trp = transFrom;
+    // while we haven't processed all transactions
+    while (trp<tEnd) {
+        // will return the start of the bucket I should write and the last transaction I should stop
+        auto bpair = cindex.prepareBucket(col==0, trp, tEnd);
+        auto tplPtr = bpair.first;
+        auto currentEnd = bpair.second;
+        for (; trp<currentEnd; ++trp) {
+            auto trans_id = trp->first;
+            for (auto tpl : trp->second) { 
+                *tplPtr++ = {tpl[col], trans_id, tpl}; 
+            }
+        }
+    } // while still transactions to process
+    /*} else {
     // for all the transactions in the relation
-    for(auto trp=transFrom; trp!=tEnd; ++trp) {
+    for(auto trp=transFrom; trp<tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
         auto trans_id = trp->first;
         CIndex::Bucket &trb = *cindex.bucketNext(trans_id, col==0);
        
-        /*
-        for (auto tpl : trp->second) { 
-            trb.insert(trans_id, tpl, tpl[col]);
-        }
-        */
-         
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
         auto tplPtr = ptrs.second;
-        //for (auto tpl = trp->second.data(), tple=tpl+trpsz; tpl<tple; ++tpl) {
-            //*tplPtr++ = {(*tpl)[col], trans_id, *tpl}; 
-        //for (auto tpl : trp->second) { 
-             //*tplPtr++ = {tpl[col], trans_id, tpl}; 
-        auto tpls = trp->second.data();
-        for (size_t i=0; i<trpsz; ++i) {
-            *tplPtr++ = {tpls[i][col], trans_id, tpls[i]}; 
+        for (auto tpl : trp->second) { 
+             *tplPtr++ = {tpl[col], trans_id, tpl}; 
         }
-        
     }
+    }*/
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
 

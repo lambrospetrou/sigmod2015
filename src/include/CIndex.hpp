@@ -93,7 +93,8 @@ class CIndex {
             }
             */
             std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
-                size_t oldsz = meta.size();
+                const size_t oldsz = meta.size();
+                //meta.reserve(oldsz+sz);
                 meta.resize(oldsz+sz); 
                 return {nullptr, meta.data()+oldsz};
             }
@@ -103,10 +104,15 @@ class CIndex {
                 //meta.push_back({trid, tpl});
                 meta.push_back({val, trid, tpl});
             }
-
+            
             ALWAYS_INLINE Bucket* setMax(uint64_t trid) {
                 trmin = (trsize > 0) ? trmin : trid;
                 ++trsize; trmax = trid;
+                return this;
+            }
+            ALWAYS_INLINE Bucket* setMax(uint64_t trid, uint64_t trinserted) {
+                trmin = (trsize > 0) ? trmin : trid;
+                trsize+=trinserted; trmax = trid;
                 return this;
             }
 
@@ -189,7 +195,7 @@ class CIndex {
 
         // takes into account only the number of transactions
         ALWAYS_INLINE bool is_newbucket_primary() {
-            return (unlikely(mBuckets.empty() || (mBuckets.back().trsize >= BUCKET_PRIMARY_LIMIT)));
+            return ((mBuckets.empty() || (mBuckets.back().trsize >= BUCKET_PRIMARY_LIMIT)));
         }
         // takes into account the number of tuples too
         ALWAYS_INLINE bool is_newbucket() { 
@@ -201,7 +207,8 @@ class CIndex {
         // to make the insertions faster
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid, bool isPrimary = false) {
             //if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
-            if (unlikely(isPrimary ? is_newbucket_primary() : is_newbucket())) {
+            if ((isPrimary ? is_newbucket_primary() : is_newbucket())) {
+            //if (is_newbucket_primary()) {
                 mBuckets.emplace_back(trid, trid, 1);
                 return &mBuckets.back();
             } else {
@@ -209,6 +216,52 @@ class CIndex {
             }
         }
 
+        using TransLog_t = std::pair<uint64_t, std::vector<tuple_t>>;
+        ALWAYS_INLINE std::pair<Meta_t*, TransLog_t*> 
+        prepareBucket(bool is_primary, TransLog_t *tr, TransLog_t *tre) {
+            Bucket *b = bucketNext(tr->first, is_primary);
+            if (is_primary) {
+                size_t totalTuples = tr->second.size(); // tr[0] will be in this bucket
+                ++tr;
+                size_t transAvail = BUCKET_PRIMARY_LIMIT - b->trsize; // trsize should be 1+
+                if (transAvail >= (size_t)(tre-tr)) { // tr[0] counted already
+                    // all transactions can fit in this bucket
+                    b->setMax((tre-1)->first, (tre-tr));
+                } else {
+                    size_t rem = tre-tr-transAvail;
+                    tre -= rem;
+                    b->setMax((tre-1)->first, (tre-tr-rem));
+                }
+                for (; tr<tre; ++tr) { totalTuples += tr->second.size(); }
+                return {b->resizeAndGetPtr(totalTuples).second, tre};
+            } else {
+                size_t totalTuples = tr->second.size(); // tr[0] will be in this bucket
+                ++tr;
+                size_t transAvail = BUCKET_TRANS_LIMIT - b->trsize; // trsize should be 1+
+                size_t tplsAvail = BUCKET_TUPLES_LIMIT - tr->second.size(); // trsize should be 1+
+                if (transAvail >= (size_t)(tre-tr)) { // tr[0] counted already
+                    // all transactions can fit in this bucket
+                    size_t tsz = 0;
+                    for (; tr<tre; ++tr) {
+                        if (tplsAvail > totalTuples) { ++tsz; totalTuples += tr->second.size();  }
+                        else { tre = tr; break; };
+                    }
+                    if (tsz > 0) b->setMax((tre-1)->first, tsz);
+                } else {
+                    size_t rem = tre-tr-transAvail;
+                    tre -= rem;
+                    size_t tsz = 0;
+                    for (; tr<tre; ++tr) {
+                        if (tplsAvail > totalTuples) { ++tsz; totalTuples += tr->second.size();  }
+                        else { tre = tr; break; };
+                    }
+                    if (tsz > 0) b->setMax((tre-1)->first, tsz);
+                }
+                return {b->resizeAndGetPtr(totalTuples).second, tre};
+            }
+            return {nullptr, nullptr};
+        }
+        
         void ALWAYS_INLINE sortAll() {
             for (Bucket& b : mBuckets) { b.sortByVal(); }
         }
@@ -252,16 +305,16 @@ class CIndex {
         /////////////////////
 
         // sorts the buckets that contain all transactions from trfrom and greater
-        void ALWAYS_INLINE sortFrom(uint64_t trfrom, bool noTransSort = false) {
+        void ALWAYS_INLINE sortFrom(uint64_t trfrom, bool is_primary = false) {
             auto mBE = BE();
             auto trt = lp_lower_bound(trfrom);
-            if (likely(!noTransSort)) {
+            if (unlikely(is_primary)) {
                 while (trt<mBE) {
-                    (trt++)->sortByValTrans(); 
+                    (trt++)->sortByVal(); 
                 }
             } else {
                 while (trt<mBE) {
-                    (trt++)->sortByVal(); 
+                    (trt++)->sortByValTrans(); 
                 }
             }
         }
