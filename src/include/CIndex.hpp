@@ -25,9 +25,9 @@ class CIndex {
     using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<10;
-    static constexpr size_t BUCKET_TRANS_LIMIT = 32;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 32; 
+    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<13;
+    static constexpr size_t BUCKET_TRANS_LIMIT = 1024;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 1024; 
 
     public:
         struct Meta_t {
