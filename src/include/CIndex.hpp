@@ -18,10 +18,10 @@ class CIndex {
     using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<10;
-    static constexpr size_t BUCKET_TRANS_LIMIT = 128;
+    static constexpr size_t BUCKET_TUPLES_LIMIT = (((size_t)1)<<9)+(((size_t)1)<<8);
+    //static constexpr size_t BUCKET_TUPLES_LIMIT = (((size_t)1)<<10);
+    static constexpr size_t BUCKET_TRANS_LIMIT = 64;
     static constexpr size_t BUCKET_PRIMARY_LIMIT = 128;
-    
 
     public:
         struct Meta_t {
@@ -208,8 +208,8 @@ class CIndex {
         // to make the insertions faster
         ALWAYS_INLINE Bucket* bucketNext(uint64_t trid, bool isPrimary = false) {
             //if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
-            if ((isPrimary ? is_newbucket_primary() : is_newbucket())) {
-            //if (is_newbucket_primary()) {
+            //if ((isPrimary ? is_newbucket_primary() : is_newbucket())) {
+            if (is_newbucket()) {
                 mBuckets.emplace_back(trid, trid, 1);
                 return &mBuckets.back();
             } else {
@@ -263,10 +263,6 @@ class CIndex {
             return {nullptr, nullptr};
         }
         
-        void ALWAYS_INLINE sortAll() {
-            for (Bucket& b : mBuckets) { b.sortByVal(); }
-        }
-
        
         /////////////////////
         /////////

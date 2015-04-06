@@ -867,6 +867,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
              *tplPtr++ = {tpl[col], trans_id, tpl}; 
         }
     }
+    
 
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
