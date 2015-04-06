@@ -18,9 +18,9 @@ class CIndex {
     using vector_a = std::vector<T>;
     
     using tuple_t = uint64_t*;
-    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<11;
+    static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<10;
     static constexpr size_t BUCKET_TRANS_LIMIT = 128;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 512;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 256;
     
     public:
         struct Meta_t {
@@ -44,6 +44,10 @@ class CIndex {
                 if (left.value < right.value) return true;
                 else if (right.value < left.value) return false;
                 else return left.trans_id < right.trans_id;
+                //if (left.value - right.value == 0) return left.trans_id < right.trans_id;
+                //else return (left.value < right.value);
+                //if (left.value != right.value) return left.value < right.value;
+                //return left.trans_id < right.trans_id;
             }
             ALWAYS_INLINE bool operator() (const Meta_t& left, uint64_t target) {
                 return left.value < target;
