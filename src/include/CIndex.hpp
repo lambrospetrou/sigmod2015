@@ -19,8 +19,8 @@ class CIndex {
     
     using tuple_t = uint64_t*;
     static constexpr size_t BUCKET_TUPLES_LIMIT = ((size_t)1)<<10;
-    static constexpr size_t BUCKET_TRANS_LIMIT = 128;
-    static constexpr size_t BUCKET_PRIMARY_LIMIT = 256;
+    static constexpr size_t BUCKET_TRANS_LIMIT = 32;
+    static constexpr size_t BUCKET_PRIMARY_LIMIT = 32;
     
     public:
         struct Meta_t {
