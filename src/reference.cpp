@@ -1261,7 +1261,6 @@ static bool isTransactionConflict(const ColumnTransaction_t& transaction, Column
 }
 */
 static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column *cend) {
-    typedef CIndex::Meta_t Meta_t;
     auto& cindex = gRelColumns[q->relationId].columns[cbegin->column].transactions;
     auto trbuckets = cindex.buckets(v.from, v.to); 
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
@@ -1273,21 +1272,15 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
         case Op::Less: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                    auto valpair = cb->lower_bound_left(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                    auto tplpair = cb->lower_bound_left(cbegin->value);
+                    if (tplpair.first == tplpair.second) continue;
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
+                        }
+                    } // end for all trans in the bucket
                 } // end for each bucket
             }
             //tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
@@ -1296,99 +1289,73 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
         case Op::LessOrEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                    auto valpair = cb->upper_bound_left(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                    auto tplpair = cb->upper_bound_left(cbegin->value);
+                    if (tplpair.first == tplpair.second) continue;
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
-                }
+                        }
+                    } // end for all trans in the bucket
+                } // end for each bucket
             }
+            //tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
+            //if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                    auto valpair = cb->upper_bound(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                    auto tplpair = cb->upper_bound(cbegin->value);
+                    if (tplpair.first == tplpair.second) continue;
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
-                }
+                        }
+                    } // end for all trans in the bucket
+                } // end for each bucket
             }
+            //tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            //if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                    auto valpair = cb->lower_bound(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                    auto tplpair = cb->lower_bound(cbegin->value);
+                    if (tplpair.first == tplpair.second) continue;
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
-                }
+                        }
+                    } // end for all trans in the bucket
+                } // end for each bucket
             }
+            //tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
+            //if (tupTo == tupFrom) return false;
             break;
         case Op::NotEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-                    auto valpair = cb->lower_bound_left(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                    auto tplpair = cb->lower_bound_left(cbegin->value);
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
-                    valpair = cb->upper_bound(cbegin->value);
-                    if (valpair.first == valpair.second) continue;
-                    for (auto valb=valpair.first, vale=valpair.second; valb!=vale; ++valb){
-                        auto& vmeta = valb->second;
-                        Meta_t *ctpl = vmeta.data();
-                        Meta_t *tple = vmeta.data() + vmeta.size();
-                        for (; ctpl<tple; ++ctpl) {
-                        //for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                    return true;;
-                                }
+                        }
+                    } // end for all trans in the bucket
+                    tplpair = cb->upper_bound(cbegin->value);
+                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
+                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
+                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
+                                return true;;
                             }
-                        } // end for all trans in the bucket
-                    }
+                        }
+                    } // end for all trans in the bucket
                 } // end for each bucket
             }
             break;
