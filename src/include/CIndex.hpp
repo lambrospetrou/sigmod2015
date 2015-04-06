@@ -88,10 +88,10 @@ class CIndex {
 
             // other possible statistics for these values goes here
 
-            Bucket() : trmin(0), trmax(0), trsize(0) {
+            Bucket() : trmin(0), trmax(0), trsize(0), tplsize(0) {
                 //meta.reserve(BUCKET_TUPLES_LIMIT);
             }
-            Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz) {
+            Bucket(uint64_t _min, uint64_t _max, uint64_t sz) : trmin(_min), trmax(_max), trsize(sz), tplsize(0) {
                 //meta.reserve(BUCKET_TUPLES_LIMIT);
             }
 
