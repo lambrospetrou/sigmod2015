@@ -1379,25 +1379,11 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
         if (tplpair.first == tplpair.second) continue;
         //cerr<< "found : " << (rp.second-rp.first) << endl;
-        // optimization - TODO - have them sorted by transaction too in order to break
-        /*
-        for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                    return true;
-                }
-            }
-        }
-        */
-        size_t i=0, tplsz=tplpair.second-tplpair.first;
+        register const size_t tplsz=tplpair.second-tplpair.first;
         auto ctpl = tplpair.second;
-        // skip transactions at the end not needed since the equal_range we call does it for us
-        //while ((i<tplsz) && ((ctpl-1)->trans_id > v.to)) {  --ctpl; ++i; /*continue;*/ }
-        //cerr<< "skip: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
-        // process until a transaction appears less than your v.from
-        //while ((i<tplsz) && ((ctpl-1)->trans_id >= v.from)) { 
-        while ((i<tplsz)) { 
-            --ctpl; ++i;
+        // know that all the tuples we got are in the range we want - equal_range in bucket guarantees that
+        for (size_t i=0; (i++ < tplsz); ) { 
+            --ctpl;
             if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
         }
         //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
