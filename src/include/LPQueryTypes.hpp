@@ -218,7 +218,8 @@ namespace lp {
                 for (register size_t i=1; i<sz; ++i) {
                     if (ColumnCompColNeq(qc[uniq], qc[i])) {
                         ++uniq;
-                        if (i - uniq > 0) qc[uniq] = qc[i];
+                        //if (i - uniq > 0) qc[uniq] = qc[i];
+                        qc[uniq] = qc[i];
                     }
                 }
                 rq.columnCount = uniq+1;

@@ -125,6 +125,12 @@ class CIndex {
                 return {meta.data(), meta.data()+meta.size()};
             }
 
+            std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trfrom, uint64_t trto) {
+                auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
+                auto ub = std::upper_bound(trp.first, trp.second, trto, MTrLess_t());
+                auto lb = std::lower_bound(trp.first, ub, trfrom, MTrLess_t());
+                return {lb, ub};
+            }
             std::pair<Meta_t*, Meta_t*> equal_range(uint64_t v, uint64_t trid) {
                 auto trp = std::equal_range(meta.data(), meta.data()+meta.size(), v, MVTLess_t());
                 return {trp.first, std::upper_bound(trp.first, trp.second, trid, MTrLess_t())};

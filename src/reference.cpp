@@ -1375,7 +1375,8 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
 
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         //auto tplpair = cb->equal_range(cbegin->value);
-        auto tplpair = cb->equal_range(cbegin->value, v.to);
+        //auto tplpair = cb->equal_range(cbegin->value, v.to);
+        auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
         if (tplpair.first == tplpair.second) continue;
         //cerr<< "found : " << (rp.second-rp.first) << endl;
         // optimization - TODO - have them sorted by transaction too in order to break
@@ -1390,12 +1391,12 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         */
         size_t i=0, tplsz=tplpair.second-tplpair.first;
         auto ctpl = tplpair.second;
-        if (q->columnCount == 1 && (ctpl-1)->trans_id >= v.from) return true;
         // skip transactions at the end not needed since the equal_range we call does it for us
         //while ((i<tplsz) && ((ctpl-1)->trans_id > v.to)) {  --ctpl; ++i; /*continue;*/ }
         //cerr<< "skip: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
         // process until a transaction appears less than your v.from
-        while ((i<tplsz) && ((ctpl-1)->trans_id >= v.from)) { 
+        //while ((i<tplsz) && ((ctpl-1)->trans_id >= v.from)) { 
+        while ((i<tplsz)) { 
             --ctpl; ++i;
             if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
         }
@@ -1424,12 +1425,12 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
-        if (q->columnCount == 1 && ((uint64_t)((tplpair.second-1)->trans_id - v.from) <= (rangediff))) return true;
+        //if (q->columnCount == 1 && ((uint64_t)((tplpair.second-1)->trans_id - v.from) <= (rangediff))) return true;
         for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
             //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
             if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
                 if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                    return true;;
+                    return true;
                 }
             }
         }
