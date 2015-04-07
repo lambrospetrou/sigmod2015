@@ -599,8 +599,8 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
         //msgReader = ReaderIOFactory::create(cin);
     }
 
@@ -615,7 +615,7 @@ int main(int argc, char**argv) {
 
     // allocate the workers
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(2, processPendingValidationsTask);
     workerThreads.initThreads();
     //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
     //SingleTaskPool workerThreads2(1, processPendingValidationsTask);
@@ -1057,7 +1057,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         
         //mMtxF1.lock();
         //if (finishedF1 < NUM_RELATIONS) mCondF1.wait(mMtxF1, []{return true;});
-        if (finishedF1 < NUM_RELATIONS) lp_spin_sleep(std::chrono::microseconds(5));
+        if (finishedF1 < NUM_RELATIONS) lp_spin_sleep(std::chrono::microseconds(10));
         else { allfinished = true; }
         //mMtxF1.unlock();
     } // all relations finished
@@ -1065,7 +1065,9 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
 void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     processPendingIndexTask(nThreads, tid, args); // F1
-    createQueryIndexTask(nThreads, tid, args);    // F3
+    if (tid < 4) {
+        createQueryIndexTask(nThreads, tid, args);    // F3
+    }
     processUpdateIndexTask(nThreads, tid, args);
 }
 
@@ -1085,6 +1087,8 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     */
 
     
+    // this is needed by the trans-index after it has finished - F1
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     resetUpdateStats();
     // trans-index & qindex
     gNextPending = 0; // F3
@@ -1096,8 +1100,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 
     //pool->startSingleAll(processUpdateIndexTask); // F2
 
-    // this is needed by the trans-index after it has finished - F1
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     
     //pool->waitSingleAll(); // F2
     
