@@ -173,12 +173,12 @@ namespace lp {
             EQ() : v(0), is(0) {} 
         };
         // return true if the query is valid otherwise false
-        bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
-        //bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols, EQ* bitv) {
+        //bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
+        bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols, EQ* bitv) {
             if (rq.columnCount == 0) return true;
 
-            //lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));
-            EQ bitv[relCols];
+            lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));
+            //EQ bitv[relCols];
 
             Column *qc = const_cast<Column*>(rq.columns);
             auto cb = qc, ce = cb + rq.columnCount;

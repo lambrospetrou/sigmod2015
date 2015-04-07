@@ -358,7 +358,7 @@ struct GlobalState {
 //---------------------------------------------------------------------------
 
 // JUST SOME FUNCTION DECLARATIONS THAT ARE DEFINED BELOW
-static void checkPendingValidations(ISingleTaskPool*);
+static void checkPendingValidations(ISingleTaskPool*, ISingleTaskPool*);
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
 static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg); 
@@ -571,6 +571,9 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
+    //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
+    SingleTaskPool workerThreads2(1, processPendingValidationsTask);
+    workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
@@ -612,7 +615,7 @@ int main(int argc, char**argv) {
                     ++totalFlushes; 
 #endif
                     // check if we have pending transactions to be processed
-                    checkPendingValidations(&workerThreads);
+                    checkPendingValidations(&workerThreads, &workerThreads2);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
@@ -622,7 +625,7 @@ int main(int argc, char**argv) {
                     ++totalForgets; 
 #endif
                     // check if we have pending transactions to be processed
-                    checkPendingValidations(&workerThreads);
+                    checkPendingValidations(&workerThreads, &workerThreads2);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data()), &workerThreads); 
                     delete msg;
@@ -917,16 +920,14 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
-static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
-#ifdef LPDEBUG
-    auto startQuery = LPTimer.getChrono();
-#endif
 
-    gEQCols.resize(0);
-    uint64_t totalPending = gPendingValidations.size();
+
+void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     vector<lp::query::EQ> bitv;
+    
+    uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
-    for (uint64_t vi = 0; vi < totalPending; ++vi) {
+    for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
         auto& v = gPendingValidations[vi];
         const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
 
@@ -938,9 +939,9 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
-            //bitv.resize(gSchema[rq->relationId]);
-            //if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
-            if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
+            bitv.resize(gSchema[rq->relationId]);
+            if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
+            //if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
             /*
             uint32_t colCountUniq = lp::query::preprocess(*rq); 
             //cerr << "rsz: " << gSchema[rq->relationId] << " preds: " << columnCount << " after: " << colCountUniq << endl;
@@ -949,13 +950,8 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             }
             rq->columnCount = colCountUniq;
             */
-            //cerr << (Query::Column)rq->columns[0] << endl;
             auto pFirst = (Query::Column)rq->columns[0];
-            //if (pFirst.op == Op::Equal) { cerr << pFirst.column << endl; }
-            //if (pFirst.column == 0 && pFirst.op == Op::Equal) {
             if (pFirst.op == Op::Equal) {
-                //if (pFirst.op == Op::Equal) {
-                //cerr << "0" << endl;
                 /*
                    struct QMeta_t{
                    uint64_t from;
@@ -966,45 +962,44 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
                    };
                  */
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &v, pFirst.value});
-                //if (pFirst.column != 0)  v.queries.push_back(rq);
             } else {
                 v.queries.push_back(rq);
             }
             //v.queries.push_back(rq);
         }
     } // end for all validations
-
-    
-       // TODO - MAYBE SORT THEM TO MAKE FRIENDLY CACHE USE WITH BINARIES LOOKING FOR THE SAME VALUE
+}
+static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
+    pool->waitSingleAll();
+    // SORT THEM TO MAKE FRIENDLY CACHE USE WITH BINARIES LOOKING FOR THE SAME VALUE
+    gEQCols.resize(0);
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         auto& rq = gRelQ[ri];
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
             auto& rqc = rq.columns[ci].queries;
             if (rqc.empty()) continue;
             gEQCols.push_back(lp::validation::packRelCol(ri, ci));
-            sort(rqc.begin(), rqc.end(), 
-                [](const QMeta_t& l, const QMeta_t& r) {
-                    //if (l.value < r.value) return true;
-                    //else if (r.value < l.value) return false;
-                    //else return l.to < r.to;
-                    return (l.value < r.value);
-            });
+            sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
         }
-    }
-    
-#ifdef LPDEBUG
-    LPTimer.queryIndex += LPTimer.getChrono(startQuery);
-#endif
+    }    
 }
 
 
-static void checkPendingValidations(ISingleTaskPool *pool) {
+static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) {
     if (unlikely(gPendingValidations.empty())) return;
 
     // check if there is any pending index creation to be made before checking validation
     checkPendingTransactions(pool);
 
-    //createQueryIndex(pool);
+#ifdef LPDEBUG
+    auto startQuery = LPTimer.getChrono();
+#endif
+    gNextPending = 0;
+    pool2->startSingleAll(createQueryIndexTask);
+    finishQueryIndex(pool2);
+#ifdef LPDEBUG
+    LPTimer.queryIndex += LPTimer.getChrono(startQuery);
+#endif
 
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -1033,8 +1028,8 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     gPVunique = 0;
 
     // clear the inverted query index 
+    uint32_t ri, ci;
     for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
-        uint32_t ri, ci;
         lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
         gRelQ[ri].columns[ci].queries.resize(0);
     }
@@ -1458,38 +1453,18 @@ static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) {
 
 static bool isValidationConflict(LPValidation& v) {
     // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-    const char* qreader = vq.queries; uint32_t columnCount;
     /*
        cerr << "\n========= validation " << v.validationId << " =========" << endl; 
        cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
      */
-    /*
-    
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
-        if (columnCount == 0) { v.queries.push_back(&rq); continue; }
-        rq.columnCount = lp::query::preprocess(rq); 
-        if (!lp::query::satisfiable(&rq, rq.columnCount)) { continue; } // go to the next query
-        v.queries.push_back(&rq);
-    }
-    std::sort(v.queries.begin(), v.queries.end(), 
-            [](const Query*l, const Query*r) { 
-                auto& pl = *(Column*)l->columns;
-                auto& pr = *(Column*)r->columns;
-                if (pl.op == Op::Equal && pr.op != Op::Equal) return true;
-                else if (pr.op == Op::Equal && pl.op != Op::Equal) return false;
-                else return pl.column < pr.column;
-            });
-    */
-    // TODO - SORT THE QUERIES AND PUT == IN FRONT
 
-    //for (auto q : v.queries) {
-        //Query& rq = *q;
-    for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        columnCount = rq.columnCount;
+    for (auto q : v.queries) {
+        Query& rq = *q;
+    //const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
+    //const char* qreader = vq.queries; uint32_t columnCount;
+    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
+        //Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
+        //columnCount = rq.columnCount;
         //cerr << " " << i;
 
         if (unlikely(rq.columnCount == 0)) { 
@@ -1510,7 +1485,7 @@ static bool isValidationConflict(LPValidation& v) {
 #endif 
         //uint32_t colCountUniq = lp::query::preprocess(rq); 
         //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
-        if (!lp::query::preprocess(rq, gSchema[rq.relationId])) { continue; }
+        //if (!lp::query::preprocess(rq, gSchema[rq.relationId])) { continue; }
 #ifdef LPDEBUG
 //LPTimer.satCheck += LPTimer.getChrono(startInner);
 #endif 
@@ -1520,7 +1495,7 @@ static bool isValidationConflict(LPValidation& v) {
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
              cend = cbegin + colCountUniq;
         
-        if (cbegin->op == Op::Equal) {
+        /*if (cbegin->op == Op::Equal) {
             if (cbegin->column == 0) {
                 if (processQueryEQZero(v, &rq, cbegin, cend)) { return true; }  
                 else continue;
@@ -1528,10 +1503,10 @@ static bool isValidationConflict(LPValidation& v) {
                 if (processQueryEQ(v, &rq, cbegin, cend)) { return true; }  
                 else continue;
             }
-        } else {
+        } else {*/
             if (processQueryOther(v, &rq, cbegin, cend)) { return true; }
             else continue;
-        }
+        //}
     
         /*
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
@@ -1596,9 +1571,8 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
 #endif
     //uint64_t totalCols = gRequiredColumns.size();
     uint64_t totalCols = gEQCols.size();
+    uint32_t ri, col;
     for (uint64_t rc = gNextEQCol++; rc < totalCols; rc=gNextEQCol++) {
-        uint32_t ri, col;
-        //lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
         lp::validation::unpackRelCol(gEQCols[rc], ri, col);
         processEqualityQueries(tid, ri, col);
     } // end of while columns to update     
@@ -1616,24 +1590,17 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
-    //processEqualityQ(nThreads, tid, args);
-
-    //vector<LPValidation*> valsrcvd;
+    processEqualityQ(nThreads, tid, args);
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
         auto& v = gPendingValidations[vi];
-
-        //valsrcvd.push_back(&v);
-
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         if (atoRes) continue;
         if(isValidationConflict(v)) { atoRes = true; }
         //atoRes = isValidationConflict(v);
-        //delete v.rawMsg;
     } // while true take more validations 
-    //for (auto v : valsrcvd) delete v->rawMsg;
 }
 
