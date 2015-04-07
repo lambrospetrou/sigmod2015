@@ -553,8 +553,8 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        msgReader = ReaderIOFactory::createAsync(stdin);
-        //msgReader = ReaderIOFactory::create(stdin);
+        //msgReader = ReaderIOFactory::createAsync(stdin);
+        msgReader = ReaderIOFactory::create(stdin);
         //msgReader = ReaderIOFactory::create(cin);
     }
 
