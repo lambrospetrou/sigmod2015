@@ -214,9 +214,9 @@ struct CTRSLessThan_t {
 
 
 struct RelationColumns {
-    std::unique_ptr<ColumnStruct[]> columns;
+    ColumnStruct *columns;
 };
-static std::unique_ptr<RelationColumns[]> gRelColumns;
+static RelationColumns *gRelColumns;
 static vector<uint32_t> gRequiredColumns;
 
 //////////////////////////////////////////////////////////
@@ -247,9 +247,9 @@ struct CQ_t {
     //LPSpinLock mtx;
 };
 struct RelQ_t {
-    std::unique_ptr<CQ_t[]> columns;
+    CQ_t *columns;
 };
-static std::unique_ptr<RelQ_t[]> gRelQ;
+static RelQ_t *gRelQ;
 
 static std::atomic<uint64_t> gNextEQCol;
 static vector<uint64_t> gEQCols;
@@ -304,7 +304,7 @@ struct TransLogComp_t {
 } TransLogComp;
 
 // general relations
-static std::unique_ptr<RelationStruct[]> gRelations;
+static RelationStruct *gRelations;
 
 struct TRMapPhase {
     uint64_t trans_id;
@@ -326,8 +326,8 @@ struct TransMapPhase_t {
 
 typedef std::mutex RelTransLock;
 //typedef LPSpinLock RelTransLock;
-static unique_ptr<RelTransLock[]> gRelTransMutex;
-static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
+static RelTransLock *gRelTransMutex;
+static vector<TRMapPhase> *gTransParseMapPhase;
 
 //////////////////////////////////////////////////////////////
 
@@ -376,18 +376,19 @@ static void processDefineSchema(const DefineSchema& d) {
     NUM_RELATIONS = d.relationCount;
     //cerr << "relations: " << NUM_RELATIONS << endl;
 
-    gRelTransMutex.reset(new RelTransLock[d.relationCount]);
-    gTransParseMapPhase.reset(new vector<TRMapPhase>[d.relationCount]);
+    gRelTransMutex = new RelTransLock[d.relationCount];
+    gTransParseMapPhase = new vector<TRMapPhase>[d.relationCount];
 
-    gRelations.reset(new RelationStruct[d.relationCount]);
-    gRelColumns.reset(new RelationColumns[d.relationCount]);
-    gRelQ.reset(new RelQ_t[d.relationCount]);
+    gRelations = new RelationStruct[d.relationCount];
+    gRelColumns = new RelationColumns[d.relationCount];
+    gRelQ = new RelQ_t[d.relationCount];
     //cerr << endl << "relations: " << NUM_RELATIONS << endl;
     const uint32_t rels = d.relationCount;
     for(uint32_t ri=0; ri<rels; ++ri) {
         //cerr << " " << gSchema[ci];
-        gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
-        gRelQ[ri].columns.reset(new CQ_t[gSchema[ri]]);
+        //gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
+        gRelColumns[ri].columns = new ColumnStruct[gSchema[ri]];
+        gRelQ[ri].columns = new CQ_t[gSchema[ri]];
         const uint32_t colsz = gSchema[ri];
         for (uint32_t ci=0; ci<colsz; ++ci) {
             gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
