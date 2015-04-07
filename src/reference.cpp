@@ -119,8 +119,8 @@ typedef Query::Column::Op  Op;
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
 template<typename T>
-using vector_a = std::vector<T, aligned_allocator<T, 16>>;
-//using vector_a = std::vector<T>;
+//using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+using vector_a = std::vector<T>;
 
 // Custom data structures to hold data
 struct CTransStruct {
@@ -560,7 +560,7 @@ int main(int argc, char**argv) {
     gPendingValidations.reserve(512); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         gTransParseMapPhase[i].reserve(512);
-        gRelations[i].transLog.reserve(128);
+        gRelations[i].transLog.reserve(512);
         gRelations[i].transLogTuples.reserve(512);
     }
 
