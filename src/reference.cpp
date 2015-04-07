@@ -569,11 +569,11 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads-2, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads>>1, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
-    //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    SingleTaskPool workerThreads2(2, processPendingValidationsTask);
+    SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
+    //SingleTaskPool workerThreads2(2, processPendingValidationsTask);
     workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
@@ -995,12 +995,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
-    // clear the inverted query index 
-    uint32_t ri, ci;
-    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
-        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
-        gRelQ[ri].columns[ci].queries.resize(0);
-    }
     
     gNextPending = 0;
     pool2->startSingleAll(createQueryIndexTask);
@@ -1040,6 +1034,13 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     for (auto& v : gPendingValidations) delete v.rawMsg;
     gPendingValidations.clear();
     gPVunique = 0;
+    
+    // clear the inverted query index 
+    uint32_t ri, ci;
+    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
+        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
+        gRelQ[ri].columns[ci].queries.clear();
+    }
 
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += LPTimer.getChrono(start);
