@@ -569,11 +569,11 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads>>1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads-2, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
-    SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    //SingleTaskPool workerThreads2(2, processPendingValidationsTask);
+    //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
+    SingleTaskPool workerThreads2(2, processPendingValidationsTask);
     workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
@@ -999,10 +999,34 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextPending = 0;
     pool2->startSingleAll(createQueryIndexTask);
     
+#ifdef LPDEBUG
+    auto startIndex = LPTimer.getChrono();
+#endif
+    //cerr << "::: session start ::::" << endl;
+    gNextIndex = 0;
+    //processPendingIndexTask(1,0,nullptr); 
+    pool->startSingleAll(processPendingIndexTask); 
+    pool->waitSingleAll();
+#ifdef LPDEBUG
+    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
+#endif
     // check if there is any pending index creation to be made before checking validation
-    checkPendingTransactions(pool);
+    //checkPendingTransactions(pool);
+#ifdef LPDEBUG
+    auto startUpdIndex = LPTimer.getChrono();
+#endif
+    gNextReqCol = 0;
+    //processUpdateIndexTask(1, 0, nullptr);
+    pool->startSingleAll(processUpdateIndexTask);
     
     finishQueryIndex(pool2);
+    
+    pool->waitSingleAll();
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+#ifdef LPDEBUG
+    LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
+#endif
+    
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif
