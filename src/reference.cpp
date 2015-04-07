@@ -1042,8 +1042,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 
 
 
-
-
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif
