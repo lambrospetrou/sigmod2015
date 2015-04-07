@@ -249,6 +249,9 @@ struct RelQ_t {
 };
 static std::unique_ptr<RelQ_t[]> gRelQ;
 
+static std::atomic<uint64_t> gNextEQCol;
+static vector<uint64_t> gEQCols;
+
 //////////////////////////////////////////////////////////
 struct RelTransLog {
     uint64_t trans_id;
@@ -913,13 +916,13 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
-static std::atomic<uint32_t> gNextEQCol;
 
 static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
 
+    gEQCols.resize(0);
     uint64_t totalPending = gPendingValidations.size();
     vector<lp::query::EQ> bitv;
     // get a validation ID - atomic operation
@@ -978,6 +981,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
             auto& rqc = rq.columns[ci].queries;
             if (rqc.empty()) continue;
+            gEQCols.push_back(lp::validation::packRelCol(ri, ci));
             sort(rqc.begin(), rqc.end(), 
                 [](const QMeta_t& l, const QMeta_t& r) {
                     //if (l.value < r.value) return true;
@@ -1578,10 +1582,12 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
 #ifdef LPDEBUG
     auto qproc = LPTimer.getChrono();
 #endif
-    uint64_t totalCols = gRequiredColumns.size();
+    //uint64_t totalCols = gRequiredColumns.size();
+    uint64_t totalCols = gEQCols.size();
     for (uint64_t rc = gNextEQCol++; rc < totalCols; rc=gNextEQCol++) {
         uint32_t ri, col;
-        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+        //lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+        lp::validation::unpackRelCol(gEQCols[rc], ri, col);
         processEqualityQueries(tid, ri, col);
     } // end of while columns to update     
     /*
