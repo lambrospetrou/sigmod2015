@@ -568,7 +568,7 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads-1, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
@@ -926,6 +926,13 @@ static std::atomic<uint64_t> gNextPending;
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     vector<lp::query::EQ> bitv;
     
+    // clear the inverted query index 
+    uint32_t ri, ci;
+    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
+        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
+        gRelQ[ri].columns[ci].queries.resize(0);
+    }
+    
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
@@ -940,7 +947,7 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
 
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
-            bitv.resize(gSchema[rq->relationId]);
+            //if (bitv.size() < gSchema[rq->relationId]) bitv.resize(gSchema[rq->relationId]);
             if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
             //if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
             /*
@@ -1031,12 +1038,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gPendingValidations.clear();
     gPVunique = 0;
 
-    // clear the inverted query index 
-    uint32_t ri, ci;
-    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
-        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
-        gRelQ[ri].columns[ci].queries.resize(0);
-    }
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += LPTimer.getChrono(start);
 #endif
