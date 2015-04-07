@@ -83,10 +83,12 @@ namespace lp {
     } ColumnCompQuality;
     struct ColumnCompColNEq_t {
         ALWAYS_INLINE bool operator() (const Query::Column& left, const Query::Column& right) {
-            return  
+            return 
                     (left.column ^ right.column) ||
                     (left.value ^ right.value) ||
                     (left.op ^ right.op);
+            /*return  (*((uint64_t*)(&left)) ^ *((uint64_t*)&right)) ||
+                    (left.value ^ right.value);*/
             //return (((uint64_t*)&left)[0]!=((uint64_t*)&right)[0]) || (((uint64_t*)&left)[1]!=((uint64_t*)&right)[1]);
             //return memcmp(&left, &right, sizeof(Query::Column));
         }

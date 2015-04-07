@@ -119,8 +119,8 @@ typedef Query::Column::Op  Op;
 #define ALIGNED_DATA __attribute__((aligned(CACHE_ALIGNMENT)))
 
 template<typename T>
-//using vector_a = std::vector<T, aligned_allocator<T, 16>>;
-using vector_a = std::vector<T>;
+using vector_a = std::vector<T, aligned_allocator<T, 16>>;
+//using vector_a = std::vector<T>;
 
 // Custom data structures to hold data
 struct CTransStruct {
