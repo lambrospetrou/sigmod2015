@@ -174,7 +174,7 @@ namespace lp {
         };
         // return true if the query is valid otherwise false
         //bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
-        bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols, EQ* _bitv) {
+        bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (rq.columnCount == 0) return true;
 
             //lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));

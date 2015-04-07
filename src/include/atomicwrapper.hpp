@@ -32,6 +32,8 @@ class atomic_wrapper {
         std::atomic<T>& operator=(T desired) volatile { _a.store(desired); return _a; }
 
         operator bool() const { return _a.load(); }
+
+        std::atomic<T>& get() { return _a; }
 };
 
 #endif

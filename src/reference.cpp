@@ -245,7 +245,7 @@ struct CQ_t {
     vector<QMeta_t> queries;
     std::mutex mtx;
     //LPSpinLock mtx;
-};
+} ALIGNED_DATA;
 struct RelQ_t {
     CQ_t *columns;
 };
@@ -364,7 +364,7 @@ static void checkPendingValidations(ISingleTaskPool*, ISingleTaskPool*);
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
 static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg); 
-static inline void checkPendingTransactions(ISingleTaskPool *pool);
+//static inline void checkPendingTransactions(ISingleTaskPool *pool);
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args);
 
 ///--------------------------------------------------------------------------
@@ -532,6 +532,47 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 #endif
 }
 //---------------------------------------------------------------------------
+
+
+
+
+
+struct FR_t{
+    //std::atomic<bool> f1;
+    //std::atomic<bool> f2;
+    //std::atomic<uint64_t> colsdone;
+    //std::atomic<uint64_t> cols;
+    atomic_wrapper<bool> f1;
+    atomic_wrapper<bool> f2;
+    atomic_wrapper<uint64_t> colsdone;
+    atomic_wrapper<uint64_t> cols;
+    FR_t() : f1(false), f2(false), colsdone(0), cols(0) {}
+    void reset() {
+        f1 = false; 
+        f2 = false; 
+        colsdone = 0; 
+        cols = 0;
+    }
+};
+static vector<FR_t> gFR;
+std::mutex mMtxF1;
+std::condition_variable mCondF1;
+std::atomic<uint32_t> finishedF1;
+
+void resetUpdateStats() {
+    for (uint32_t ri=0; ri<NUM_RELATIONS; ri++) {
+        gFR[ri].reset();
+    }
+    finishedF1 = 0;
+}
+
+
+
+
+
+
+
+
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 
@@ -748,6 +789,11 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (unlikely(relTrans.empty())) { 
+            //mMtxF1.lock();
+            gFR[ri].f1 = true; gFR[ri].f2 = true;
+            ++finishedF1; 
+            //mCondF1.notify_all();
+            //mMtxF1.unlock();
             continue; 
         }
 
@@ -826,6 +872,11 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // sort the index - HERE CAN DO - inplace merge instead
         //primIndex.sortFrom(firstTrans);
 
+        //mMtxF1.lock();
+        gFR[ri].f1 = true;
+        ++finishedF1; 
+        //mCondF1.notify_all();
+        //mMtxF1.unlock();
     } // end of all relations
 
     // TODO - MERGE THE UPDATE INDEX - WITH UPDATE COLUMNS - TODO
@@ -885,7 +936,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     //if (col == 0) cindex.sortFrom(transFrom->first, true);
     //else cindex.sortFrom(transFrom->first);
 }
-
+/*
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     uint64_t totalCols = gRequiredColumns.size();
@@ -922,14 +973,13 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
 }
-
+*/
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
 
 
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
-    vector<lp::query::EQ> bitv;
     
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
@@ -945,17 +995,7 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
 
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
-            //if (bitv.size() < gSchema[rq->relationId]) bitv.resize(gSchema[rq->relationId]);
-            if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
-            //if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
-            /*
-            uint32_t colCountUniq = lp::query::preprocess(*rq); 
-            //cerr << "rsz: " << gSchema[rq->relationId] << " preds: " << columnCount << " after: " << colCountUniq << endl;
-            if (!lp::query::satisfiable(rq, colCountUniq)) { 
-                continue; 
-            }
-            rq->columnCount = colCountUniq;
-            */
+            if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
             auto pFirst = (Query::Column)rq->columns[0];
             if (pFirst.op == Op::Equal) {
                 /*
@@ -967,9 +1007,10 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
                    uint64_t value;
                    };
                  */
-                gRelQ[rq->relationId].columns[pFirst.column].mtx.lock();
-                gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &v, pFirst.value});
-                gRelQ[rq->relationId].columns[pFirst.column].mtx.unlock();
+                auto& relcol = gRelQ[rq->relationId].columns[pFirst.column];
+                relcol.mtx.lock();
+                relcol.queries.push_back({vq.from, vq.to, rq, &v, pFirst.value});
+                relcol.mtx.unlock();
             } else {
                 v.queries.push_back(rq);
             }
@@ -977,34 +1018,61 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
         }
     } // end for all validations
 }
-/*
-static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
-    pool->waitSingleAll();
-    // SORT THEM TO MAKE FRIENDLY CACHE USE WITH BINARIES LOOKING FOR THE SAME VALUE
-    gEQCols.resize(0);
-    for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        auto& rq = gRelQ[ri];
-        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            auto& rqc = rq.columns[ci].queries;
-            if (rqc.empty()) continue;
-            gEQCols.push_back(lp::validation::packRelCol(ri, ci));
-            //sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
-        }
-    }    
-}
-*/
 
+
+
+void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+    //uint64_t totalCols = gRequiredColumns.size();
+    //for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
+    for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
+        if (!gFR[ri].f1) continue;
+        auto& rctodo = gFR[ri].cols;
+        size_t relCols = gSchema[ri];
+        for (uint64_t rc = rctodo.get()++; rc < relCols; rc=rctodo.get()++) {
+            updateRelCol(tid, ri, rc);
+            // we are the last thread to finish
+            if (++gFR[ri].colsdone.get() == relCols) {
+                gFR[ri].f2 = true;
+            }
+        }
+    } // end of while columns to update     
+    
+    bool allfinished = false;
+    while (!allfinished) {
+        for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
+            if (!gFR[ri].f1) { allfinished = false; continue; }
+            if (gFR[ri].f2) { continue; } // already finished
+
+            auto& rctodo = gFR[ri].cols;
+            size_t relCols = gSchema[ri];
+            for (uint64_t rc = rctodo.get()++; rc < relCols; rc=rctodo.get()++) {
+                updateRelCol(tid, ri, rc);
+                // we are the last thread to finish
+                if (++gFR[ri].colsdone.get() == relCols) {
+                    gFR[ri].f2 = true;
+                }
+            }
+        }
+        
+        //mMtxF1.lock();
+        //if (finishedF1 < NUM_RELATIONS) mCondF1.wait(mMtxF1, []{return true;});
+        if (finishedF1 < NUM_RELATIONS) lp_spin_sleep(std::chrono::microseconds(5));
+        else { allfinished = true; }
+        //mMtxF1.unlock();
+    } // all relations finished
+}
 
 void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
-    processPendingIndexTask(nThreads, tid, args);
-    createQueryIndexTask(nThreads, tid, args);
-    //processUpdateIndexTask(nThreads, tid, args);
+    processPendingIndexTask(nThreads, tid, args); // F1
+    createQueryIndexTask(nThreads, tid, args);    // F3
+    processUpdateIndexTask(nThreads, tid, args);
 }
 
 
 static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) {
     if (unlikely(gPendingValidations.empty())) return;
-
+    if (unlikely(gFR.empty())) gFR.resize(NUM_RELATIONS);
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
@@ -1017,6 +1085,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     */
 
     
+    resetUpdateStats();
     // trans-index & qindex
     gNextPending = 0; // F3
     gNextIndex = 0; // F1
@@ -1025,12 +1094,12 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     pool->waitSingleAll(); 
     //finishQueryIndex(pool); // F3
 
-    pool->startSingleAll(processUpdateIndexTask); // F2
+    //pool->startSingleAll(processUpdateIndexTask); // F2
 
     // this is needed by the trans-index after it has finished - F1
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     
-    pool->waitSingleAll(); // F2
+    //pool->waitSingleAll(); // F2
     
 
 
