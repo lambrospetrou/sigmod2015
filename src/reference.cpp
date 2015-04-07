@@ -243,6 +243,7 @@ struct QMVLess_t {
 } QMVLess;
 struct CQ_t {
     vector<QMeta_t> queries;
+    std::mutex mtx;
 };
 struct RelQ_t {
     std::unique_ptr<CQ_t[]> columns;
@@ -568,11 +569,11 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads-1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads-2, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    SingleTaskPool workerThreads2(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads2(2, processPendingValidationsTask);
     workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
@@ -926,13 +927,6 @@ static std::atomic<uint64_t> gNextPending;
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     vector<lp::query::EQ> bitv;
     
-    // clear the inverted query index 
-    uint32_t ri, ci;
-    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
-        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
-        gRelQ[ri].columns[ci].queries.resize(0);
-    }
-    
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
@@ -969,7 +963,9 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
                    uint64_t value;
                    };
                  */
+                gRelQ[rq->relationId].columns[pFirst.column].mtx.lock();
                 gRelQ[rq->relationId].columns[pFirst.column].queries.push_back({vq.from, vq.to, rq, &v, pFirst.value});
+                gRelQ[rq->relationId].columns[pFirst.column].mtx.unlock();
             } else {
                 v.queries.push_back(rq);
             }
@@ -999,6 +995,13 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
+    // clear the inverted query index 
+    uint32_t ri, ci;
+    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
+        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
+        gRelQ[ri].columns[ci].queries.resize(0);
+    }
+    
     gNextPending = 0;
     pool2->startSingleAll(createQueryIndexTask);
     
@@ -1027,8 +1030,8 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
     pool2->startSingleAll(processPendingValidationsTask);
-    pool->waitSingleAll();
     pool2->waitSingleAll();
+    pool->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
