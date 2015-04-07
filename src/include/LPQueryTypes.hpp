@@ -177,11 +177,12 @@ namespace lp {
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols, EQ* bitv) {
             if (rq.columnCount == 0) return true;
 
-            lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));
+            //lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));
+            
             //EQ bitv[relCols];
 
             Column *qc = const_cast<Column*>(rq.columns);
-            auto cb = qc, ce = cb + rq.columnCount;
+            auto cb = qc, ce = cb + relCols;
             for (; cb<ce;) {
                 auto& p = *cb++;
                 switch (p.op) {
@@ -207,7 +208,7 @@ namespace lp {
                 }
             }
 
-            const register size_t sz = rq.columnCount;
+            const register size_t sz = relCols;
             //std::cerr << sz << " ";
             
             if (sz < 20) {
