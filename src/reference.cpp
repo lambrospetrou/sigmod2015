@@ -1087,8 +1087,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     */
 
     
-    // this is needed by the trans-index after it has finished - F1
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     resetUpdateStats();
     // trans-index & qindex
     gNextPending = 0; // F3
@@ -1100,6 +1098,8 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 
     //pool->startSingleAll(processUpdateIndexTask); // F2
 
+    // this is needed by the trans-index after it has finished - F1
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
     
     //pool->waitSingleAll(); // F2
     
