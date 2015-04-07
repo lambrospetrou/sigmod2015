@@ -244,6 +244,7 @@ struct QMVLess_t {
 struct CQ_t {
     vector<QMeta_t> queries;
     std::mutex mtx;
+    //LPSpinLock mtx;
 };
 struct RelQ_t {
     std::unique_ptr<CQ_t[]> columns;
@@ -575,8 +576,8 @@ int main(int argc, char**argv) {
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
     //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    SingleTaskPool workerThreads2(1, processPendingValidationsTask);
-    workerThreads2.initThreads();
+    //SingleTaskPool workerThreads2(1, processPendingValidationsTask);
+    //workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
@@ -618,7 +619,7 @@ int main(int argc, char**argv) {
                     ++totalFlushes; 
 #endif
                     // check if we have pending transactions to be processed
-                    checkPendingValidations(&workerThreads, &workerThreads2);
+                    checkPendingValidations(&workerThreads, nullptr);
                     Globals.state = GlobalState::FLUSH;
                     processFlush(*reinterpret_cast<const Flush*>(msg->data.data()), isTestdriver); 
                     delete msg;
@@ -628,7 +629,7 @@ int main(int argc, char**argv) {
                     ++totalForgets; 
 #endif
                     // check if we have pending transactions to be processed
-                    checkPendingValidations(&workerThreads, &workerThreads2);
+                    checkPendingValidations(&workerThreads, nullptr);
                     Globals.state = GlobalState::FORGET;
                     processForget(*reinterpret_cast<const Forget*>(msg->data.data()), &workerThreads); 
                     delete msg;
@@ -644,7 +645,7 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
 #endif              
                         workerThreads.destroy();
-                        workerThreads2.destroy();
+                        //workerThreads2.destroy();
                         delete msgReader;
                         return 0;
                     }
@@ -1030,6 +1031,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     
     pool->waitSingleAll(); // F2
     
+
 
 
 
