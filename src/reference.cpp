@@ -546,17 +546,19 @@ struct FR_t{
     atomic_wrapper<bool> f2;
     atomic_wrapper<uint64_t> colsdone;
     atomic_wrapper<uint64_t> cols;
+
+    atomic_wrapper<uint64_t> colqueries;
+    
     FR_t() : f1(false), f2(false), colsdone(0), cols(0) {}
     void reset() {
         f1 = false; 
         f2 = false; 
         colsdone = 0; 
         cols = 0;
+        colqueries = 0;
     }
-};
+} ALIGNED_DATA;
 static vector<FR_t> gFR;
-std::mutex mMtxF1;
-std::condition_variable mCondF1;
 std::atomic<uint32_t> finishedF1;
 
 void resetUpdateStats() {
@@ -1038,10 +1040,11 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         }
     } // end of while columns to update     
     
-    bool allfinished = false;
-    while (!allfinished) {
+    bool exists = true;
+    while (exists) {
+        exists = false;
         for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
-            if (!gFR[ri].f1) { allfinished = false; continue; }
+            if (!gFR[ri].f1) { exists = true; continue; }
             if (gFR[ri].f2) { continue; } // already finished
 
             auto& rctodo = gFR[ri].cols;
@@ -1050,27 +1053,46 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 updateRelCol(tid, ri, rc);
                 // we are the last thread to finish
                 if (++gFR[ri].colsdone.get() == relCols) {
+                    cerr << "true" << endl;
                     gFR[ri].f2 = true;
                 }
             }
         }
-        
-        //mMtxF1.lock();
-        //if (finishedF1 < NUM_RELATIONS) mCondF1.wait(mMtxF1, []{return true;});
-        if (finishedF1 < NUM_RELATIONS) lp_spin_sleep(std::chrono::microseconds(10));
-        else { allfinished = true; }
-        //mMtxF1.unlock();
+        lp_spin_sleep(std::chrono::microseconds(10));
     } // all relations finished
 }
 
+static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci);
+void processParQ(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
+    bool jobexists = true;
+    while (jobexists) {
+        jobexists = false;
+        for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
+            if (!gFR[ri].f1) { jobexists = true; continue; }
+            if (!gFR[ri].f2) { jobexists = true; continue; }
+
+            auto& rctodo = gFR[ri].colqueries;
+            size_t relCols = gSchema[ri];
+            for (uint64_t rc = rctodo.get()++; rc < relCols; rc=rctodo.get()++) {
+                processEqualityQueries(tid, ri, rc);
+            }
+        }
+        lp_spin_sleep(std::chrono::microseconds(50));
+    } // all relations finished
+}
 void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     processPendingIndexTask(nThreads, tid, args); // F1
-    if (tid < 4) {
-        createQueryIndexTask(nThreads, tid, args);    // F3
-    }
-    processUpdateIndexTask(nThreads, tid, args);
+    createQueryIndexTask(nThreads, tid, args);    // F3
+    processUpdateIndexTask(nThreads, tid, args);  // F2
+    //processParQ(nThreads, tid, args);  // F4
+
+    //if (tid < 2)
+    //processPendingValidationsTask(nThreads, tid, args);
 }
 
+
+void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
 static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) {
     if (unlikely(gPendingValidations.empty())) return;
@@ -1086,6 +1108,14 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     finishQueryIndex(pool2);
     */
 
+    // find the MIN validation ID to coordinate the indexing of the results
+    resIndexOffset = gPendingValidations[0].validationId; // only master handles the messages now so they are in order
+
+    // F4
+    const size_t gPRsz = gPendingResults.size();
+    if (gPVunique > gPRsz) gPendingResults.resize(gPVunique);
+    for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
+    gNextPending = 0; gNextEQCol = 0;
     
     resetUpdateStats();
     // trans-index & qindex
@@ -1094,15 +1124,14 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextReqCol = 0; // - F2 
     pool->startSingleAll(parallelTask1); // F1 + F3
     pool->waitSingleAll(); 
-    //finishQueryIndex(pool); // F3
 
-    //pool->startSingleAll(processUpdateIndexTask); // F2
-
+    //processPendingValidationsTask(8, 0, nullptr);
+    
+    pool->startSingleAll(processPendingValidationsTask);
+    pool->waitSingleAll();
     // this is needed by the trans-index after it has finished - F1
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
-    
-    //pool->waitSingleAll(); // F2
-    
+
 
 
 
@@ -1126,7 +1155,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
-
+/*
     // find the MIN validation ID to coordinate the indexing of the results
     resIndexOffset = gPendingValidations[0].validationId; // only master handles the messages now so they are in order
 
@@ -1142,7 +1171,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     //pool2->startSingleAll(processPendingValidationsTask);
     //pool2->waitSingleAll();
     pool->waitSingleAll();
-
+*/
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
         gQueryResults.emplace_back(valId, gPendingResults[i]);
