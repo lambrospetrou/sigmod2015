@@ -554,8 +554,8 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        //msgReader = ReaderIOFactory::createAsync(stdin);
-        msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::createAsync(stdin);
+        //msgReader = ReaderIOFactory::create(stdin);
         //msgReader = ReaderIOFactory::create(cin);
     }
 
@@ -569,11 +569,11 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    SingleTaskPool workerThreads(numOfThreads>>1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
-    SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    //SingleTaskPool workerThreads2(2, processPendingValidationsTask);
+    //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
+    SingleTaskPool workerThreads2(1, processPendingValidationsTask);
     workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
@@ -988,9 +988,12 @@ static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
     }    
 }
 
-void parallelTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
+
+
+void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     processPendingIndexTask(nThreads, tid, args);
     createQueryIndexTask(nThreads, tid, args);
+    //processUpdateIndexTask(nThreads, tid, args);
 }
 
 
@@ -1000,17 +1003,50 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
-    
+    /*
     gNextPending = 0;
     pool2->startSingleAll(createQueryIndexTask);
-    
     // check if there is any pending index creation to be made before checking validation
     checkPendingTransactions(pool);
-    
     finishQueryIndex(pool2);
+    */
+
+    
+    // trans-index & qindex
+    gNextPending = 0; // F3
+    gNextIndex = 0; // F1
+    gNextReqCol = 0; // - F2 
+    pool->startSingleAll(parallelTask1); // F1 + F3
+    //pool->waitSingleAll(); 
+    finishQueryIndex(pool); // F3
+
+    pool->startSingleAll(processUpdateIndexTask); // F2
+
+    // this is needed by the trans-index after it has finished - F1
+    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
+    
+    pool->waitSingleAll(); // F2
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif
+
+
+////////////////////////////// ------------ VALIDATIONS ------------- //////////////////
 
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -1028,8 +1064,8 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextPending = 0; gNextEQCol = 0;
     //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
-    pool2->startSingleAll(processPendingValidationsTask);
-    pool2->waitSingleAll();
+    //pool2->startSingleAll(processPendingValidationsTask);
+    //pool2->waitSingleAll();
     pool->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
