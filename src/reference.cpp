@@ -641,6 +641,7 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
 #endif              
                         workerThreads.destroy();
+                        workerThreads2.destroy();
                         delete msgReader;
                         return 0;
                     }
@@ -988,14 +989,15 @@ static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
 static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) {
     if (unlikely(gPendingValidations.empty())) return;
 
-    // check if there is any pending index creation to be made before checking validation
-    checkPendingTransactions(pool);
-
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
     gNextPending = 0;
     pool2->startSingleAll(createQueryIndexTask);
+    
+    // check if there is any pending index creation to be made before checking validation
+    checkPendingTransactions(pool);
+    
     finishQueryIndex(pool2);
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
@@ -1017,7 +1019,9 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextPending = 0; gNextEQCol = 0;
     //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
+    pool2->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();
+    pool2->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
