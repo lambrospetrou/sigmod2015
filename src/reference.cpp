@@ -913,6 +913,7 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
+static std::atomic<uint32_t> gNextEQCol;
 
 static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #ifdef LPDEBUG
@@ -1020,6 +1021,7 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
 
     gNextPending = 0;
+    gNextEQCol = 0;
     processPendingValidationsTask(1,0,nullptr);
     //pool->startSingleAll(processPendingValidationsTask);
     //pool->waitSingleAll();
@@ -1418,7 +1420,7 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     return false;
 }
 
-static void processEqualityQueries(uint32_t ri, uint32_t ci) {
+static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) {
     auto& rq = gRelQ[ri].columns[ci].queries;
     if (rq.empty()) return;
     //cerr << "rel: " << ri << " col " << ci << " ==: " << rq.size() << endl;
@@ -1435,9 +1437,6 @@ static void processEqualityQueries(uint32_t ri, uint32_t ci) {
         }
     } // end of all queries
 }
-
-
-
 
 
 
@@ -1573,21 +1572,32 @@ static bool isValidationConflict(LPValidation& v) {
     return false;
 }
 
-void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
+void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-
 #ifdef LPDEBUG
     auto qproc = LPTimer.getChrono();
 #endif
+    uint64_t totalCols = gRequiredColumns.size();
+    for (uint64_t rc = gNextEQCol++; rc < totalCols; rc=gNextEQCol++) {
+        uint32_t ri, col;
+        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
+        processEqualityQueries(tid, ri, col);
+    } // end of while columns to update     
+    /*
     for (uint32_t ri = 0; ri<NUM_RELATIONS; ++ri) {
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
             processEqualityQueries(ri, ci);
         }
     }
+    */
 #ifdef LPDEBUG
     LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
+}
+void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
+    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
+    processEqualityQ(nThreads, tid, args);
 
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
