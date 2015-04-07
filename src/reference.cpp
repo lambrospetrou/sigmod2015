@@ -565,8 +565,8 @@ int main(int argc, char**argv) {
     }
 
     // allocate the workers
-    //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
-    SingleTaskPool workerThreads(1, processPendingValidationsTask);
+    SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
+    //SingleTaskPool workerThreads(1, processPendingValidationsTask);
     workerThreads.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
@@ -1022,14 +1022,15 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
 
     gNextPending = 0;
     gNextEQCol = 0;
-    processPendingValidationsTask(1,0,nullptr);
-    //pool->startSingleAll(processPendingValidationsTask);
-    //pool->waitSingleAll();
+    //processPendingValidationsTask(1,0,nullptr);
+    pool->startSingleAll(processPendingValidationsTask);
+    pool->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
         gQueryResults.emplace_back(valId, gPendingResults[i]);
     }
+    for (auto& v : gPendingValidations) delete v.rawMsg;
     gPendingValidations.clear();
     gPVunique = 0;
 
@@ -1599,16 +1600,22 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
 
     processEqualityQ(nThreads, tid, args);
 
+    //vector<LPValidation*> valsrcvd;
+
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
         auto& v = gPendingValidations[vi];
+
+        //valsrcvd.push_back(&v);
+
         uint64_t resPos = v.validationId - resIndexOffset;
         auto& atoRes = gPendingResults[resPos];
         if (atoRes) continue;
-        //if(isValidationConflict(v)) { atoRes = true; }
-        atoRes = isValidationConflict(v);
-        delete v.rawMsg;
+        if(isValidationConflict(v)) { atoRes = true; }
+        //atoRes = isValidationConflict(v);
+        //delete v.rawMsg;
     } // while true take more validations 
+    //for (auto v : valsrcvd) delete v->rawMsg;
 }
 
