@@ -923,6 +923,7 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
 #endif
 
     uint64_t totalPending = gPendingValidations.size();
+    vector<lp::query::EQ> bitv;
     // get a validation ID - atomic operation
     for (uint64_t vi = 0; vi < totalPending; ++vi) {
         auto& v = gPendingValidations[vi];
@@ -934,9 +935,10 @@ static void ALWAYS_INLINE createQueryIndex(ISingleTaskPool *pool) { (void)pool;
             Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
             columnCount = rq->columnCount;
 
-
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
+            //bitv.resize(gSchema[rq->relationId]);
+            //if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
             if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
             /*
             uint32_t colCountUniq = lp::query::preprocess(*rq); 

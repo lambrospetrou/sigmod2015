@@ -83,9 +83,12 @@ namespace lp {
     } ColumnCompQuality;
     struct ColumnCompColNEq_t {
         ALWAYS_INLINE bool operator() (const Query::Column& left, const Query::Column& right) {
-            if ((left.value ^ right.value)) return true;
-            if (left.column ^ right.column) return true;
-            return left.op ^ right.op;    
+            return  
+                    (left.column ^ right.column) ||
+                    (left.value ^ right.value) ||
+                    (left.op ^ right.op);
+            //return (((uint64_t*)&left)[0]!=((uint64_t*)&right)[0]) || (((uint64_t*)&left)[1]!=((uint64_t*)&right)[1]);
+            //return memcmp(&left, &right, sizeof(Query::Column));
         }
     } ColumnCompColNeq;
 
@@ -169,8 +172,10 @@ namespace lp {
         };
         // return true if the query is valid otherwise false
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
+        //bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols, EQ* bitv) {
             if (rq.columnCount == 0) return true;
 
+            //lp::simd::zero((uint8_t*)bitv, relCols*sizeof(EQ));
             EQ bitv[relCols];
 
             Column *qc = const_cast<Column*>(rq.columns);
@@ -203,8 +208,8 @@ namespace lp {
             const register size_t sz = rq.columnCount;
             //std::cerr << sz << " ";
             
-            if (sz == 1) return true;
             if (sz < 20) {
+                if (sz == 1) return true;
                 // insertion sort manual
                 for (register size_t i=1; i<sz; ++i) {
                     register const auto t = qc[i]; register size_t pos=i;
@@ -222,8 +227,8 @@ namespace lp {
                 for (register size_t i=1; i<sz; ++i) {
                     if (ColumnCompColNeq(qc[uniq], qc[i])) {
                         ++uniq;
-                        //if (i - uniq > 0) qc[uniq] = qc[i];
-                        qc[uniq] = qc[i];
+                        if (i > uniq) qc[uniq] = qc[i];
+                        //qc[uniq] = qc[i];
                     }
                 }
                 rq.columnCount = uniq+1;
