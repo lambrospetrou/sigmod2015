@@ -207,11 +207,15 @@ namespace lp {
             if (sz < 20) {
                 // insertion sort manual
                 for (register size_t i=1; i<sz; ++i) {
-                    for (register size_t pos=i; pos>0; --pos) {
-                        if (ColumnCompQuality(qc[pos], qc[pos-1])) {
-                            std::swap(qc[pos], qc[pos-1]);
+                    register const auto t = qc[i]; register size_t pos=i;
+                    for (; pos>0; --pos) {
+                        if (ColumnCompQuality(t, qc[pos-1])) {
+                        //if (ColumnCompQuality(qc[pos], qc[pos-1])) {
+                            //std::swap(qc[pos], qc[pos-1]);
+                            qc[pos] = qc[pos-1];
                         } else break;
                     }
+                    qc[pos] = t;
                 }
                 // unique manual
                 register size_t uniq = 0;
