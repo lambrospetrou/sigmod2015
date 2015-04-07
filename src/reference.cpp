@@ -1376,22 +1376,19 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
     //const uint64_t rangediff = v.to - v.from;
 
     auto csecond = cbegin + 1;
+    // TODO - cases for 1 predicate - for 2 equalities to take the less tuples
 
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-        //auto tplpair = cb->equal_range(cbegin->value);
-        //auto tplpair = cb->equal_range(cbegin->value, v.to);
         auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
         if (tplpair.first == tplpair.second) continue;
         //cerr<< "found : " << (rp.second-rp.first) << endl;
-        register const size_t tplsz=tplpair.second-tplpair.first;
-        auto ctpl = tplpair.second;
+        //register const size_t tplsz=tplpair.second-tplpair.first;
+        auto ctpl = tplpair.first;
         // know that all the tuples we got are in the range we want - equal_range in bucket guarantees that
-        for (size_t i=0; (i++ < tplsz); ) { 
-            --ctpl;
-            if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
+        for (const auto tple=tplpair.second; (ctpl < tple); ) { 
+            if (isTupleConflict(csecond, cend, (ctpl++)->tuple)) { return true; }
         }
         //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
-
     } // for all buckets
     return false;
 }
