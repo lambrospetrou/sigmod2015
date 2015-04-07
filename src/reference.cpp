@@ -1019,13 +1019,7 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
 
-    // sort the validations by query count in order to start the heavy ones earlier
-    //std::sort(gPendingValidations.begin(), gPendingValidations.end(), 
-    //      [](const LPValidation& left, const LPValidation& right){ return left.queryCount > right.queryCount; });
-    //std::sort(gPendingValidations.begin(), gPendingValidations.end(), LPValCompQCount);
-
-    gNextPending = 0;
-    gNextEQCol = 0;
+    gNextPending = 0; gNextEQCol = 0;
     //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
     pool->waitSingleAll();
@@ -1039,12 +1033,11 @@ static void checkPendingValidations(ISingleTaskPool *pool) {
     gPVunique = 0;
 
     // clear the inverted query index 
-    for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
-        auto& rq = gRelQ[ri];
-        for (size_t ci=0; ci<gSchema[ri]; ++ci)
-            rq.columns[ci].queries.resize(0);
+    for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
+        uint32_t ri, ci;
+        lp::validation::unpackRelCol(gEQCols[rc], ri, ci);
+        gRelQ[ri].columns[ci].queries.resize(0);
     }
-    // clear query index
 #ifdef LPDEBUG
     LPTimer.validationsProcessing += LPTimer.getChrono(start);
 #endif
