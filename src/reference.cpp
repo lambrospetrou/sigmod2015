@@ -564,9 +564,6 @@ int main(int argc, char**argv) {
         gRelations[i].transLogTuples.reserve(512);
     }
 
-    // allocate global structures based on thread number
-    //gStats.reset(new StatStruct[numOfThreads+1]);
-
     // allocate the workers
     //SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     SingleTaskPool workerThreads(1, processPendingValidationsTask);
