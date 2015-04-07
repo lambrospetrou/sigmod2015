@@ -388,8 +388,10 @@ static void processDefineSchema(const DefineSchema& d) {
         gRelColumns[ri].columns.reset(new ColumnStruct[gSchema[ri]]);
         gRelQ[ri].columns.reset(new CQ_t[gSchema[ri]]);
         const uint32_t colsz = gSchema[ri];
-        for (uint32_t ci=0; ci<colsz; ++ci)
+        for (uint32_t ci=0; ci<colsz; ++ci) {
             gRequiredColumns.push_back(lp::validation::packRelCol(ri, ci));
+            gEQCols.push_back(lp::validation::packRelCol(ri, ci));
+        }
     }
 }
 //---------------------------------------------------------------------------
@@ -973,6 +975,7 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
         }
     } // end for all validations
 }
+/*
 static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
     pool->waitSingleAll();
     // SORT THEM TO MAKE FRIENDLY CACHE USE WITH BINARIES LOOKING FOR THE SAME VALUE
@@ -983,11 +986,11 @@ static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
             auto& rqc = rq.columns[ci].queries;
             if (rqc.empty()) continue;
             gEQCols.push_back(lp::validation::packRelCol(ri, ci));
-            sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
+            //sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
         }
     }    
 }
-
+*/
 
 
 void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
@@ -1017,8 +1020,8 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextIndex = 0; // F1
     gNextReqCol = 0; // - F2 
     pool->startSingleAll(parallelTask1); // F1 + F3
-    //pool->waitSingleAll(); 
-    finishQueryIndex(pool); // F3
+    pool->waitSingleAll(); 
+    //finishQueryIndex(pool); // F3
 
     pool->startSingleAll(processUpdateIndexTask); // F2
 
