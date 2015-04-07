@@ -893,9 +893,9 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 #endif
     //cerr << "::: session start ::::" << endl;
     gNextIndex = 0;
-    processPendingIndexTask(1,0,nullptr); 
-    //pool->startSingleAll(processPendingIndexTask);
-    //pool->waitSingleAll();
+    //processPendingIndexTask(1,0,nullptr); 
+    pool->startSingleAll(processPendingIndexTask);
+    pool->waitSingleAll();
 
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
 #ifdef LPDEBUG
@@ -906,9 +906,9 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
     auto startUpdIndex = LPTimer.getChrono();
 #endif
     gNextReqCol = 0;
-    processUpdateIndexTask(1, 0, nullptr);
-    //pool->startSingleAll(processUpdateIndexTask);
-    //pool->waitSingleAll();
+    //processUpdateIndexTask(1, 0, nullptr);
+    pool->startSingleAll(processUpdateIndexTask);
+    pool->waitSingleAll();
 #ifdef LPDEBUG
     LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
 #endif
