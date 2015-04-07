@@ -274,12 +274,12 @@ vector<RelQPart> gRelQPart;
 
 struct CQQ_t {
     vector<VQ_t*> queries;
+    std::mutex cmtx;
 };
 struct RelQ_t {
     std::unique_ptr<CQQ_t[]> columns;
 };
 static std::unique_ptr<RelQ_t[]> gRelQ;
-static std::mutex gRelQLock;
 
 static std::atomic<uint64_t> gNextEQCol;
 static vector<uint64_t> gEQCols;
@@ -965,7 +965,7 @@ static std::atomic<uint64_t> gNextPending;
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     vector<lp::query::EQ> bitv;
    
-    cerr << "tid: " << tid << endl;
+    //cerr << "tid: " << tid << endl;
     RelQPart_t *gRQP = gRelQPart[tid].get();
 
     uint64_t totalPending = gPendingValidations.size();
@@ -974,7 +974,7 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
         auto& v = gPendingValidations[vi];
         const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
 
-        cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
+        //cerr << "\n\t----- VAL: " << vq.validationId << " -----" << endl;
         const char* qreader = vq.queries; uint32_t columnCount;
         for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
             Query *rq=const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
@@ -982,8 +982,8 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
 
             if (columnCount == 0) { v.queries.push_back(rq); continue; }
 
-            bitv.resize(0);
-            bitv.resize(gSchema[rq->relationId]);
+            //bitv.resize(0);
+            if (bitv.size() < gSchema[rq->relationId]) bitv.resize(gSchema[rq->relationId]);
             if (!lp::query::preprocess(*rq, gSchema[rq->relationId], bitv.data())) { continue; }
             //if (!lp::query::preprocess(*rq, gSchema[rq->relationId])) { continue; }
             //uint32_t colCountUniq = lp::query::preprocess(*rq); 
@@ -1010,21 +1010,20 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
     } // end for all validations
 
     
+    //gRelQLock.lock();
     for (uint32_t ri=0; ri<NUM_RELATIONS; ++ri) {
         auto& rq = gRQP[ri];
         for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
             auto& rqc = rq.columns[ci].queries;
             if (rqc.empty()) continue;
-            sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
+            // TODO 
+            //sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
             // update the global struct
-            cerr << "queries size: " << rqc.size() << " " << ri << " " << ci << endl;
-            {
-                gRelQLock.lock();
-                //gRelQ[ri].columns[ci].queries.push_back(&rq.columns[ci].queries);
-                gRelQLock.unlock();
-            }
+            //cerr << "queries size: " << rqc.size() << " " << ri << " " << ci << endl;
+            gRelQ[ri].columns[ci].queries.push_back(&rq.columns[ci].queries);
         }
     }    
+    //gRelQLock.unlock();
 
 }
 static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
@@ -1038,7 +1037,7 @@ static void ALWAYS_INLINE finishQueryIndex(ISingleTaskPool *pool) { (void)pool;
             if (rqc.empty()) continue;
             gEQCols.push_back(lp::validation::packRelCol(ri, ci));
             //sort(rqc.begin(), rqc.end(), [](const QMeta_t& l, const QMeta_t& r) { return (l.value < r.value); });
-            cerr << "has queries: " << ri << " " << ci << endl;
+            //cerr << "has queries: " << ri << " " << ci << endl;
         }
     } 
 }
@@ -1077,12 +1076,10 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextPending = 0; gNextEQCol = 0;
     //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
-    //pool2->startSingleAll(processPendingValidationsTask);
-    //pool2->waitSingleAll();
     pool->waitSingleAll();
 
-    cerr << "going to delete" << endl;
-/*
+    //cerr << "going to delete" << endl;
+
     // clear the inverted query index 
     for (uint64_t rc = 0, totalCols = gEQCols.size(); rc < totalCols; ++rc) {
         uint32_t ri, ci;
@@ -1090,7 +1087,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
         gRelQ[ri].columns[ci].queries.resize(0);
     }
     for (auto& rqp : gRelQPart) rqp.clear();
-*/
+
     // update the results - you can get the validation id by adding resIndexOffset to the position
     for (uint64_t i=0, valId=resIndexOffset; i<gPVunique; ++i, ++valId) { 
         gQueryResults.emplace_back(valId, gPendingResults[i]);
@@ -1659,7 +1656,7 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
-    cerr << "going to validate" << endl;
+    //cerr << "going to validate" << endl;
     
     processEqualityQ(nThreads, tid, args);
 
