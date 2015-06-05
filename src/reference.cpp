@@ -1217,6 +1217,9 @@ bool ALWAYS_INLINE isTupleRangeConflict(Tuple_t *tupFrom, Tuple_t *tupTo, PredIt
 }
     
 /*
+
+// THESE FUNCTIONS IN COMMENT WERE USED BEFORE THE INDEX WAS CONVERTED TO BUCKETS
+
 static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
     auto& transValues = transaction.values;
@@ -1578,23 +1581,11 @@ static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) { (vo
 }
 
 
-
 static bool isValidationConflict(LPValidation& v) {
-    // TODO - MAKE A PROCESSING OF THE QUERIES AND PRUNE SOME OF THEM OUT
-    /*
-       cerr << "\n========= validation " << v.validationId << " =========" << endl; 
-       cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
-     */
-
+    //cerr << "\n========= validation " << v.validationId << " =========" << endl; 
+    //cerr << "qc: " << vq.queryCount << " from: " << vq.from << " to: " << vq.to << endl; 
     for (auto q : v.queries) {
         Query& rq = *q;
-    //const ValidationQueries& vq = *reinterpret_cast<ValidationQueries*>(v.rawMsg->data.data());
-    //const char* qreader = vq.queries; uint32_t columnCount;
-    //for (uint32_t i=0; i<vq.queryCount; ++i, qreader+=sizeof(Query)+(sizeof(Query::Column)*columnCount)) {
-        //Query& rq=*const_cast<Query*>(reinterpret_cast<const Query*>(qreader));
-        //columnCount = rq.columnCount;
-        //cerr << " " << i;
-
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
@@ -1607,36 +1598,14 @@ static bool isValidationConflict(LPValidation& v) {
                 return true;
             }; 
         }
-
-#ifdef LPDEBUG
-//auto startInner = LPTimer.getChrono();
-#endif 
-        //uint32_t colCountUniq = lp::query::preprocess(rq); 
-        //if (!lp::query::satisfiable(&rq, colCountUniq)) { continue; } // go to the next query
-        //if (!lp::query::preprocess(rq, gSchema[rq.relationId])) { continue; }
-#ifdef LPDEBUG
-//LPTimer.satCheck += LPTimer.getChrono(startInner);
-#endif 
-    
         uint32_t colCountUniq = rq.columnCount; 
-    
         auto cbegin = reinterpret_cast<Query::Column*>(rq.columns),
              cend = cbegin + colCountUniq;
-        
-        /*if (cbegin->op == Op::Equal) {
-            if (cbegin->column == 0) {
-                if (processQueryEQZero(v, &rq, cbegin, cend)) { return true; }  
-                else continue;
-            } else {
-                if (processQueryEQ(v, &rq, cbegin, cend)) { return true; }  
-                else continue;
-            }
-        } else {*/
-            if (processQueryOther(v, &rq, cbegin, cend)) { return true; }
-            else continue;
-        //}
-    
-        /*
+        if (processQueryOther(v, &rq, cbegin, cend)) { return true; }
+        else continue;
+/*
+        // --- PROCESSING BEFORE THE BUCKETTED INDEX
+
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
         auto& relColumns = gRelColumns[rq.relationId].columns;
@@ -1650,9 +1619,7 @@ static bool isValidationConflict(LPValidation& v) {
 
         // increase cbegin to point to the 2nd predicate to avoid the increment inside the function
         auto cbSecond = cbegin+1;
-        */
 
-        /*
            if (colCountUniq > 2) {
            auto& cb=cbegin[0], cb1=cbegin[1], cb2=cbegin[2];
            for(; transFrom<transTo; ++transFrom, ++pos) {  
@@ -1682,8 +1649,6 @@ static bool isValidationConflict(LPValidation& v) {
                }
            }
 */
-        //cerr << ":: val " << v.validationId << endl;
-    
         //for(; transFrom<transTo; ++transFrom, ++pos) {  
         //    if (isTransactionConflict(*transFrom, pFirst, cbSecond, cend, relColumns.get(), pos)) { return true; }
         //} // end of all the transactions for this relation for this specific query
@@ -1697,20 +1662,12 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
 #ifdef LPDEBUG
     auto qproc = LPTimer.getChrono();
 #endif
-    //uint64_t totalCols = gRequiredColumns.size();
     uint64_t totalCols = gEQCols.size();
     uint32_t ri, col;
     for (uint64_t rc = gNextEQCol++; rc < totalCols; rc=gNextEQCol++) {
         lp::validation::unpackRelCol(gEQCols[rc], ri, col);
         processEqualityQueries(tid, ri, col);
     } // end of while columns to update     
-    /*
-    for (uint32_t ri = 0; ri<NUM_RELATIONS; ++ri) {
-        for (uint32_t ci=0; ci<gSchema[ri]; ++ci) {
-            processEqualityQueries(ri, ci);
-        }
-    }
-    */
 #ifdef LPDEBUG
     LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
