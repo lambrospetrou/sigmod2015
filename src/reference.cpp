@@ -36,7 +36,6 @@
 #include "include/ReaderIO.hpp"
 #include "include/LPThreadpool.hpp"
 #include "include/SingleTaskPool.hpp"
-//#include "include/MultiTaskPool.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -96,12 +95,6 @@ ostream& operator<< (ostream& os, const vector<T> v) {
     }
     return os;
 }
-/*
-   std::ostream& operator<< (std::ostream& os, const LPQuery& o) {
-   os << "{" << o.relationId << "-" << o.columnCount << ":: " << o.predicates << "::" << o.satisfiable << "}";
-   return os;
-   }
- */
 std::ostream& operator<< (std::ostream& os, const Query::Column& o) {
     os << "[" << o.column << ":" << o.op << ":" << o.value << "]";
     return os;
@@ -144,39 +137,6 @@ std::ostream& operator<< (std::ostream& os, const CTransStruct& o) {
     return os;
 }
 
-template<typename T>
-struct LPPair {
-    T *a;
-    T *b;
-
-    LPPair() : a(nullptr), b(nullptr) {}
-    LPPair(T *v) : a(v), b(nullptr) {}
-    LPPair(T *v, T *v2) : a(v), b(v2) {}
-
-    void put(T *v) {
-        if (a == nullptr) a = v;
-        else b = v;
-    }
-};
-template<>
-struct LPPair<uint64_t> {
-    uint64_t a;
-    tuple_t tpl_a;
-    uint64_t b;
-    tuple_t tpl_b;
-    uint64_t c;
-    tuple_t tpl_c;
-
-    LPPair() : a(UINT64_MAX), tpl_a(nullptr), b(UINT64_MAX), tpl_b(nullptr), c(UINT64_MAX), tpl_c(nullptr) {}
-    //LPPair(uint64_t v) : a(v), b(UINT64_MAX), tpl_a(nullptr), tpl_b(nullptr) {}
-    //LPPair(uint64_t v, uint64_t v2) : a(v), b(v2), tpl_a(nullptr), tpl_b(nullptr) {}
-
-    void put_u(uint64_t v, tuple_t _tpl) {
-        if (a == UINT64_MAX) { a=v; tpl_a=_tpl; }
-        else if (b == UINT64_MAX) { b=v; tpl_b=_tpl; }
-        else { c=v; tpl_c=_tpl; }
-    }
-};
 
 // transactions in each relation column - all tuples of same transaction in one vector
 struct Metadata_t {
@@ -192,8 +152,8 @@ struct ColumnTransaction_t {
 struct ColumnStruct {
     // the trans_id the transactions are updated to inclusive
     //vector<ColumnTransaction_t> transactions;
-    CIndex transactions;
     //vector<uint64_t> transactionsORs;
+    CIndex transactions;
     uint64_t transTo;
 
     //char padding[8]; //for false sharing
@@ -367,6 +327,8 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 //static inline void checkPendingTransactions(ISingleTaskPool *pool);
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args);
 
+void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args);
+static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col);
 ///--------------------------------------------------------------------------
 ///--------------------------------------------------------------------------
 
@@ -765,9 +727,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 }
 
 
-void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args);
-static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col);
-
 /*
    struct TRMapPhase {
    uint64_t trans_id;
@@ -783,22 +742,17 @@ static std::atomic<uint32_t> gNextReqCol; // for the update columns
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
     //cerr << "::: tid " << tid << "new" << endl;
-
     for (uint64_t ri = gNextIndex++; ri < NUM_RELATIONS; ri=gNextIndex++) {
 
         // take the vector with the transactions and sort it by transaction id in order to apply them in order
         auto& relTrans = gTransParseMapPhase[ri];
         if (unlikely(relTrans.empty())) { 
-            //mMtxF1.lock();
             gFR[ri].f1 = true; gFR[ri].f2 = true;
             ++finishedF1; 
-            //mCondF1.notify_all();
-            //mMtxF1.unlock();
             continue; 
         }
 
         //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
-
         //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
 
         auto& relation = gRelations[ri];
@@ -872,11 +826,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         // sort the index - HERE CAN DO - inplace merge instead
         //primIndex.sortFrom(firstTrans);
 
-        //mMtxF1.lock();
         gFR[ri].f1 = true;
         ++finishedF1; 
-        //mCondF1.notify_all();
-        //mMtxF1.unlock();
     } // end of all relations
 
     // TODO - MERGE THE UPDATE INDEX - WITH UPDATE COLUMNS - TODO
@@ -897,23 +848,6 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     auto transFrom = lower_bound(relation.transLogTuples.data(), tEnd, updatedUntil, TransLogComp);
 
     auto& cindex = relColumn.transactions;
-/*
-    //if (col == 0) {
-    auto trp = transFrom;
-    // while we haven't processed all transactions
-    while (trp<tEnd) {
-        // will return the start of the bucket I should write and the last transaction I should stop
-        auto bpair = cindex.prepareBucket(col==0, trp, tEnd);
-        auto tplPtr = bpair.first;
-        auto currentEnd = bpair.second;
-        for (; trp<currentEnd; ++trp) {
-            auto trans_id = trp->first;
-            for (auto tpl : trp->second) { 
-                *tplPtr++ = {tpl[col], trans_id, tpl}; 
-            }
-        }
-    } // while still transactions to process
-    } else {*/
     // for all the transactions in the relation
     for(auto trp=transFrom; trp<tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
@@ -927,11 +861,8 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
              *tplPtr++ = {tpl[col], trans_id, tpl}; 
         }
     }
-    
-
     // no need to check for empty since now we update all the columns and there is a check for emptyness above
     relColumn.transTo = relation.transLogTuples.back().first + 1;
-
     cindex.sortFrom(transFrom->first, col == 0);
     //if (col == 0) cindex.sortFrom(transFrom->first, true);
     //else cindex.sortFrom(transFrom->first);
@@ -978,9 +909,7 @@ static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
 
 
-
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
-    
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
     for (uint64_t vi = gNextPending++; vi < totalPending; vi=gNextPending++) {
@@ -1019,12 +948,9 @@ void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)n
     } // end for all validations
 }
 
-
-
+// update the column-index with busy waiting at the end
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-    //uint64_t totalCols = gRequiredColumns.size();
-    //for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
     for (size_t ri=0; ri<NUM_RELATIONS; ++ri) {
         if (!gFR[ri].f1) continue;
         auto& rctodo = gFR[ri].cols;
@@ -1055,11 +981,8 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             }
         }
         
-        //mMtxF1.lock();
-        //if (finishedF1 < NUM_RELATIONS) mCondF1.wait(mMtxF1, []{return true;});
         if (finishedF1 < NUM_RELATIONS) lp_spin_sleep(std::chrono::microseconds(10));
         else { allfinished = true; }
-        //mMtxF1.unlock();
     } // all relations finished
 }
 
@@ -1069,21 +992,14 @@ void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads
     processUpdateIndexTask(nThreads, tid, args);
 }
 
-
+///////////////////////////////////////////////////////
+// THE MAIN PROCESSING METHOD - CALLS ALL 5 STEPS
 static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) { (void)pool2;
     if (unlikely(gPendingValidations.empty())) return;
     if (unlikely(gFR.empty())) gFR.resize(NUM_RELATIONS);
 #ifdef LPDEBUG
     auto startQuery = LPTimer.getChrono();
 #endif
-    /*
-    gNextPending = 0;
-    pool2->startSingleAll(createQueryIndexTask);
-    // check if there is any pending index creation to be made before checking validation
-    checkPendingTransactions(pool);
-    finishQueryIndex(pool2);
-    */
-
     
     resetUpdateStats();
     // trans-index & qindex
@@ -1092,35 +1008,15 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     gNextReqCol = 0; // - F2 
     pool->startSingleAll(parallelTask1); // F1 + F3
     pool->waitSingleAll(); 
-    //finishQueryIndex(pool); // F3
-
-    //pool->startSingleAll(processUpdateIndexTask); // F2
 
     // this is needed by the trans-index after it has finished - F1
     for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
-    
-    //pool->waitSingleAll(); // F2
-    
-
-
-
-
-
-
-
-
-
-
-
-
 
 #ifdef LPDEBUG
     LPTimer.queryIndex += LPTimer.getChrono(startQuery);
 #endif
 
-
 ////////////////////////////// ------------ VALIDATIONS ------------- //////////////////
-
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
@@ -1131,14 +1027,10 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     const size_t gPRsz = gPendingResults.size();
     if (gPVunique > gPRsz)
         gPendingResults.resize(gPVunique);
-    //memset(gPendingResults.data(), 0, sizeof(PendingResultType)*gPRsz);
     for (auto gpr=gPendingResults.data(), gpre=gpr+gPRsz; gpr<gpre; ) *gpr++ = 0;
 
     gNextPending = 0; gNextEQCol = 0;
-    //processPendingValidationsTask(1,0,nullptr);
     pool->startSingleAll(processPendingValidationsTask);
-    //pool2->startSingleAll(processPendingValidationsTask);
-    //pool2->waitSingleAll();
     pool->waitSingleAll();
 
     // update the results - you can get the validation id by adding resIndexOffset to the position
