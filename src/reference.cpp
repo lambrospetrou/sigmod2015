@@ -1165,7 +1165,6 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
 // VALIDATION
 //////////////////////////////////////////////////////////
 
-//typedef tuple_t TupleType;
 typedef Metadata_t TupleType;
 typedef Query::Column* PredIter;
 
@@ -1197,7 +1196,8 @@ bool ALWAYS_INLINE isTupleConflict(PredIter cbegin, PredIter cend, const tuple_t
     return true;    
 }
 
-bool ALWAYS_INLINE isTupleRangeConflict(TupleType *tupFrom, TupleType *tupTo, PredIter cbegin, PredIter cend) {
+template<typename Tuple_t>
+bool ALWAYS_INLINE isTupleRangeConflict(Tuple_t *tupFrom, Tuple_t *tupTo, PredIter cbegin, PredIter cend) {
     if (cbegin == cend && tupTo-tupFrom != 0) return true;
     for(; tupFrom!=tupTo; ++tupFrom) {
         if (isTupleConflict(cbegin, cend, tupFrom->tuple)) return true;
@@ -1505,12 +1505,7 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         if (0 == resdiff) continue;
         // if result set small enough to process
         if (128 > resdiff || !(q->columnCount > 1 && csecond->op == 0)) {
-            auto ctpl = tplpair.first;
-            // know that all the tuples we got are in the range we want 
-            // - equal_range in bucket guarantees that
-            for (const auto tple=tplpair.second; (ctpl < tple); ++ctpl) { 
-                if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
-            }
+            if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend)) { return true; }
         } else {
             // the first column bucket returned a big result
             // therefore we will try to check the second column if == predicate
@@ -1523,16 +1518,10 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
             const uint64_t resdiff2 = tplpair2.second - tplpair2.first;
             if (resdiff2 <= resdiff) {
                 std::swap(*cbegin, *csecond);
-                auto ctpl = tplpair2.first;
-                for (const auto tple=tplpair2.second; (ctpl < tple); ++ctpl) { 
-                    if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
-                }
+                if (isTupleRangeConflict(tplpair2.first, tplpair2.second, csecond, cend)) { return true; }
                 std::swap(*cbegin, *csecond);
             } else {
-                auto ctpl = tplpair.first;
-                for (const auto tple=tplpair.second; (ctpl < tple); ++ctpl) { 
-                    if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
-                }
+                if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend)) { return true; }
             }
         } // end if big result
     }    
