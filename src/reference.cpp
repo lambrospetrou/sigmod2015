@@ -1070,7 +1070,7 @@ void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads
 }
 
 
-static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) {
+static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool2) { (void)pool2;
     if (unlikely(gPendingValidations.empty())) return;
     if (unlikely(gFR.empty())) gFR.resize(NUM_RELATIONS);
 #ifdef LPDEBUG
@@ -1554,7 +1554,7 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     return false;
 }
 
-static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) {
+static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) { (void)tid;
     auto& rq = gRelQ[ri].columns[ci].queries;
     if (rq.empty()) return;
     //cerr << "rel: " << ri << " col " << ci << " ==: " << rq.size() << endl;

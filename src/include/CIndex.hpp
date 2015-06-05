@@ -206,8 +206,7 @@ class CIndex {
         }
         // returns the bucket that will hold the tuples for thie given transaction
         // to make the insertions faster
-        ALWAYS_INLINE Bucket* bucketNext(uint64_t trid, bool isPrimary = false) {
-            //if (unlikely(mBuckets.empty() || (mBucketSize - mBuckets.back().trsize == 0))) {
+        ALWAYS_INLINE Bucket* bucketNext(uint64_t trid, bool isPrimary = false) { (void)isPrimary;
             //if ((isPrimary ? is_newbucket_primary() : is_newbucket())) {
             if (is_newbucket()) {
                 mBuckets.emplace_back(trid, trid, 1);

@@ -173,7 +173,6 @@ namespace lp {
             EQ() : v(0), is(0) {} 
         };
         // return true if the query is valid otherwise false
-        //bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
         bool ALWAYS_INLINE preprocess(Query& rq, const size_t relCols) {
             if (rq.columnCount == 0) return true;
 
@@ -208,13 +207,12 @@ namespace lp {
             }
 
             const register size_t sz = rq.columnCount;
-            //std::cerr << sz << " ";
             
             if (sz < 20) {
                 if (sz == 1) return true;
                 // insertion sort manual
                 for (register size_t i=1; i<sz; ++i) {
-                    register const auto t = qc[i]; register size_t pos=i;
+                    const auto t = qc[i]; register size_t pos=i;
                     for (; pos>0; --pos) {
                         if (ColumnCompQuality(t, qc[pos-1])) {
                         //if (ColumnCompQuality(qc[pos], qc[pos-1])) {
