@@ -1483,9 +1483,10 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
     return false;    
 }
 
+// method that evaluates a query against any column apart from the zero-0 column 
+// which is handled separately below.
 static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *cend) {
     //cerr << "----- NEW VAL SESSION -----" << endl;
-    //uint64_t cnt = 0, cnt2 = 0;
     auto& relColumns = gRelColumns[q->relationId].columns;
     auto& cindex = relColumns[cbegin->column].transactions;
     auto trbuckets = cindex.buckets(v.from, v.to); 
@@ -1494,7 +1495,48 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
 
     auto csecond = cbegin + 1;
     // TODO - cases for 1 predicate - for 2 equalities to take the less tuples
-    
+   
+    // for each bucket of the column index
+    for (uint32_t cbi=0, cbsz=(trbuckets.second-trbuckets.first); cbi<cbsz; ++cbi) {
+        auto cb = &trbuckets.first[cbi];
+        auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
+        const uint64_t resdiff = tplpair.second - tplpair.first;
+        // if no tuples with this value
+        if (0 == resdiff) continue;
+        // if result set small enough to process
+        if (128 > resdiff || !(q->columnCount > 1 && csecond->op == 0)) {
+            auto ctpl = tplpair.first;
+            // know that all the tuples we got are in the range we want 
+            // - equal_range in bucket guarantees that
+            for (const auto tple=tplpair.second; (ctpl < tple); ++ctpl) { 
+                if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
+            }
+        } else {
+            // the first column bucket returned a big result
+            // therefore we will try to check the second column if == predicate
+            // and process the least results
+            auto& cindex2 = relColumns[csecond->column].transactions;
+            auto trbuckets2 = cindex2.buckets(v.from, v.to); 
+            auto cb2 = &trbuckets2.first[cbi];
+            
+            auto tplpair2 = cb2->equal_range(csecond->value, v.from, v.to);
+            const uint64_t resdiff2 = tplpair2.second - tplpair2.first;
+            if (resdiff2 <= resdiff) {
+                std::swap(*cbegin, *csecond);
+                auto ctpl = tplpair2.first;
+                for (const auto tple=tplpair2.second; (ctpl < tple); ++ctpl) { 
+                    if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
+                }
+                std::swap(*cbegin, *csecond);
+            } else {
+                auto ctpl = tplpair.first;
+                for (const auto tple=tplpair.second; (ctpl < tple); ++ctpl) { 
+                    if (isTupleConflict(csecond, cend, ctpl->tuple)) { return true; }
+                }
+            }
+        } // end if big result
+    }    
+/*
     if (q->relationId == 3 && cbegin->column == 4 && q->columnCount > 1 && csecond->op == 0) {
         std::swap(*cbegin, *csecond);
         auto& cindex = relColumns[cbegin->column].transactions;
@@ -1525,8 +1567,11 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
         //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
     } // for all buckets
     }
+*/
     return false;
 }
+
+// the actual processing of a query with a predicate against primary key column
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
     //cerr << "----- NEW VAL SESSION -----" << endl;
     auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
@@ -1554,6 +1599,8 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     return false;
 }
 
+// this method is responsible to process all the equality queries of column CI
+// in relation RI.
 static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) { (void)tid;
     auto& rq = gRelQ[ri].columns[ci].queries;
     if (rq.empty()) return;
