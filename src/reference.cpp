@@ -1390,7 +1390,7 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
     auto& cindex = gRelColumns[q->relationId].columns[cbegin->column].transactions;
     auto trbuckets = cindex.buckets(v.from, v.to); 
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
-    const uint64_t rangediff = v.to - v.from;
+    //const uint64_t rangediff = v.to - v.from;
     // find the valid tuples using range binary searches based on the first predicate
     auto csecond = cbegin + 1;
 
@@ -1400,88 +1400,44 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto tplpair = cb->lower_bound_left(cbegin->value);
                     if (tplpair.first == tplpair.second) continue;
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                 } // end for each bucket
             }
-            //tupTo -= (tEnd-std::lower_bound(tBegin, tEnd, pFirst.value));
-            //if (tupTo == tupFrom) return false;
             break;
         case Op::LessOrEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto tplpair = cb->upper_bound_left(cbegin->value);
                     if (tplpair.first == tplpair.second) continue;
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                 } // end for each bucket
             }
-            //tupTo -= (tEnd-std::upper_bound(tBegin, tEnd, pFirst.value)); 
-            //if (tupTo == tupFrom) return false;
             break;
         case Op::Greater: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto tplpair = cb->upper_bound(cbegin->value);
                     if (tplpair.first == tplpair.second) continue;
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                 } // end for each bucket
             }
-            //tupFrom += (std::upper_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            //if (tupTo == tupFrom) return false;
             break;
         case Op::GreaterOrEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto tplpair = cb->lower_bound(cbegin->value);
                     if (tplpair.first == tplpair.second) continue;
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                 } // end for each bucket
             }
-            //tupFrom += (std::lower_bound(tBegin, tEnd, pFirst.value)-tBegin);
-            //if (tupTo == tupFrom) return false;
             break;
         case Op::NotEqual: 
             {
                 for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
                     auto tplpair = cb->lower_bound_left(cbegin->value);
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                     tplpair = cb->upper_bound(cbegin->value);
-                    for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-                        if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                            if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                                return true;;
-                            }
-                        }
-                    } // end for all trans in the bucket
+                    if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
                 } // end for each bucket
             }
             break;
