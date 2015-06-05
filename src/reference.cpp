@@ -1206,6 +1206,16 @@ bool ALWAYS_INLINE isTupleRangeConflict(Tuple_t *tupFrom, Tuple_t *tupTo, PredIt
     //return std::find_if(tupFrom, tupTo, [=](TupleType& tup) { return isTupleConflict(cbegin, cend, tup);}) != tupTo;
 }
 
+template<typename Tuple_t>
+bool ALWAYS_INLINE isTupleRangeConflict(Tuple_t *tupFrom, Tuple_t *tupTo, PredIter cbegin, PredIter cend, uint64_t vfrom, uint64_t vto) {
+    const uint64_t rangediff = vto - vfrom;
+    for(; tupFrom!=tupTo; ++tupFrom) {
+        if (((uint64_t)(tupFrom->trans_id - vfrom) <= (rangediff)) 
+                && isTupleConflict(cbegin, cend, tupFrom->tuple)) return true;
+    } // end of all tuples for this transaction
+    return false;
+}
+    
 /*
 static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
@@ -1525,38 +1535,6 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
             }
         } // end if big result
     }    
-/*
-    if (q->relationId == 3 && cbegin->column == 4 && q->columnCount > 1 && csecond->op == 0) {
-        std::swap(*cbegin, *csecond);
-        auto& cindex = relColumns[cbegin->column].transactions;
-        auto trbuckets = cindex.buckets(v.from, v.to); 
-    for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-        auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
-        if (tplpair.first == tplpair.second) continue;
-        //cerr<< "found : " << (rp.second-rp.first) << endl;
-        //register const size_t tplsz=tplpair.second-tplpair.first;
-        auto ctpl = tplpair.first;
-        // know that all the tuples we got are in the range we want - equal_range in bucket guarantees that
-        for (const auto tple=tplpair.second; (ctpl < tple); ) { 
-            if (isTupleConflict(csecond, cend, (ctpl++)->tuple)) { return true; }
-        }
-        //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
-    } // for all buckets
-    } else {
-    for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
-        auto tplpair = cb->equal_range(cbegin->value, v.from, v.to);
-        if (tplpair.first == tplpair.second) continue;
-        //cerr<< "found : " << (rp.second-rp.first) << endl;
-        //register const size_t tplsz=tplpair.second-tplpair.first;
-        auto ctpl = tplpair.first;
-        // know that all the tuples we got are in the range we want - equal_range in bucket guarantees that
-        for (const auto tple=tplpair.second; (ctpl < tple); ) { 
-            if (isTupleConflict(csecond, cend, (ctpl++)->tuple)) { return true; }
-        }
-        //cerr<< "break: " << (tplpair.second-ctpl) << "/" << (tplpair.second-tplpair.first) << endl;  
-    } // for all buckets
-    }
-*/
     return false;
 }
 
@@ -1566,23 +1544,14 @@ static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column
     auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
     //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
     auto trbuckets = primIndex.buckets(v.from, v.to); 
-    const uint64_t rangediff = v.to - v.from;
-    
+    //const uint64_t rangediff = v.to - v.from;
     auto csecond = cbegin + 1;
-
     //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
     //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
-        for (auto ctpl=tplpair.first, tple=tplpair.second; ctpl<tple; ++ctpl) {
-            //if (ctpl->trans_id <= cmeta.to && ctpl->trans_id >= cmeta.from) {
-            if ( (uint64_t)(ctpl->trans_id - v.from) <= (rangediff)) {
-                if (isTupleConflict(csecond, cend, ctpl->tuple)) {
-                    return true;
-                }
-            }
-        }
+        if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
     } // for all buckets
 
     return false;
