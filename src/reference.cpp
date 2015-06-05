@@ -79,7 +79,6 @@
 using namespace std;
 using namespace lp;
 
-
 #define LPDEBUG  
 
 //---------------------------------------------------------------------------
@@ -372,13 +371,11 @@ static void ALWAYS_INLINE processValidationQueries(const ValidationQueries& v, R
 
     // try to put all the queries into a vector
     /*    
-          const char* qreader=v.queries;
+    const char* qreader=v.queries;
     //cerr << "\n----- val: " << v.validationId << " : " << v.from << "-" << v.to << " ------" << endl;
     for (uint32_t i=0;i<v.queryCount;++i) {
     const Query *q=reinterpret_cast<const Query*>(qreader);
-    //cerr << "\t| q: " << q->relationId << endl;
     for (size_t ci=0; ci<q->columnCount; ++ci) {
-    //cerr << q->columns[ci] << " ";
     cerr << q->columns[ci].column << " :" << q->columns[ci].op << endl;
     }
     //cerr << endl;
@@ -387,11 +384,9 @@ static void ALWAYS_INLINE processValidationQueries(const ValidationQueries& v, R
      */
 
     //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
-    //gPendingValidationsMutex.lock();
     gPendingValidations.emplace_back(v.validationId, v.from, v.to, v.queryCount, msg);    
     // update the global pending validations to reflect this new one
     ++gPVunique;
-    //gPendingValidationsMutex.unlock();
 
 #ifdef LPDEBUG
     LPTimer.validations += LPTimer.getChrono(start);
@@ -412,7 +407,6 @@ static void processFlush(const Flush& f, bool isTestdriver) {
             if (vp.first > f.validationId) break;
             if (unlikely(!isTestdriver))
                 cout << (vp.second == true ? one : zero); 
-            //cerr << (vp.second == true ? one : zero); 
             ++removed;  
         }
         if (removed > 0) {
@@ -440,14 +434,6 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
                 [](const uint64_t target, const pair<uint64_t, vector<tuple_t>>& o){ return target < o.first; })
             );
 
-    // clean the index columns
-    /*
-    auto ub = upper_bound(cRelCol.columns[0].transactions.begin(), cRelCol.columns[0].transactions.end(),
-            trans_id,
-            [](const uint64_t target, const ColumnTransaction_t& ct){ return target < ct.trans_id; });
-    size_t upto = std::distance(cRelCol.columns[0].transactions.begin(), ub);
-    */
-        
     //cerr << ri << " = " << cRelCol.columns[0].transactions.size() << " | " << cRelCol.columns[1].transactions.size() << endl;
     for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
         cRelCol.columns[ci].transactions.erase(trans_id);
@@ -528,13 +514,6 @@ void resetUpdateStats() {
     finishedF1 = 0;
 }
 
-
-
-
-
-
-
-
 //---------------------------------------------------------------------------
 /////////////////// MAIN-READING STRUCTURES ///////////////////////
 
@@ -579,9 +558,6 @@ int main(int argc, char**argv) {
     SingleTaskPool workerThreads(numOfThreads, processPendingValidationsTask);
     //SingleTaskPool workerThreads(2, processPendingValidationsTask);
     workerThreads.initThreads();
-    //SingleTaskPool workerThreads2(numOfThreads>>1, processPendingValidationsTask);
-    //SingleTaskPool workerThreads2(1, processPendingValidationsTask);
-    //workerThreads2.initThreads();
 
     cerr << "ColumnStruct: " << sizeof(ColumnStruct) << " RelTransLog: " << sizeof(RelTransLog) << " RelationStruct: " << sizeof(RelationStruct) << " CTransStruct: " << sizeof(CTransStruct) << endl;
 
@@ -649,7 +625,6 @@ int main(int argc, char**argv) {
                         cerr << "  :::: " << LPTimer << endl << "total validations: " << gTotalValidations << " trans: " << gTotalTransactions << " tuples: " << gTotalTuples << " forgets: " << totalForgets << " flushes: " << totalFlushes <<  endl; 
 #endif              
                         workerThreads.destroy();
-                        //workerThreads2.destroy();
                         delete msgReader;
                         return 0;
                     }
@@ -680,15 +655,11 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
     // Delete all indicated tuples
     for (uint32_t index=0;index!=t.deleteCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
-        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
-        // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t *ptr = new uint64_t[o.rowCount];
             for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c];
             //memcpy(ptr, o.keys, sizeof(uint64_t)*o.rowCount);
-            //gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
-            //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             gTotalTuples += o.rowCount; // contains more than the true
 #endif
@@ -701,16 +672,12 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
     for (uint32_t index=0;index!=t.insertCount;++index) {
         auto& o=*reinterpret_cast<const TransactionOperationInsert*>(reader);
         const uint32_t relCols = gSchema[o.relationId];
-        // TODO - lock here to make it to make all the deletions parallel naive locking first - 
-        // TODO try to lock with try_lock and try again at the end if some relations failed
         {// start of lock_guard
             uint64_t* tptr = new uint64_t[relCols*o.rowCount];
             uint32_t sz = relCols*o.rowCount;
             for (uint32_t c=0; c<sz; ++c) tptr[c] = o.values[c];
             //memcpy(tptr, o.values, sizeof(uint64_t)*relCols*o.rowCount);
-            //gRelTransMutex[o.relationId].lock(); 
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, false, o.rowCount, tptr);
-            //gRelTransMutex[o.relationId].unlock(); 
 #ifdef LPDEBUG
             ++gTotalTuples;
 #endif
@@ -720,7 +687,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
     }
 
     delete msg;
-
 #ifdef LPDEBUG
     LPTimer.transactions += LPTimer.getChrono(start);
 #endif
@@ -752,9 +718,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
             continue; 
         }
 
-        //cerr << "tid " << tid << " got " << ri << " = " << relTrans.size() << endl;
-        //std::sort(relTrans.begin(), relTrans.end(), TRMapPhaseByTrans);
-
         auto& relation = gRelations[ri];
         uint32_t relCols = gSchema[ri];
 
@@ -774,7 +737,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     relation.transLogTuples.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
-
                 //trb=primIndex.bucketNext(trans.trans_id);
             }
 
@@ -790,10 +752,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                         //--(*tit)->aliveTuples;
 
                         // update the relation transactions - transfer ownership of the tuple
-                        //tuple_t tpl = lb->second.second;
-                        //operations.push_back(tpl);
                         operations.push_back(lb->second.second);
-
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
 
@@ -807,10 +766,8 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 for (const uint64_t* values=trans.values,*valuesLimit=values+(trans.rowCount*relCols);values!=valuesLimit;values+=relCols) {
                     tuple_t vals = const_cast<uint64_t*>(values);
                     operations.push_back(vals);
-
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
-
                     // insert the value into the primary key index
                     //trb->insert(trans.trans_id, vals, vals[0]);
                 }
@@ -829,9 +786,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         gFR[ri].f1 = true;
         ++finishedF1; 
     } // end of all relations
-
-    // TODO - MERGE THE UPDATE INDEX - WITH UPDATE COLUMNS - TODO
-    //processUpdateIndexTask(nThreads, tid, nullptr);
 }
 
 static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
@@ -907,7 +861,6 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 */
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
-
 
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     uint64_t totalPending = gPendingValidations.size();
@@ -989,7 +942,7 @@ void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 void parallelTask1(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     processPendingIndexTask(nThreads, tid, args); // F1
     createQueryIndexTask(nThreads, tid, args);    // F3
-    processUpdateIndexTask(nThreads, tid, args);
+    processUpdateIndexTask(nThreads, tid, args);  // F2
 }
 
 ///////////////////////////////////////////////////////
@@ -1005,7 +958,7 @@ static void checkPendingValidations(ISingleTaskPool *pool, ISingleTaskPool *pool
     // trans-index & qindex
     gNextPending = 0; // F3
     gNextIndex = 0; // F1
-    gNextReqCol = 0; // - F2 
+    gNextReqCol = 0; // F2 
     pool->startSingleAll(parallelTask1); // F1 + F3
     pool->waitSingleAll(); 
 
@@ -1337,10 +1290,6 @@ static bool processQueryOther(LPValidation& v, Query *q, Column *cbegin, Column 
             cerr << "EQ == operator should not be executed here!!!!!" << endl;
             abort();
     }
-    //cerr << "\n||| Transaction tuples |||" << endl;
-    //cerr << "-- orig: " << transValues.size() << endl;
-    //cerr << ":: after 1st: " << (tupTo-tupFrom) << endl;
-    //for (auto t : transValues) cerr << t << " ";
     return false;    
 }
 
