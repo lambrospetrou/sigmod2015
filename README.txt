@@ -6,7 +6,7 @@ http://db.in.tum.de/sigmod15contest/index.html
 
 (2) Members:
 
-* Lambros Petrou | lambros.petrou@wolfson.ox.ac.uk (lambrospetrou@gmail.com), University of Oxford, UK, MSc Computer Science
+* Lambros Petrou | lambrospetrou@gmail.com, University of Oxford, UK, MSc Computer Science
 * George Koumettou | gkoume01@gmail.com, Royal Holloway University of London (RHUL), UK, MSc Information Security
 * Marios Mintzis | mariosmintzis@hotmail.com, University College London, UK, MSc Web Science and Big Data Analytics
 
