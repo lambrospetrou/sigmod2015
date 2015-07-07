@@ -368,20 +368,6 @@ static void ALWAYS_INLINE processValidationQueries(const ValidationQueries& v, R
 #endif 
     (void)tid;
 
-    // try to put all the queries into a vector
-    /*    
-    const char* qreader=v.queries;
-    //cerr << "\n----- val: " << v.validationId << " : " << v.from << "-" << v.to << " ------" << endl;
-    for (uint32_t i=0;i<v.queryCount;++i) {
-    const Query *q=reinterpret_cast<const Query*>(qreader);
-    for (size_t ci=0; ci<q->columnCount; ++ci) {
-    cerr << q->columns[ci].column << " :" << q->columns[ci].op << endl;
-    }
-    //cerr << endl;
-    qreader+=sizeof(Query)+(sizeof(Query::Column)*q->columnCount);
-    }
-     */
-
     //cerr << v.validationId << "====" << v.from << ":" << v.to << "=" << v.queryCount << endl;
     gPendingValidations.emplace_back(v.validationId, v.from, v.to, v.queryCount, msg);    
     // update the global pending validations to reflect this new one
@@ -437,16 +423,7 @@ static void ALWAYS_INLINE forgetRel(uint64_t trans_id, uint32_t ri) {
     for (uint32_t ci=0,sz=gSchema[ri]; ci<sz; ++ci) {
         cRelCol.columns[ci].transactions.erase(trans_id);
     }
-    
-    /*
     // clean the transactions log
-    auto& transLog = gRelations[i].transLog;         
-    //cerr << "size bef: " << transLog.size() << endl;
-    for (auto it = transLog.begin(), tend=transLog.end(); it!=tend && ((*it)->trans_id <= f.transactionId); ) {
-    if ((*it)->aliveTuples == 0 && (*it)->last_del_id <= f.transactionId) { it = transLog.erase(it); tend=transLog.end(); }
-    else ++it;
-    }
-     */
 }
 
 static atomic<uint64_t> gNextFRel;
@@ -458,7 +435,7 @@ void processForgetThreaded(uint32_t nThreads, uint32_t tid, void *args) {
     }
 }
 
-static void processForget(const Forget& f, ISingleTaskPool* pool) {
+static void processForget(const Forget& f, ISingleTaskPool* pool) {(void)pool;
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
 #endif
@@ -467,13 +444,10 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
        pool->startSingleAll(processForgetThreaded, (void*)&f);
        pool->waitSingleAll();
      */
-
-    (void)pool;
     // delete the transactions from the columns index
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         forgetRel(f.transactionId, i);
     }
-
 #ifdef LPDEBUG
     LPTimer.forgets += LPTimer.getChrono(start);
 #endif
@@ -482,13 +456,12 @@ static void processForget(const Forget& f, ISingleTaskPool* pool) {
 
 
 
-
-
+/**
+  * THE FOLLOWING STRUCTURE IS USED IN ORDER TO ALLOW OVERLAPPING AMONG 
+  * THE EXECUTION PHASES. 
+  * TODO refactor ? - Last minute, so just leave it here,
+  */ 
 struct FR_t{
-    //std::atomic<bool> f1;
-    //std::atomic<bool> f2;
-    //std::atomic<uint64_t> colsdone;
-    //std::atomic<uint64_t> cols;
     atomic_wrapper<bool> f1;
     atomic_wrapper<bool> f2;
     atomic_wrapper<uint64_t> colsdone;
@@ -502,9 +475,9 @@ struct FR_t{
     }
 };
 static vector<FR_t> gFR;
-std::mutex mMtxF1;
-std::condition_variable mCondF1;
-std::atomic<uint32_t> finishedF1;
+static std::mutex mMtxF1;
+static std::condition_variable mCondF1;
+static std::atomic<uint32_t> finishedF1;
 
 void resetUpdateStats() {
     for (uint32_t ri=0; ri<NUM_RELATIONS; ri++) {
