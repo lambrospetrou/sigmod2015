@@ -764,44 +764,6 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     //if (col == 0) cindex.sortFrom(transFrom->first, true);
     //else cindex.sortFrom(transFrom->first);
 }
-/*
-void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
-    (void)tid; (void)nThreads; (void)args;// to avoid unused warning
-    uint64_t totalCols = gRequiredColumns.size();
-    for (uint64_t rc = gNextReqCol++; rc < totalCols; rc=gNextReqCol++) {
-        uint32_t ri, col;
-        lp::validation::unpackRelCol(gRequiredColumns[rc], ri, col);
-        updateRelCol(tid, ri, col);
-    } // end of while columns to update     
-}
-
-static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
-#ifdef LPDEBUG
-    auto startIndex = LPTimer.getChrono();
-#endif
-    //cerr << "::: session start ::::" << endl;
-    gNextIndex = 0;
-    //processPendingIndexTask(1,0,nullptr); 
-    pool->startSingleAll(processPendingIndexTask);
-    pool->waitSingleAll();
-
-    for (uint32_t r=0; r<NUM_RELATIONS; ++r) gTransParseMapPhase[r].clear();
-#ifdef LPDEBUG
-    LPTimer.transactionsIndex += LPTimer.getChrono(startIndex);
-#endif
-
-#ifdef LPDEBUG
-    auto startUpdIndex = LPTimer.getChrono();
-#endif
-    gNextReqCol = 0;
-    //processUpdateIndexTask(1, 0, nullptr);
-    pool->startSingleAll(processUpdateIndexTask);
-    pool->waitSingleAll();
-#ifdef LPDEBUG
-    LPTimer.updateIndex += LPTimer.getChrono(startUpdIndex);
-#endif
-}
-*/
 
 /**
   * QUERY INVERTED INDEX
