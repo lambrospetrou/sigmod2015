@@ -512,13 +512,12 @@ int main(int argc, char**argv) {
         //msgReader = ReaderIOFactory::createAsync(ifs, true);
         msgReader = ReaderIOFactory::create(ifs, true);
     } else { 
-        //msgReader = ReaderIOFactory::createAsync(stdin);
-        msgReader = ReaderIOFactory::create(stdin);
+        msgReader = ReaderIOFactory::createAsync(stdin);
+        //msgReader = ReaderIOFactory::create(stdin);
         //msgReader = ReaderIOFactory::create(cin);
     }
 
     // do some initial reserves or initializations
-
     gPendingValidations.reserve(512); 
     for (uint32_t i=0; i<NUM_RELATIONS; ++i) {
         gTransParseMapPhase[i].reserve(512);
@@ -540,7 +539,7 @@ int main(int argc, char**argv) {
 #endif
 
         while (true) {
-#ifdef LPDEBUG // I put the inner timer here to avoid stalls in the msgQ
+#ifdef LPDEBUG 
             auto startInner = LPTimer.getChrono();
 #endif
             ReceivedMessage *msg = msgReader->nextMsg();
@@ -618,7 +617,6 @@ int main(int argc, char**argv) {
    }
 //static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
  */
-
 static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg) {
 #ifdef LPDEBUG
     auto start = LPTimer.getChrono();
@@ -629,7 +627,7 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
         auto& o=*reinterpret_cast<const TransactionOperationDelete*>(reader);
         {// start of lock_guard
             uint64_t *ptr = new uint64_t[o.rowCount];
-            for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c];
+            for (uint32_t c=0; c<o.rowCount; ++c) ptr[c] = o.keys[c]; // faster sometimes
             //memcpy(ptr, o.keys, sizeof(uint64_t)*o.rowCount);
             gTransParseMapPhase[o.relationId].emplace_back(t.transactionId, true, o.rowCount, ptr);
 #ifdef LPDEBUG
@@ -665,15 +663,6 @@ static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg
 }
 
 
-/*
-   struct TRMapPhase {
-   uint64_t trans_id;
-   bool isDelOp;
-   uint32_t rowCount;
-   uint64_t *values; // delete op => row keys to delete | insert => tuples
-   }
-//static unique_ptr<vector<TRMapPhase>[]> gTransParseMapPhase;
- */
 static std::atomic<uint64_t> gNextIndex;  // for the index
 static std::atomic<uint32_t> gNextReqCol; // for the update columns
 
@@ -695,10 +684,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
 
         uint64_t lastTransId = relTrans[0].trans_id;
 
-        //auto& primIndex = relation.primaryIndex;
-        //auto firstTrans = relTrans[0].trans_id;
-        //CIndex::Bucket *trb=primIndex.bucketNext(firstTrans);
-
         // for each transaction regarding this relation
         vector<tuple_t> operations;
         operations.reserve(64);
@@ -709,7 +694,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     relation.transLogTuples.emplace_back(lastTransId, operations);
                 lastTransId = trans.trans_id;
                 operations.resize(0);
-                //trb=primIndex.bucketNext(trans.trans_id);
             }
 
             if (trans.isDelOp) {
@@ -717,19 +701,10 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                 for (const uint64_t* key=trans.values,*keyLimit=key+trans.rowCount;key!=keyLimit;++key) {
                     auto lb = relation.insertedRows.find(*key);
                     if (lb != relation.insertedRows.end()) {
-                        // lb->second is a pair<uint64_t, uint64_t*> - trans_id/tuple
-                        // decrease counter of trans tuples
-                        //auto tit = lower_bound(relation.transLog.begin(), relation.transLog.end(), lb->second.first, RTLComp);
-                        //(*tit)->last_del_id = trans.trans_id;
-                        //--(*tit)->aliveTuples;
-
                         // update the relation transactions - transfer ownership of the tuple
                         operations.push_back(lb->second.second);
                         // remove the row from the relations table 
                         relation.insertedRows.erase(lb);
-
-                        // insert the value into the primary key index
-                        //trb->insert(trans.trans_id, operations.back(), operations.back()[0]);
                     }
                 }
                 delete[] trans.values;
@@ -740,8 +715,6 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
                     operations.push_back(vals);
                     // finally add the new tuple to the inserted rows of the relation
                     relation.insertedRows[values[0]]=move(make_pair(trans.trans_id, vals));
-                    // insert the value into the primary key index
-                    //trb->insert(trans.trans_id, vals, vals[0]);
                 }
                 // TODO - THIS HAS TO BE IN ORDER - each relation will have its own transaction history from now on
                 relation.transLog.emplace_back(new RelTransLog(trans.trans_id, trans.values, trans.rowCount));
@@ -752,9 +725,7 @@ void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args) {
         if (likely(!operations.empty()))
             relation.transLogTuples.emplace_back(lastTransId, move(operations));
 
-        // sort the index - HERE CAN DO - inplace merge instead
-        //primIndex.sortFrom(firstTrans);
-
+        // F1 - Phase 1 - finished for relation 'ri'
         gFR[ri].f1 = true;
         ++finishedF1; 
     } // end of all relations
@@ -778,7 +749,7 @@ static void updateRelCol(uint32_t tid, uint32_t ri, uint32_t col) { (void)tid;
     for(auto trp=transFrom; trp<tEnd; ++trp) {
         // allocate vectors for the current new transaction to put its data
         auto trans_id = trp->first;
-        CIndex::Bucket &trb = *cindex.bucketNext(trans_id, col==0);
+        CIndex::Bucket& trb = *cindex.bucketNext(trans_id, col==0);
        
         const size_t trpsz = trp->second.size();
         auto ptrs = trb.resizeAndGetPtr(trpsz);
@@ -831,9 +802,12 @@ static inline void checkPendingTransactions(ISingleTaskPool *pool) { (void)pool;
 #endif
 }
 */
+
+/**
+  * QUERY INVERTED INDEX
+  */
 static uint64_t resIndexOffset = 0;
 static std::atomic<uint64_t> gNextPending;
-
 void createQueryIndexTask(uint32_t nThreads, uint32_t tid, void *args) { (void)nThreads; (void)tid; (void)args;
     uint64_t totalPending = gPendingValidations.size();
     // get a validation ID - atomic operation
@@ -1036,6 +1010,7 @@ bool ALWAYS_INLINE isTupleRangeConflict(Tuple_t *tupFrom, Tuple_t *tupTo, PredIt
 /*
 
 // THESE FUNCTIONS IN COMMENT WERE USED BEFORE THE INDEX WAS CONVERTED TO BUCKETS
+// 2 days before the end of the contest.
 
 static bool inline isTransactionConflict(const ColumnTransaction_t& transaction, Column pFirst) {
     //cerr << pFirst << " sz: " << transValues.size() << " " << transValues[0].value << ":" << transValues.back().value <<  endl;
@@ -1311,21 +1286,16 @@ static bool processQueryEQ(LPValidation& v, Query *q, Column *cbegin, Column *ce
 }
 
 // the actual processing of a query with a predicate against primary key column
+// TODO - a special index for the primary column might did a better job here!!!
 static bool processQueryEQZero(LPValidation& v, Query *q, Column* cbegin, Column *cend) {
-    //cerr << "----- NEW VAL SESSION -----" << endl;
     auto& primIndex = gRelColumns[q->relationId].columns[0].transactions;
-    //cerr << ri << "=" << (buckets.second - buckets.first) << endl;
     auto trbuckets = primIndex.buckets(v.from, v.to); 
-    //const uint64_t rangediff = v.to - v.from;
     auto csecond = cbegin + 1;
-    //cerr << "query: " << cmeta.from << "-" << cmeta.to <<endl;
-    //cerr << "brange " << trp.first->trmin << "-" << trp.first->trmax << " & " << trp.second->trmin << "-" << trp.second->trmax << endl;
     for (auto cb=trbuckets.first, ce=trbuckets.second; cb!=ce; ++cb) {
         auto tplpair = cb->equal_range(cbegin->value);
         if (tplpair.first == tplpair.second) continue;
         if (isTupleRangeConflict(tplpair.first, tplpair.second, csecond, cend, v.from, v.to)) { return true; }
     } // for all buckets
-
     return false;
 }
 
@@ -1343,7 +1313,8 @@ static void processEqualityQueries(uint32_t tid, uint32_t ri, uint32_t ci) { (vo
         auto& cmeta = *qb++;
         const size_t resPos = cmeta.lpv->validationId - resIndexOffset;
         if (gPendingResults[resPos]) { continue; }
-        if (processFunc(*cmeta.lpv, cmeta.rq, (Column*)cmeta.rq->columns, ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount)){
+        if (processFunc(*cmeta.lpv, cmeta.rq, (Column*)cmeta.rq->columns, 
+                    ((Column*)cmeta.rq->columns)+cmeta.rq->columnCount)){
             gPendingResults[resPos] = true;
         }
     } // end of all queries
@@ -1358,7 +1329,8 @@ static bool isValidationConflict(LPValidation& v) {
         if (unlikely(rq.columnCount == 0)) { 
             //cerr << "empty: " << v.validationId << endl; 
             auto& transactionsCheck = gRelations[rq.relationId].transLogTuples;
-            auto transFromCheck = std::lower_bound(transactionsCheck.begin(), transactionsCheck.end(), v.from, TransLogComp);
+            auto transFromCheck = std::lower_bound(transactionsCheck.begin(), 
+                    transactionsCheck.end(), v.from, TransLogComp);
             if (transFromCheck == transactionsCheck.end() || transFromCheck->first > v.to) {
                 // no transactions exist for this query
                 continue;
@@ -1373,7 +1345,7 @@ static bool isValidationConflict(LPValidation& v) {
         if (processQueryOther(v, &rq, cbegin, cend)) { return true; }
         else continue;
 /*
-        // --- PROCESSING BEFORE THE BUCKETTED INDEX
+        // --- PROCESSING BEFORE THE BUCKETTED INDEX --- 2 DAYS before the end
 
         auto pFirst = *reinterpret_cast<Query::Column*>(rq.columns);
         // just find the range of transactions we want in this relation
@@ -1441,9 +1413,14 @@ void processEqualityQ(uint32_t nThreads, uint32_t tid, void *args) {
     LPTimer.validationsProcessingIndex += LPTimer.getChrono(qproc);
 #endif
 }
+
+/**
+  * MAIN task executed by threadpool
+  */
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) {
     (void)tid; (void)nThreads; (void)args;// to avoid unused warning
 
+    // process all the queries with == predicates
     processEqualityQ(nThreads, tid, args);
 
     uint64_t totalPending = gPendingValidations.size();
@@ -1454,7 +1431,6 @@ void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args) 
         auto& atoRes = gPendingResults[resPos];
         if (atoRes) continue;
         if(isValidationConflict(v)) { atoRes = true; }
-        //atoRes = isValidationConflict(v);
     } // while true take more validations 
 }
 
