@@ -323,7 +323,6 @@ static void checkPendingValidations(ISingleTaskPool*, ISingleTaskPool*);
 void processPendingValidationsTask(uint32_t nThreads, uint32_t tid, void *args);
 
 static void processTransactionMessage(const Transaction& t, ReceivedMessage *msg); 
-//static inline void checkPendingTransactions(ISingleTaskPool *pool);
 void processPendingIndexTask(uint32_t nThreads, uint32_t tid, void *args);
 
 void processUpdateIndexTask(uint32_t nThreads, uint32_t tid, void *args);
