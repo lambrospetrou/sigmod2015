@@ -167,11 +167,6 @@ namespace lp {
             }
     }
 
-
-
-
-
-
     inline void lp_spin_sleep(std::function<bool ()> pred) {
         do { std::this_thread::yield(); } while (!pred());
     }

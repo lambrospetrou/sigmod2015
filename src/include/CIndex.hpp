@@ -11,6 +11,12 @@
 
 #include <iostream>
 
+/**
+  * Our custom column-based index for the columns.
+  * Each column has buckets which contain transactions and the buckets are sorted
+  * among themselves such as the buckets containing the first transactions are first.
+  * Inside each bucket all the tuple values are sorted by value and then by transaction Id.
+  */
 class CIndex {
 
     template<typename T>
@@ -82,17 +88,6 @@ class CIndex {
                 meta.reserve(BUCKET_TUPLES_LIMIT);
             }
 
-            //void ALWAYS_INLINE notifyInsertBatch(size_t sz) { values.reserve(values.size()+sz); meta.reserve(meta.size()+sz); }
-           
-            // return a pointer to the next empty position of those allocated now
-            /*
-            std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
-                size_t oldsz = values.size();
-                values.resize(values.size()+sz); 
-                meta.resize(meta.size()+sz); 
-                return {values.data()+oldsz, meta.data()+oldsz};
-            }
-            */
             std::pair<uint64_t*, Meta_t*> ALWAYS_INLINE resizeAndGetPtr(size_t sz) { 
                 const size_t oldsz = meta.size();
                 //meta.reserve(oldsz+sz);

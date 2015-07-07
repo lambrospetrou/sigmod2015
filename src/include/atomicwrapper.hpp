@@ -3,6 +3,9 @@
 
 #include <atomic>
 
+/**
+  * Helper class that will allow us to assign atomics.
+  */
 template <typename T>
 class atomic_wrapper {
     private:

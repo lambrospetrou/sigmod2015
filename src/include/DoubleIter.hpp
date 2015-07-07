@@ -101,7 +101,7 @@ class SIter {
         {
             return aIter < other.aIter; // don't need to compare bIter - shall be in sync
         }
-        // I bet you don't need pointer operator -> ()
+        // don't need pointer operator -> ()
         typedef std::random_access_iterator_tag iterator_category;
         typedef std::ptrdiff_t difference_type;
         typedef reference pointer;

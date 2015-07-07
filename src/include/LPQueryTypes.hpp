@@ -104,7 +104,6 @@ namespace lp {
         uint32_t colCountUniq;
         //std::vector<Query::Column> predicates;
         /// States whether this query can ever be true - will be set to false later by our filtering
-        //bool satisfiable;
 
         LPQuery() : relationId(-1), columnCount(0), rawQuery(nullptr), colCountUniq(0) {}
         explicit LPQuery(Query *q) : relationId(q->relationId), columnCount(q->columnCount), rawQuery(q), colCountUniq(q->columnCount) {
@@ -137,7 +136,6 @@ namespace lp {
     struct ReceivedMessage; // forward declaration - declared in the ReaderIO header
 
     struct LPValidation {
-        //std::vector<LPQuery> queries;
         std::vector<Query*> queries;
         ReceivedMessage *rawMsg;
         
@@ -163,7 +161,8 @@ namespace lp {
         uint32_t ALWAYS_INLINE preprocess(Query& rq) {
             if (!rq.columnCount) return 0;
             std::sort(rq.columns, rq.columns+rq.columnCount, ColumnCompCol);
-            rq.columnCount = std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
+            rq.columnCount = std::distance(rq.columns, 
+                    std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
             return rq.columnCount;
             //return std::distance(rq.columns, std::unique(rq.columns, rq.columns+rq.columnCount, ColumnCompColEq));
         }
@@ -345,50 +344,6 @@ namespace lp {
             //std::cerr << std::endl;
             return true;
         }
-        /*
-        bool inline satisfiable(LPQuery& q) { 
-            return satisfiable(q.rawQuery, q.colCountUniq);
-        }
-        */
-/*
-        bool parse(const Query *q, uint32_t relCols, LPQuery *nQ, uint32_t tid = 0) {
-            (void)relCols; (void)tid;
-            Column * qc = const_cast<Column*>(q->columns);
-            
-            //   std::cerr << std::endl;
-            //   for (auto c=q->columns, cLimit=c+q->columnCount; c!=cLimit; ++c) {
-            //   std::cerr << c->column << ":" << c->op << ":" << c->value << " ";
-               }
-             
-            //std::vector<Column> preds(q->columns, q->columns+q->columnCount);
-
-            // sort the columns by column first in order to remove uniques and check satisfiability
-            std::sort(qc, qc+q->columnCount, ColumnCompCol);
-            auto colEnd = std::unique(qc, qc+q->columnCount, ColumnCompColEq);
-            auto colBegin = qc;
-            uint64_t uniqSz = std::distance(colBegin, colEnd);
-
-            if (isQueryUnsolvable(colBegin, colEnd)) {
-                // the query is not-satisfiable so it should be skipped-pruned
-                nQ->columnCount = 0;
-                return false;
-            }
-
-            // the query is satisfiable so insert it into the predicates of the passed in LPQuery
-            std::partial_sort(colBegin, colBegin+std::min(uniqSz, (uint64_t)2), colEnd, ColumnCompQuality);
-            //nQ->predicates.insert(nQ->predicates.begin(), colBegin, colEnd);
-            nQ->predicates.reserve(uniqSz);
-            nQ->predicates.resize(uniqSz);
-            memcpy(nQ->predicates.data(),colBegin, sizeof(Column)*uniqSz);
-            nQ->columnCount = uniqSz;
-            //std::cerr << "unique: " << uend-q->columns << std::endl; 
-
-            //for (auto c: preds) std::cerr << c.column << ":" << c.op << ":" << c.value << " ";
-            return true;
-        }
-*/
-        
-
 
     }
 
